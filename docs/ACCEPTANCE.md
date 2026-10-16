@@ -64,7 +64,6 @@
 
 | 项 | 现状 | 接手 |
 |---|---|---|
-| `caps` 诚实性（不谎报可用 + 枚举 15 工具） | 当前硬编码 available | 议题 [#68](https://github.com/Thatgfsj/webctl/issues/68)，归 PR 11，PR 14 核验 |
 | 代理 DX：无 `NO_PROXY` 支持、无 `--no-proxy` | PR 10 审阅结论里记录为非阻塞 | 待开议题 |
 | POLITE-06 缺仓库内 e2e 用例 | PR 08 复审建议 | 待开议题 |
 | 扫描器残余绕过（`Command :: new(`、`C::new(` 别名/分组导入） | README 已如实记录 | 低优先 |
@@ -73,7 +72,10 @@
 | `PathError::Io` 被映射成 `UnsafePath(Blocked)` | PR 05 复审：`sessions` 为普通文件时 `load`=Blocked 而 `list`=Internal，分类不一致（均 fail-closed） | 待开议题，低优先 |
 | 路径校验与 IO 之间的 TOCTOU 窗口（无 `openat`/`O_NOFOLLOW`） | PR 05 复审：需同 UID 且在 0700 目录下并发篡改才可利用，非实际边界破坏 | 记录在案，不承诺修复 |
 | extract 的 `links`/`tables`/`forms`/`form_by_index` 未纳入 `max_elapsed_ms` 兜底 | PR #71 复审登记：`links` 只在过滤循环查预算（解析耗时不计入、零链接时循环体不执行）；`tables`/`forms`/`form_by_index` 完全不读取预算 | 建议随 #73（PR 09 会重写 `links`/`structured`）或后续议题一并收口 |
-| `parse_14_budget_on_100kb` 负载敏感（高负载下偶发超时） | PR 09 实现者报告；单跑/复跑均绿 | 按 #74/#75 的做法改为**不依赖绝对墙钟**的断言（或明确其 lane） |
+| MCP 路径的 JS 降级传播未接线 | PR 11 留了显式交接点（常量 `DEGRADE_HANDOFF_PENDING_PR09` + `#[ignore]` 用例，主体是 panic 哨兵）；PR 09 已合并，条件已满足 | 议题 [#82](https://github.com/Thatgfsj/webctl/issues/82) |
+| MCP 侧 SEC-09 的 `redact_fetched` 接入未做 | PR 12 在 `crates/webctl-mcp/src/lib.rs` 留 TODO；PR 11 自身只对敏感头/cookie 值脱敏 | 建议随 #82 一并补，并加 MCP 侧断言 |
+| `download` / `doc_text` 的 URL 路径仅支持文本类响应 | PR 02 的 `Fetched.content` 不暴露二进制原始字节；二进制返回 `UNSUPPORTED` 降级信封 | 需在 webctl-web 加原始字节接口（PR 11 正文已登记） |
+| 解析/抽取存在性能盲区 `[~5s, 30s)` | #80 把绝对墙钟改成 30s 挂死守卫后该区间无自动门禁（TESTING §1 的 L2 是发布物体积，不含解析性能） | 议题 [#83](https://github.com/Thatgfsj/webctl/issues/83)：建解析/抽取基准 |
 
 ## 7. 验收记录
 
@@ -94,3 +96,11 @@
   - `doc_09_acceptance_after_pr03` 去掉 `#[ignore]` 后**通过**（原过渡用例里的「纯文本直通」断言移入其中，覆盖不减）。
 
   ⇒ §6 中该条延期登记**已注销**。
+
+- 2026-10-17（Lead）**收尾验收走查（main 上 PR 03–14 全合并后）**：
+  - **L0 离线通道**：`cargo test --features offline` → **347 passed / 0 failed / 3 ignored**；
+  - **L1 真站锚点**（`WEBCTL_REAL=1 crates/webctl-web/tests/e2e/run-real.sh`，EXIT=0）：静态版取到 **10 条**；JS 版返回**非 OK 的降级码且 `degraded_from` 非空**；
+  - **工具面**：`webctl mcp --list-tools` → **恰好 15 个**且与 §3.7 逐字同序；`webctl caps --json` → 5 个域 available 且**枚举 15 个工具**；`scripts/check-skill-tools.sh` → 「SKILL.md 与 tools/list 一致（15 个工具）」；
+  - **硬约束全仓审计**：`crates/*/src/` 内 `Command::new`/`.spawn(` **0**、unsafe 实质命中 **0**、浏览器/JS 引擎依赖 **0**、错误码 **11** 个；
+  - **收口**：DOC-09（#59）与 caps 诚实性（#68）已关闭；state_02/state_03 计时 flake 修复（#85 → #86）。
+  - 尚待：**release E2E**（打 tag → 下载资产 → 干净环境运行）与 musl 体积回填，见 §4。
