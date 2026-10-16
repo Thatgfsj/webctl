@@ -4,11 +4,13 @@
 //! 硬约束：零外部进程、零浏览器（PLAN v0.4 §3.1）。
 
 pub mod content_type;
+pub mod politeness;
 pub mod encoding;
 pub mod transport;
 
 pub use content_type::ContentKind;
 pub use encoding::{CharsetSource, DecodedText, decode_body};
+pub use politeness::{PoliteFetched, PoliteFetcher, PolitenessConfig, RobotsOutcome};
 pub use transport::{
     Body, CookieJar, DEFAULT_MAX_BODY_BYTES, DEFAULT_MAX_REDIRECTS, DEFAULT_TIMEOUT, FetchOptions,
     Fetched, RedirectHop, StoredCookie, fetch,

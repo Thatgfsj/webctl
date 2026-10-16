@@ -139,7 +139,35 @@ pub async fn fetch(target: &str, options: &FetchOptions) -> Envelope<Fetched> {
         Ok(url) => url,
         Err(message) => return Envelope::fail(ErrorCode::BadUrl, message, elapsed_ms(started)),
     };
-    match run(url, options).await {
+    match run(url, options, true).await {
+        Ok(fetched) => {
+            if fetched.content.truncated {
+                Envelope::degraded(
+                    fetched,
+                    "response-body-truncated",
+                    ErrorCode::Limit,
+                    elapsed_ms(started),
+                )
+            } else {
+                Envelope::ok(fetched, Trust::UntrustedPageContent, elapsed_ms(started))
+            }
+        }
+        Err(error) => Envelope::fail(error.code, error.message, elapsed_ms(started)),
+    }
+}
+
+/// 与 [`fetch`] 相同，但**不把 4xx/5xx 当作失败**：状态码、响应头与响应体原样返回。
+///
+/// 存在的理由：上层（礼貌层）需要读 `Retry-After` 之类的**错误响应头**来做退避与拦截判定，
+/// 而失败信封按不变量不允许携带 `data`。非法 URL 仍返回 `BAD_URL`，网络/超时/重定向错误
+/// 仍返回对应错误码——只有"HTTP 状态码本身"不再被折叠成 `BLOCKED`。
+pub async fn fetch_raw(target: &str, options: &FetchOptions) -> Envelope<Fetched> {
+    let started = Instant::now();
+    let url = match parse_target(target) {
+        Ok(url) => url,
+        Err(message) => return Envelope::fail(ErrorCode::BadUrl, message, elapsed_ms(started)),
+    };
+    match run(url, options, false).await {
         Ok(fetched) => {
             if fetched.content.truncated {
                 Envelope::degraded(
@@ -166,7 +194,11 @@ fn parse_target(target: &str) -> Result<Url, String> {
     }
 }
 
-async fn run(start: Url, options: &FetchOptions) -> Result<Fetched, TransportError> {
+async fn run(
+    start: Url,
+    options: &FetchOptions,
+    http_errors_are_failure: bool,
+) -> Result<Fetched, TransportError> {
     let started = Instant::now();
     let client = build_client(options)?;
     let mut current = start;
@@ -249,7 +281,7 @@ async fn run(start: Url, options: &FetchOptions) -> Result<Fetched, TransportErr
             continue;
         }
 
-        if status.is_client_error() || status.is_server_error() {
+        if http_errors_are_failure && (status.is_client_error() || status.is_server_error()) {
             // HTTP-14：4xx/5xx 归类为 BLOCKED（拦截/拒绝），不与 PARSE 混淆。
             return Err(TransportError::new(
                 ErrorCode::Blocked,
