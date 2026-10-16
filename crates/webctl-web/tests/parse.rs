@@ -8,6 +8,7 @@ use std::time::Instant;
 
 use webctl_core::{Envelope, ErrorCode, Trust};
 use webctl_web::parse::html::{render_markdown, render_plain_text};
+use webctl_web::parse::structured::{MAX_XML_DEPTH, max_xml_depth};
 use webctl_web::parse::{
     Parsed, extract_article, extract_article_fallback, extract_forms, extract_links,
     extract_tables, parse_body, parse_json, parse_xml, select,
@@ -490,8 +491,103 @@ fn parse_16_deep_nesting() {
     let env = extract_article(&deep, None);
     assert_valid(&env);
     assert!(env.ok, "{}", env.error);
+    assert_eq!(env.code, ErrorCode::Degraded);
+    assert_eq!(env.meta.degraded_from.as_deref(), Some("dom_smoothie"));
     let article = env.data.as_ref().expect("article");
     assert!(article.text.contains("DEEP_TEXT"), "{}", article.text);
+}
+
+/// PARSE-16（XML 路径）：≥1000 层嵌套不栈溢出——线性深度预检在进入
+/// roxmltree 递归 tokenizer 之前就拒绝，返回明确错误码而非进程 abort。
+#[test]
+fn parse_16_deep_xml_nesting_is_rejected() {
+    let depth = 1000;
+    let deep = format!("{}{}", "<a>".repeat(depth), "</a>".repeat(depth));
+    assert_eq!(deep.len(), depth * 7);
+
+    let env = parse_xml(&deep);
+    assert_valid(&env);
+    assert!(!env.ok, "超深 XML 必须显式失败");
+    assert_eq!(env.code, ErrorCode::Parse);
+    assert!(env.data.is_none());
+    assert!(
+        env.error.contains("nesting depth"),
+        "错误应说明深度拒绝：{}",
+        env.error
+    );
+
+    // 路由层同样拿到 PARSE，证明预检在解析入口处生效。
+    let routed = parse_body(&text_body(ContentKind::Xml, &deep), None);
+    assert_valid(&routed);
+    assert!(!routed.ok);
+    assert_eq!(routed.code, ErrorCode::Parse);
+}
+
+/// PARSE-16（XML 边界）：100 层正常解析；阈值内可解析；阈值外与 130 层拒绝。
+#[test]
+fn parse_16_xml_depth_boundary() {
+    let parse_at = |depth: usize| {
+        let xml = format!("{}{}", "<a>".repeat(depth), "</a>".repeat(depth));
+        parse_xml(&xml)
+    };
+
+    let shallow = parse_at(100);
+    assert_valid(&shallow);
+    assert!(shallow.ok, "{}", shallow.error);
+    assert_eq!(
+        shallow.data.as_ref().expect("xml").root.as_deref(),
+        Some("a")
+    );
+
+    let at_limit = parse_at(MAX_XML_DEPTH);
+    assert_valid(&at_limit);
+    assert!(
+        at_limit.ok,
+        "阈值 {} 层应当可解析：{}",
+        MAX_XML_DEPTH, at_limit.error
+    );
+
+    let over_limit = parse_at(MAX_XML_DEPTH + 1);
+    assert_valid(&over_limit);
+    assert!(!over_limit.ok);
+    assert_eq!(over_limit.code, ErrorCode::Parse);
+    assert!(
+        over_limit.error.contains("nesting depth"),
+        "{}",
+        over_limit.error
+    );
+
+    let rejected = parse_at(130);
+    assert_valid(&rejected);
+    assert!(!rejected.ok);
+    assert_eq!(rejected.code, ErrorCode::Parse);
+}
+
+/// 深度预检是线性的字节扫描，必须忽略注释 / CDATA / 处理指令 / 属性引号里
+/// 的 `<`——草率正则匹配会在这里误判。
+#[test]
+fn parse_16_xml_depth_precheck_ignores_markup_noise() {
+    let noise = "<n>".repeat(1000);
+
+    // 属性值里的 `<`（XML 本身非法）与注释 / CDATA / PI 内的假标签都不计数。
+    let scan_only =
+        format!("<root a=\"{noise}\"><!--{noise}--><![CDATA[{noise}]]><?pi {noise}?><child/>");
+    assert_eq!(max_xml_depth(&scan_only), 1, "噪声被误判为嵌套");
+
+    // 合法文档：噪声同样不触发深度拒绝，且能正常解析。
+    let document =
+        format!("<root><!--{noise}--><![CDATA[{noise}]]><?pi {noise}?><child>ok</child></root>");
+    assert_eq!(max_xml_depth(&document), 2);
+    let env = parse_xml(&document);
+    assert_valid(&env);
+    assert!(env.ok, "噪声文档被误拒绝：{}", env.error);
+    let value = &env.data.as_ref().expect("xml").value;
+    assert_eq!(value["tag"], "root");
+    let children = value["children"].as_array().expect("children");
+    assert!(
+        children.iter().any(|child| child["tag"] == "child"),
+        "{value}"
+    );
 }
 
 /// 回退路径是显式降级：ok=true 但 code=DEGRADED 且 degraded_from 非空。
