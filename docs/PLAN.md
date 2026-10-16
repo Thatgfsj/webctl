@@ -219,6 +219,41 @@ webctl/
 | 13 | 测试基建：fixture 站、mock HTTP、golden、离线 lane | 700 | 01 | 无网络 CI 下 L0 用例可跑 |
 | 14 | 打包发布：cargo-dist、musl 静态、三平台、双语 README | 500 | 全 | Release 资产下载即用；基线防回归 |
 
+### 5.2.1 交付记录（滚动更新）
+
+> 依据：`gh pr list --state merged` 的真实 merge sha（squash 提交）+ 各 PR 的**独立审阅**结论。
+> 最后更新：2026-10-16（合并 PR 13 后）。**"已合并"的含义是：门禁三平台 CI 绿 + 独立审阅者复核通过并合并。**
+
+| PR | 议题 | PR | 状态 | merge sha | 备注 |
+|---|---|---|---|---|---|
+| 01 | — | [#40](https://github.com/Thatgfsj/webctl/pull/40) | 已合并 | `f669365` | 骨架 + 信封/错误码 + caps + CI |
+| 02 | — | [#44](https://github.com/Thatgfsj/webctl/pull/44) | 已合并 | `45aa932` | 取回层：wreq/重定向链/cookie/编码/内容类型 |
+| 03 | [#3](https://github.com/Thatgfsj/webctl/issues/3) | [#54](https://github.com/Thatgfsj/webctl/pull/54) | **返工中** | — | XML 深嵌套栈溢出已修并被复审确认；但 PR 与 main 冲突（CI 不触发）且 rebase 后 `ContentKind::Text` 未覆盖 |
+| 04 | [#4](https://github.com/Thatgfsj/webctl/issues/4) | [#50](https://github.com/Thatgfsj/webctl/pull/50) | 已合并 | `7e0480f` | 会话引擎（33 用例）；首轮被否后补 SESS-15/FORM-13…19 |
+| 05 | [#34](https://github.com/Thatgfsj/webctl/issues/34) | [#63](https://github.com/Thatgfsj/webctl/pull/63) | 审阅中 | — | state dir 单一入口 / 0700·0600 / flock / TTL / 路径越界防护 |
+| 06 | [#35](https://github.com/Thatgfsj/webctl/issues/35) | — | 未开工 | — | 依赖 03 |
+| 07 | [#36](https://github.com/Thatgfsj/webctl/issues/36) | [#49](https://github.com/Thatgfsj/webctl/pull/49) | 已合并 | `121d423` | PDF 文本层 + `json_query`；DOC-09 交接见 [#59](https://github.com/Thatgfsj/webctl/issues/59) |
+| 08 | [#37](https://github.com/Thatgfsj/webctl/issues/37) | [#51](https://github.com/Thatgfsj/webctl/pull/51) | 已合并 | `2a211d4` | 礼貌层；首轮被否（HostGate 排队失效 + robots 两处）后修复 |
+| 09 | [#38](https://github.com/Thatgfsj/webctl/issues/38) | — | 未开工 | — | 依赖 06 |
+| 10 | [#39](https://github.com/Thatgfsj/webctl/issues/39) | [#60](https://github.com/Thatgfsj/webctl/pull/60) | 已合并 | `39cf08f` | CLI 与配置；审阅者 38/38 独立探针 |
+| 11 | [#19](https://github.com/Thatgfsj/webctl/issues/19) | — | 未开工 | — | 依赖 09、10 |
+| 12 | [#21](https://github.com/Thatgfsj/webctl/issues/21) | — | 未开工 | — | 依赖 11 |
+| 13 | [#22](https://github.com/Thatgfsj/webctl/issues/22) | [#55](https://github.com/Thatgfsj/webctl/pull/55) | 已合并 | `e899c2f` | 测试基建；合并后暴露扫描器误报 → [#62](https://github.com/Thatgfsj/webctl/issues/62)/[#64](https://github.com/Thatgfsj/webctl/pull/64) |
+| 14 | [#23](https://github.com/Thatgfsj/webctl/issues/23) | — | 未开工 | — | 依赖 11、12、13 |
+
+计划外但已合并的配套变更：
+
+| PR | 内容 | merge sha |
+|---|---|---|
+| [#53](https://github.com/Thatgfsj/webctl/pull/53) | `.gitattributes`：测试 fixture 逐字节保真（修 Windows CRLF 改写 PDF） | `6184419` |
+| [#57](https://github.com/Thatgfsj/webctl/pull/57) | 旧仓迁移映射表（`docs/MIGRATION.md`） | `7f9f76a` |
+| [#58](https://github.com/Thatgfsj/webctl/pull/58) / [#61](https://github.com/Thatgfsj/webctl/pull/61) | 内容类型分支文档同步 / TESTING §6 用例登记表回填 | `f115201` / `4c958ea` |
+| [#64](https://github.com/Thatgfsj/webctl/pull/64) | 修扫描器两处误报（恢复 main 绿） | 审阅中 |
+
+**合并后 main 的本地复核**（Lead 每次合并后执行，因为"各 PR 分支绿 ≠ 合并后绿"）：
+`cargo fmt --check` 通过、`clippy -D warnings` 0 问题、16 个测试套件 / 216 用例全绿、
+`cargo test --features offline` 全绿。CI 三平台（ubuntu/macos/windows）绿。
+
 ### 5.3 验收锚点（v0.4 重定）
 
 v0.3 的锚点（JS 页必须拿到 10 条）**作废**。v0.4 的锚点：
