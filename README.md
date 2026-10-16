@@ -20,12 +20,12 @@
 
 | 项 | 值 |
 |---|---|
-| 阶段 | P0 进行中：骨架、取回、解析、会话、状态、文档/数据、礼貌限速、CLI 已合并；抽取（PR 06）、降级（PR 09）、MCP（PR 11）、安全（PR 12）与发布（PR 14）推进中 |
+| 阶段 | **P0 已完成**：PLAN §5.2 的 PR 03–14 全部合并（真实 merge sha 见 [PLAN §5.2.1](docs/PLAN.md)）；cargo-dist 三平台发布流水线就绪 |
 | 发布 | **无**：尚无 tag / release；发布流水线已就位（[docs/RELEASE.md](docs/RELEASE.md)），资产一致性待首个 release 核验（PKG-06/07） |
 | 计划文档 | [docs/PLAN.md](docs/PLAN.md)（**v0.4**，含 2026-10-16 的方向变更） |
 | 事实依据 | [docs/SURVEY.md](docs/SURVEY.md)（本机实测 + 公开仓库核对；其中 CDP 部分已成历史记录） |
 | 形态 | Rust workspace，4 个 crate，单个静态二进制 |
-| 接口 | CLI（当前 `caps` / `fetch` / `config` 三个子命令）+ MCP server（`mcp__webctl__*`，由 PR 11 落地） |
+| 接口 | CLI（`caps` / `fetch` / `config` / `cookies` / `mcp`）+ MCP server（`mcp__webctl__*`，15 个工具） |
 | 外部依赖 | **运行时零外部进程、零浏览器**；不调用 `curl`/`jq`/`pdftotext` 等系统命令 |
 | 发布物 | cargo-dist 生成的三平台压缩包 + shell/PowerShell 安装器（[清单](docs/RELEASE.md)）；**当前尚未发布** |
 | 前身 | [playwright-crawler-helper](https://github.com/Thatgfsj-easyRep/playwright-crawler-helper)（Python + Playwright，不再兼容维护） |
@@ -52,7 +52,7 @@
 `session` / `cookies` / `json_query` / `doc_text` / `download` / `robots` / `caps`。
 **CLI 子命令**：`caps` / `fetch` / `config` / `cookies` / `mcp`；15 个工具由 MCP 工具面同时暴露（`webctl mcp --list-tools`）。
 
-<!-- 待 #68 / PR 11 合并后由 caps --json 回填：以 webctl caps --json 的真实输出（枚举 15 个工具 + 诚实可用性）替换本节的"结构 + 已实现部分"，并与 PLAN §3.7 逐项对照。 -->
+<!-- 已回填（#68 已关闭）：`webctl caps --json` 枚举 15 个工具并逐项给出可用性与原因；能力表与 PLAN §3.7 一致。 -->
 
 ## 它不做什么（诚实清单）
 
@@ -110,7 +110,7 @@ webctl --config ./webctl.toml fetch https://example.com/
 webctl --offline caps
 ~~~
 
-当前子命令只有 `caps` / `fetch` / `config`；环境变量清单、配置文件格式与完整退出码表见 [docs/CONFIGURATION.md](docs/CONFIGURATION.md)。
+子命令：`caps` / `fetch` / `config` / `cookies` / `mcp`；环境变量清单、配置文件格式与完整退出码表见 [docs/CONFIGURATION.md](docs/CONFIGURATION.md)。
 
 ## 发布与体积基线
 
@@ -127,7 +127,7 @@ crates/
 ├─ webctl/        # bin：CLI 入口 + MCP 入口（feature 切换）
 ├─ webctl-core/   # envelope / 错误码 / 配置 / 能力自检 / 会话状态 / 安全脱敏
 ├─ webctl-web/    # 取回 + 解析 + 会话 + 文档与数据（全部内置）
-└─ webctl-mcp/    # MCP server + 工具 schema + SKILL.md（PR 11；当前为骨架）
+└─ webctl-mcp/    # MCP server + 15 工具 schema + SKILL.md（PR 11）
 ~~~
 
 拆分纪律：**只有变更来源/节奏不同、且依赖方向单向无环时才拆 crate**；其余同一 crate 内用目录分隔。
@@ -152,8 +152,8 @@ crates/
 
 - **Status:** pre-release. There are no tags or releases yet, so no install command is advertised here. The release pipeline (cargo-dist, Linux/macOS/Windows + static musl) is in place — see [docs/RELEASE.md](docs/RELEASE.md); build from source in the meantime.
 - **Runtime:** zero subprocesses, zero browser, zero JS execution. JS-heavy pages degrade explicitly to `DEGRADED`/`UNSUPPORTED` instead of silently returning "success with 0 results".
-- **Capabilities shipped so far:** fetch (PR 02/08), HTML parsing (PR 03), session/form engine (PR 04/05), PDF & JSON data (PR 07), CLI and config (PR 10). Extraction, MCP, and security hardening are still in progress; the README table above is the source of truth for status.
-- **Commands available today:** `webctl caps`, `webctl fetch <url>`, `webctl config`. The 15-tool surface (MCP) lands with PR 11.
+- **Capabilities shipped (PR 03–14 all merged):** fetch (PR 02/08), parsing (PR 03), extraction (PR 06), document/data (PR 07), politeness (PR 08), degradation semantics (PR 09), CLI and config (PR 10), MCP server with 15 tools (PR 11), security hardening (PR 12), packaging (PR 14). The README table above is the source of truth.
+- **Commands available today:** `webctl caps`, `webctl fetch <url>`, `webctl config`, `webctl cookies`, `webctl mcp` (the 15-tool surface).
 - **Build:** `cargo build --release` (requires cmake, a C/C++ toolchain, and libclang at build time only). Rust 1.98.1, pinned in `rust-toolchain.toml`.
 - **Docs:** [PLAN](docs/PLAN.md) · [RELEASE](docs/RELEASE.md) · [TESTING](docs/TESTING.md) · [CONTRIBUTING](CONTRIBUTING.md).
 - **License:** MIT.

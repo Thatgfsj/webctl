@@ -72,7 +72,6 @@
 | `PathError::Io` 被映射成 `UnsafePath(Blocked)` | PR 05 复审：`sessions` 为普通文件时 `load`=Blocked 而 `list`=Internal，分类不一致（均 fail-closed） | 待开议题，低优先 |
 | 路径校验与 IO 之间的 TOCTOU 窗口（无 `openat`/`O_NOFOLLOW`） | PR 05 复审：需同 UID 且在 0700 目录下并发篡改才可利用，非实际边界破坏 | 记录在案，不承诺修复 |
 | extract 的 `links`/`tables`/`forms`/`form_by_index` 未纳入 `max_elapsed_ms` 兜底 | PR #71 复审登记：`links` 只在过滤循环查预算（解析耗时不计入、零链接时循环体不执行）；`tables`/`forms`/`form_by_index` 完全不读取预算 | 建议随 #73（PR 09 会重写 `links`/`structured`）或后续议题一并收口 |
-
 | MCP 路径的 JS 降级传播未接线 | PR 11 留了显式交接点（常量 `DEGRADE_HANDOFF_PENDING_PR09` + `#[ignore]` 用例，主体是 panic 哨兵）；PR 09 已合并，条件已满足 | 议题 [#82](https://github.com/Thatgfsj/webctl/issues/82) |
 | MCP 侧 SEC-09 的 `redact_fetched` 接入未做 | PR 12 在 `crates/webctl-mcp/src/lib.rs` 留 TODO；PR 11 自身只对敏感头/cookie 值脱敏 | 建议随 #82 一并补，并加 MCP 侧断言 |
 | `download` / `doc_text` 的 URL 路径仅支持文本类响应 | PR 02 的 `Fetched.content` 不暴露二进制原始字节；二进制返回 `UNSUPPORTED` 降级信封 | 需在 webctl-web 加原始字节接口（PR 11 正文已登记） |
