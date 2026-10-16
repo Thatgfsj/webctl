@@ -48,7 +48,7 @@
 
 - 范围：`crates/` 下全部 `.rs`（含 `src/`）；
 - 先剥离注释，避免文档注释里的字面量自命中；
-- 匹配 `process::Command` / `Command::new(` / `.spawn(`，保守起见宁可多报；
+- 匹配 `Command::new(` 与 `.spawn(`（真正的调用点）；`use std::process::Command;` 这类纯导入不算违规（见下方 2026-10-16 修订）；
 - 扫描器自身文件排除。
 
 ### 2026-10-16 修订（修两处真实误报）
@@ -66,6 +66,8 @@
   不是"外部进程"；产品源码（`src/`）里的调用点照常报违规。
 - **成对护栏**：`scanners_detect_planted_violations`（该报的必报）与
   `scanner_does_not_flag_own_binary_or_loopback_userinfo`（该放行的不误报）。
+- **已修**：IPv4 回环不再用 `starts_with("127.")` 前缀匹配（那会放行 `127.0.0.1.evil.com` 这类真域名），
+  改为解析为 `Ipv4Addr` 后判 `is_loopback()`。
 - 已知残余绕过（当前仓库不出现，记录在案）：`use std::process::{Command as C}; C::new(` 这类
   别名/分组导入、以及 `::` 之间插入空格，字面匹配抓不到。
 
