@@ -12,7 +12,7 @@ pub mod error;
 pub mod security;
 pub mod state;
 
-pub use caps::{Capability, CapabilityDomain, CapabilityState, CapsReport};
+pub use caps::{Capability, CapabilityDomain, CapabilityState, CapsReport, ToolCapability};
 pub use config::{
     Config, ConfigError, ConfigLayer, ENV_VARS, OutputFormat, default_config_path,
     load_config_file, redact_url_userinfo, resolve,
