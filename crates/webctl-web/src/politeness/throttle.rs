@@ -114,7 +114,10 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     /// POLITE-01 / POLITE-02：同主机并发 ≤ 2，且请求间隔 ≥ min_interval。
-    #[tokio::test]
+    // 虚拟时钟：这些用例断言的是"时间间隔"，用真实时钟会在慢/负载高的 CI 上抖动
+    // （windows 实测 288.4ms < 290ms、macOS 实测 86.48ms < 150ms 都因此假红）。
+    // tokio 的 paused clock 让 sleep/Instant 全部确定化，间隔变成精确值。
+    #[tokio::test(start_paused = true)]
     async fn enforces_concurrency_and_interval_per_host() {
         let gate = Arc::new(HostGate::new(ThrottleConfig {
             max_concurrency_per_host: 2,
@@ -192,7 +195,7 @@ mod tests {
     ///
     /// 旧实现"先预约再排队"时，排队超过预约时刻的请求会与后到者同时开始
     /// （实测两次开始相差 7.9µs，而 min_interval 是 200ms）。
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn queued_requests_still_keep_min_interval() {
         let gate = Arc::new(HostGate::new(ThrottleConfig {
             max_concurrency_per_host: 2,
@@ -247,7 +250,7 @@ mod tests {
     }
 
     /// 同主机第二次请求必须等到最小间隔之后。
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn second_request_waits_for_interval() {
         let gate = HostGate::new(ThrottleConfig {
             max_concurrency_per_host: 4,
