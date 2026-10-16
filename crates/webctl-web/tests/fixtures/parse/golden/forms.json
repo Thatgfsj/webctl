@@ -1,0 +1,149 @@
+[
+  {
+    "action": "/login",
+    "action_url": "https://doc.example/login",
+    "enctype": "application/x-www-form-urlencoded",
+    "fields": [
+      {
+        "checked": false,
+        "default_value": "alice",
+        "disabled": false,
+        "field_type": "text",
+        "id": "user",
+        "label": "User name",
+        "multiple": false,
+        "name": "user",
+        "options": [],
+        "placeholder": null,
+        "readonly": false,
+        "required": true
+      },
+      {
+        "checked": false,
+        "default_value": null,
+        "disabled": false,
+        "field_type": "password",
+        "id": null,
+        "label": null,
+        "multiple": false,
+        "name": "pass",
+        "options": [],
+        "placeholder": "secret",
+        "readonly": false,
+        "required": false
+      },
+      {
+        "checked": false,
+        "default_value": "tok-123",
+        "disabled": false,
+        "field_type": "hidden",
+        "id": null,
+        "label": null,
+        "multiple": false,
+        "name": "csrf",
+        "options": [],
+        "placeholder": null,
+        "readonly": false,
+        "required": false
+      },
+      {
+        "checked": true,
+        "default_value": null,
+        "disabled": false,
+        "field_type": "checkbox",
+        "id": null,
+        "label": "Remember me",
+        "multiple": false,
+        "name": "remember",
+        "options": [],
+        "placeholder": null,
+        "readonly": false,
+        "required": false
+      },
+      {
+        "checked": false,
+        "default_value": "fr",
+        "disabled": false,
+        "field_type": "select",
+        "id": null,
+        "label": null,
+        "multiple": true,
+        "name": "country",
+        "options": [
+          {
+            "disabled": false,
+            "label": "France",
+            "selected": true,
+            "value": "fr"
+          },
+          {
+            "disabled": true,
+            "label": "Japan",
+            "selected": false,
+            "value": "jp"
+          }
+        ],
+        "placeholder": null,
+        "readonly": false,
+        "required": false
+      },
+      {
+        "checked": false,
+        "default_value": "hello",
+        "disabled": false,
+        "field_type": "textarea",
+        "id": null,
+        "label": null,
+        "multiple": false,
+        "name": "bio",
+        "options": [],
+        "placeholder": null,
+        "readonly": false,
+        "required": false
+      },
+      {
+        "checked": false,
+        "default_value": "1",
+        "disabled": false,
+        "field_type": "submit",
+        "id": null,
+        "label": null,
+        "multiple": false,
+        "name": "go",
+        "options": [],
+        "placeholder": null,
+        "readonly": false,
+        "required": false
+      }
+    ],
+    "id": "login",
+    "index": 0,
+    "method": "post",
+    "name": null
+  },
+  {
+    "action": "https://other.example/post",
+    "action_url": "https://other.example/post",
+    "enctype": "application/x-www-form-urlencoded",
+    "fields": [
+      {
+        "checked": false,
+        "default_value": "x",
+        "disabled": false,
+        "field_type": "text",
+        "id": null,
+        "label": null,
+        "multiple": false,
+        "name": "q",
+        "options": [],
+        "placeholder": null,
+        "readonly": false,
+        "required": false
+      }
+    ],
+    "id": null,
+    "index": 1,
+    "method": "get",
+    "name": null
+  }
+]

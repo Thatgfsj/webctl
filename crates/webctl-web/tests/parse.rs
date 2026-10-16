@@ -450,3 +450,45 @@ fn fallback_is_explicit_degradation() {
     assert_eq!(article.extractor, "fallback");
     assert!(article.markdown.contains("# Title"));
 }
+
+fn golden(name: &str, actual: &serde_json::Value) {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parse/golden");
+    let path = dir.join(format!("{name}.json"));
+    if std::env::var_os("WEBCTL_UPDATE_GOLDEN").is_some() {
+        std::fs::create_dir_all(&dir).expect("golden dir");
+        std::fs::write(
+            &path,
+            format!("{}\n", serde_json::to_string_pretty(actual).expect("json")),
+        )
+        .expect("write golden");
+    }
+    let raw = std::fs::read_to_string(&path)
+        .unwrap_or_else(|error| panic!("missing golden {}: {error}", path.display()));
+    let expected: serde_json::Value = serde_json::from_str(&raw).expect("parse golden");
+    assert_eq!(actual, &expected, "golden mismatch: {}", path.display());
+}
+
+/// PARSE-05/06/07/08/09 的 golden：结构化输出被冻结，改动必须显式更新。
+#[test]
+fn golden_outputs() {
+    let links = extract_links(LINKS, Some(DOC_URL));
+    assert!(links.ok, "{}", links.error);
+    golden(
+        "links",
+        &serde_json::to_value(links.data.expect("links")).expect("json"),
+    );
+
+    let tables = extract_tables(TABLES);
+    assert!(tables.ok, "{}", tables.error);
+    golden(
+        "tables",
+        &serde_json::to_value(tables.data.expect("tables")).expect("json"),
+    );
+
+    let forms = extract_forms(FORMS, Some(DOC_URL));
+    assert!(forms.ok, "{}", forms.error);
+    golden(
+        "forms",
+        &serde_json::to_value(forms.data.expect("forms")).expect("json"),
+    );
+}
