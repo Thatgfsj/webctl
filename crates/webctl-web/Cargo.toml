@@ -26,7 +26,8 @@ lopdf = { version = "0.42", default-features = false }
 tokio = { workspace = true, features = ["time", "sync"] }
 
 # PR 03 解析层：DOM/选择器、正文提取、HTML→文本、XML 建树
-scraper = "0.27.0"
+# 关闭默认特性：默认的 "main" 会拉入自带 CLI 的 getopts，解析层用不到。
+scraper = { version = "0.27.0", default-features = false }
 dom_smoothie = "0.18.2"
 html2text = "0.17.3"
 roxmltree = "0.21.1"
