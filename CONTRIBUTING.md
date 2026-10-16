@@ -55,6 +55,9 @@ crates/
 
 > **v0.4 起没有"无浏览器 lane"和"mock-cdp lane"**：运行时不再有浏览器，所有用例本来就无浏览器、且不得依赖外部进程。
 
+> **本地构建前置**：取回层依赖 `wreq` → BoringSSL，编译期需要 `cmake` + C/C++ + **libclang**（bindgen）。缺它时报 `Unable to find libclang` 或 `'stddef.h' file not found`：装 `libclang-dev` / `clang`，或按 [docs/spikes/wreq.md §4](docs/spikes/wreq.md) 设置 `LIBCLANG_PATH` 与 `BINDGEN_EXTRA_CLANG_ARGS`。**运行时不依赖这些**；CI 三平台镜像自带。
+
+
 ## 5. PR 描述必须包含
 
 1. 关联 issue（`Closes #N` / `Refs #N`）与认领记录。
