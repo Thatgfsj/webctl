@@ -2,12 +2,40 @@
 
 | 项 | 值 |
 |---|---|
-| 版本 | 草案 v0.3（2026-10-16） |
+| 版本 | **草案 v0.4（2026-10-16）** |
 | 前身 | `Thatgfsj-easyRep/playwright-crawler-helper`（Python + Playwright，v4.0） |
-| 形态 | Rust workspace，单个静态二进制；CLI + MCP server |
-| 依据 | 全部硬数据与出处见 [SURVEY.md](SURVEY.md) |
-| 规范核实 | **已完成**：「每 1000 行 PR 需审批」在现有仓库中**无成文依据**（SURVEY §1.2）。本计划把它作为**待写入的新项目规则**执行 |
-| 工具面 | **已定稿**：核心 20 工具 + ref 方案 + 快照预算 + 超时/图片默认值（见 §3.8；证据 SURVEY §8） |
+| 形态 | Rust workspace，单个静态二进制；CLI + MCP server；**零外部进程、零浏览器依赖** |
+| 依据 | 历史硬数据见 [SURVEY.md](SURVEY.md)；**但 §0 的方向变更已作废其中的 T2/T3 相关结论** |
+| 工具面 | **已定稿**：15 个内置工具（§3.7），无截图、无坐标交互、无 JS 执行 |
+| 规范核实 | 「每 1000 行 PR 需审批」在现有仓库中**无成文依据**（SURVEY §1.2）；本计划把它作为**待写入的新项目规则**执行，措辞已落地在 [CONTRIBUTING.md](../CONTRIBUTING.md) §2 |
+
+---
+
+## 0. 方向变更（v0.3 → v0.4）—— 必读
+
+**v0.3 的四层阶梯（T0 内置 / T1 会话 / T2 外部 CLI 桥 / T3 真浏览器）已废弃。v0.4 只保留"全部内置"的单一层：所有能力在进程内实现，不启动任何外部进程。**
+
+取消的内容：
+
+| 被取消 | v0.3 中的位置 |
+|---|---|
+| 自研 CDP 客户端、Edge/Chrome 发现与启动、受管 profile | T3，PR 05–10 |
+| 手写最小 CDP 协议类型 | T3，PR 11a/11b |
+| 导航、快照与 ref、交互原语、截图/PDF 打印、移动仿真、网络抓包、console 抓取 | T3，PR 12–16 |
+| 外部 CLI 白名单桥（`pdftotext` / `tesseract` / `pandoc` / `jq`）、`--no-external` 开关 | T2，PR 18 |
+| `--allow-eval`（进程内没有 JS 引擎，无 JS 可执行） | 安全红线之一 |
+
+**理由**：能内置的都内置之后，外部进程与外部浏览器带来的复杂度不再划算——协议漂移、进程/会话泄漏、冷启动 292–313 ms、跨平台浏览器探测、封禁与反检测博弈、白名单与 `canonicalize` 的安全面。进程内实现更快、更可测、分发更简单。
+
+**代价（必须诚实记录，不许悄悄消失）**
+
+1. **JS 渲染页面拿不到。** 无 JS 引擎 ⇒ `quotes.toscrape.com/js/` 仍为 **0 条**（SURVEY §2.4）。v0.3 的验收锚点「必须拿到 10 条」**作废**。异步 XHR 注入的内容、SPA 首屏同样拿不到。
+2. **没有渲染器就没有像素与布局。** `screenshot`、`print to PDF`、按坐标点击、真实几何元素匹配从工具面移除；`fill_form` 退化为按表单字段名填值并提交，而不是"点按钮"。
+3. **OCR 不再支持。** 纯 Rust 无成熟 OCR（SURVEY §2.1 显示本机 `tesseract` 缺失）。PDF 只做文本层，扫描件明确 `UNSUPPORTED`。
+4. **SURVEY 的 CDP 证据退化为历史记录。** §2.2 / §2.3 / §3 / §8 不再指导实现，保留以备将来复查。
+5. **反爬姿态变弱。** 没有真实浏览器指纹，只有 TLS 指纹（wreq）与请求头策略；不承诺绕过 Cloudflare/验证码，遇到即 `BLOCKED`。
+
+**可逆性（保留缝隙，本期不做）**：将来若要 JS 渲染，走**可选内置引擎**（Boa 纯 Rust / rquickjs + 自建最小 DOM/BOM），仍不引入外部进程与外部浏览器。按 capability-seam 纪律，**现在不为它预先拆包**。
 
 ---
 
@@ -15,146 +43,149 @@
 
 **目标**
 
-1. 重写为 Rust：无 Python、无 Playwright、无 Node、无 WebDriver。
-2. **自研 CDP 客户端**，直接驱动 Edge/Chrome/Chromium（本机实测：无 Playwright 可完全驱动，SURVEY §2.2）。
-3. **无浏览器环境依然可用**：内置 HTTP/解析 + 协议级会话引擎 + 白名单文档桥完成检索与协议级操作。
-4. 面向 AI agent：统一结果信封、稳定元素引用、明确降级语义；同时可作 CLI 与 MCP server。
+1. 纯 Rust：无 Python、无 Node、无浏览器、无外部 CLI 进程。
+2. 内置取回 + 解析 + 协议级会话引擎，覆盖服务端渲染站点与表单流。
+3. 面向 AI agent：统一结果信封、结构化抽取、明确降级语义（JS 页面必须显式降级，不得伪造成功）。
+4. 同一套命令面同时提供 CLI 与 MCP server。
 
 **非目标（本期不做）**
 
-- 不承诺绕过 Cloudflare/验证码，只提供开关与 hook。
-- 不做分布式爬取调度、视频流、移动端手势库。
-- 不做 CDP 全量协议覆盖；不实现 `Debugger`/`Profiler`/`HeapProfiler`/`Overlay`/`CSS`/`WebAudio`。
-- 不做旧 Python API 兼容层（改为迁移映射表 + 旧仓归档）。
+- JS 执行与渲染、DOM 事件模拟、SPA 水合。
+- 截图、页面 PDF 打印、真实布局几何、移动仿真。
+- OCR、视频流、分布式调度、移动端手势、PWA/扩展/WebMCP。
+- 绕过 Cloudflare/验证码（只提供请求头/限速/重试等合规手段与明确失败）。
+- 旧 Python API 兼容层（改为迁移映射表 + 旧仓归档）。
 
 ---
 
-## 2. 四层能力阶梯（架构支点）
+## 2. 能力模型：单层内置
 
-一套命令面，四种后端；**同一命令跨层语义一致**，agent 工作流不因环境变化而改写，只变 `meta.tier`。
+v0.4 没有"层"了，只有一组**内置能力域**，全部在进程内：
 
-| 层 | 名称 | 依赖 | 能力 | 可用性 |
-|---|---|---|---|---|
-| **T0** | 内置解析 | 纯 Rust：wreq/reqwest + scraper/html5ever + dom_smoothie | 拉取、正文、链接、表格、表单、JSON/XML/PDF 文本层 | 永远可用 |
-| **T1** | 协议级会话引擎 | 纯 Rust | cookie jar、重定向链、自动填表提交、CSRF 提取、multipart、分页、登录态导入导出 | 永远可用 |
-| **T2** | 文档桥 | 系统 CLI（白名单） | `pdftotext` / `tesseract` / `pandoc` / `jq` | 有则启用 |
-| **T3** | 真浏览器 | 自研 CDP（Edge/Chrome/Chromium） | 导航、a11y 快照、点击、输入、等待、JS 求值、截图/PDF、网络抓包、多标签、上传 | 有 Chromium 时 |
+| 能力域 | 内容 | 关键边界 |
+|---|---|---|
+| **取回** | HTTP(S)、重定向链、cookie jar、编码/压缩、内容类型路由、并发与限速 | 只走网络，无渲染 |
+| **解析** | HTML→DOM、正文、链接、表格、表单、markdown、JSON/XML | 只解析已取回的字节 |
+| **会话** | cookie 持久化、自动填表提交、CSRF、multipart、分页、登录态导入导出 | 只覆盖服务端渲染与表单流 |
+| **文档/数据** | PDF 文本层、JSON 查询子集、HTML→文本/ markdown | 扫描件与复杂二进制 → `UNSUPPORTED` |
+| **接口** | CLI、MCP（rmcp）、SKILL.md | 契约见 §3.6 |
 
-**T1 边界必须诚实**：只覆盖服务端渲染与表单流；SPA 在无浏览器时**必须显式降级**。实测：同一站点静态版可解析 10 条，JS 版静态抓取 0 条（SURVEY §2.4）。
+`meta.engine` 恒为 `"builtin"`（为将来的可选内置引擎预留取值，如 `"builtin+js"`）。
 
 ---
 
 ## 3. 关键设计决策
 
-### 3.1 协议类型：手写最小子集，不生成全量 ← 最重要的决策
+### 3.1 无外部进程 ⇒ 安全面收敛
 
-全量 CDP 协议类型 **111,037 行**（`chromiumoxide_cdp`），单个 domain 生成代码即超 1000 行（network 11,795 / page 9,649）。纳入 PR 则任何 PR 都会越线。
-
-**决策**：只为真正调用的约 40 条 command 手写 serde 类型，未知字段忽略，预计 **800–1,200 行（估算）**，独立 crate 交付。
-
-**备选（需显式审批）**：若将来需要全量协议，走"离线生成 + 提交产物"独立 crate，并按 §5.1 的行数口径**单列不计入**。不采用 build.rs 生成（产物不可评审、协议版本钉死）。
+- 不执行任何子进程：v0.3 的白名单/canonicalize/注入防护**整类风险消失**（约束仍在：代码里不得出现 `Command` 调用）。
+- 无 JS 引擎 ⇒ 无 `eval` 通路，**RCE-equivalent 风险为零**。
+- 仍然保留的红线：凭据显式开关 + 脱敏、页面内容 `trust: untrusted_page_content`、日志脱敏。
 
 ### 3.2 依赖选型
 
-| 用途 | 选择 | 理由 |
+| 用途 | 选择 | 状态 |
 |---|---|---|
-| HTTP | `wreq`（主）/ `reqwest` | wreq 活跃（2026-10-15）、Apache-2.0、浏览器 TLS 指纹；**替代 shell 调 curl**，缩小安全面 |
-| HTML 解析 | `scraper` + `html5ever` | ISC，成熟 |
-| 正文提取 | `dom_smoothie` | MIT，活跃 |
-| HTML→文本 | `rust-html2text` | MIT，活跃 |
-| CDP 传输 | `tokio-tungstenite` | prior art 实测传输层仅 160 行，自研不划算 |
+| HTTP | `wreq`（主）/ `reqwest` | 待 spike 验证（§9） |
+| HTML 解析 | `scraper` + `html5ever` | 成熟 |
+| 正文提取 | `dom_smoothie` | 成熟 |
+| HTML→文本 | `rust-html2text` | 成熟 |
+| PDF 文本层 | `pdf-extract` 或 `lopdf` | **待 spike 验证**（纯 Rust，质量未知） |
+| JSON 查询 | `serde_json` + 自研小子集（或 `jmespath`） | 待评估 |
 | MCP | `rmcp` 3.5.1 | 官方 SDK；**`transport-io` 必须显式开启** |
-| CLI/序列化 | `clap` / `serde` / `schemars` | schemars 直接生成 MCP tool schema |
+| CLI/序列化 | `clap` / `serde` / `schemars` | `schemars` 直接生成 MCP tool schema |
 
-**不采用**：WebDriver 系（`fantoccini`/`thirtyfour`，需额外 driver 进程）；依赖 `chromiumoxide`（协议 crate 半年未更新，与自研目标冲突）；任何 Python/Node 运行时。
+**不采用**：任何浏览器、WebDriver、CDP 客户端、外部 CLI 进程、Python/Node 运行时。
 
-### 3.3 浏览器 profile 策略
+### 3.3 会话与状态
 
-**不使用默认 profile attach**：Chrome/Edge 136 起默认 profile 禁止开启 remote-debugging（SURVEY §1.3）。只支持受管 profile；登录态复用由 `profile import`（复制 cookie）实现。
+`--session <name>`：状态落盘（state dir + 文件锁 + TTL + 权限 700），CLI 与 MCP 共享同一状态，跨进程复用。会话文件损坏/过期必须给出可读错误，不得静默新建。
 
 ### 3.4 结果信封与降级语义
 
 ```json
 { "ok": true, "data": {}, "error": "", "code": "OK",
-  "meta": { "tier": "T3", "trust": "untrusted_page_content",
-            "degraded_from": "T3", "stale": false, "elapsed_ms": 412 } }
+  "meta": { "engine": "builtin", "trust": "untrusted_page_content",
+            "degraded_from": null, "stale": false, "elapsed_ms": 412 } }
 ```
 
-- 错误码：沿用 `OK / TIMEOUT / NETWORK / BLOCKED / BAD_URL / PARSE / BROWSER_CRASH`，新增 `NO_BROWSER / DEGRADED / TOOL_MISSING / STALE_REF / SESSION_LOST`。
-- **禁止静默降级**：任何降级必须体现在 `meta.degraded_from` + `code`。
-- 页面内容一律标 `trust: untrusted_page_content`。
+- 错误码（封闭集）：`OK / TIMEOUT / NETWORK / BLOCKED / BAD_URL / PARSE / DEGRADED / UNSUPPORTED / SESSION_LOST / LIMIT / INTERNAL`。
+  - 相对 v0.3：删除 `BROWSER_CRASH / NO_BROWSER / TOOL_MISSING / STALE_REF`，新增 `UNSUPPORTED`（能力不存在，如 JS 渲染、OCR）与 `LIMIT`（命中缓冲/尺寸上限）。
+- **禁止静默降级**：任何能力缺失或降级必须体现在 `code` + `meta.degraded_from`。
+- **失败可区分**：空结果 ≠ 解析失败 ≠ 能力不支持 ≠ 被拦截，四者码不同。
+- 页面内容一律 `trust: untrusted_page_content`。
 
-### 3.5 安全红线（三条）
+### 3.5 选择器与"引用"：没有 live DOM 的替代方案
 
-1. **不执行任意 shell 字符串**：T2 仅内部枚举命令 + 参数数组，路径 `canonicalize` 后校验；`--no-external` 可整体关闭。
-2. **`eval` JS 默认关闭**：需显式 `--allow-eval`；返回值强制 JSON 化，不落原始堆栈。
-3. **凭据显式开关**：`cookies export` 需 `--yes`，文件权限 600；信封与日志中 cookie 值一律脱敏。
+v0.3 的 aria ref 依赖"最近一次快照"的 live 页面，**在无浏览器模型下不成立**，改为：
 
-### 3.6 DSH / MCP 集成硬约束
+| 场景 | 方案 |
+|---|---|
+| 抽取 | CSS 选择器 + 文本/正则（`extract` / `search`） |
+| 表单交互 | `(form_index, field_name)` 稳定寻址；`fill_form` 一次完成多字段 |
+| 结果可追溯 | 每次返回元素的结构化路径（tag/索引/祖先链）与文本上下文 |
+| 失效 | 不存在跨请求的"引用失效"：每次解析都是新的；`stale` 恒 false |
 
-- 每次工具调用**默认 60s 超时** → 工具必须远快于此，长任务分片或显式配置。
-- stdio **先起探测进程、再起服务进程** → 服务必须能被启动两次而不冲突（无独占锁/端口占用）。
-- 服务器指令 **≤ 32KB**；工具名 `mcp__<serverName>__<rawName>`，需满足 function-name 契约。
+即：**用选择器取代 ref**，并明确"同一选择器在不同时刻可能命中不同元素"这一固有语义。
 
-### 3.7 进程与状态模型
+### 3.6 DSH / MCP 集成硬约束（沿用 v0.3）
 
-浏览器按会话懒启动（冷启动到 CDP 就绪 **292–313ms** 实测，可接受）；会话状态落盘（`state dir + 文件锁 + TTL`）；CLI 与 MCP 共享状态；`--session <name>` 跨进程复用。
+- 单次工具调用默认 **60s** 超时 ⇒ 工具必须远快于此；长任务分片或显式配置。
+- stdio **先起探测进程、再起服务进程** ⇒ 服务必须能被启动两次而不冲突（无独占锁/端口占用）。
+- 服务器指令 **≤ 32KB**；工具名 `mcp__webctl__<rawName>`，满足 function-name 契约。
+- 会话归属：单 provider、绑定确切 live Agent+Session、跨 Session 调用拒绝；**不写入 `toolOrder`**。
 
-### 3.8 工具面设计决策（定稿，证据 SURVEY §8）
+### 3.7 工具面（15 个，定稿）
 
-**核心工具集约 20 个**：navigate / back、tabs、snapshot、**find**、click、hover、fill、**fill_form**、select_option、press_key、drag、upload_file、handle_dialog、scroll、wait_for、evaluate、screenshot、console_messages、network_requests、extract（含 search_page）。其余（性能 trace、内存 heap、存储、录制/视频、视觉坐标点击、PDF、测试断言、PWA/扩展）列入非目标。
-
-| 决策 | 取值 | 依据 |
+| # | 工具 | 说明 |
 |---|---|---|
-| 元素引用 | aria/a11y 语义 ref；**role + accessible name 不变则复用同一 ref**；全局单调递增编号；**仅给可交互元素发 ref** | PW 方案最稳；Stagehand 的位置型 XPath 是唯一负面样本；browser-use 的 `index` 就是裸 `backendNodeId`，而 CDP 会复用 backendNodeId（其源码自述风险） |
-| ref 失效 | 显式 `STALE_REF` + "重新获取快照"指引，**禁止静默失败** | 四家一致做法 |
-| 快照减量 | 字符预算 + 截断标记 + `depth` 限制 + 落盘选项 + `find` 窗口内搜索 | 四家**都没有可靠硬上限**（仅 browser-use 有 40000 字符截断），我们必须更严 |
-| 动作后是否附快照 | 默认**只给增量摘要**，整表按需获取 | PW 默认 `full`，一次 click 的响应可能比 click 本身大两个数量级 |
-| 超时默认 | 页面操作 5s、导航 10s、`wait` 上限 30s、单次 MCP 调用预算 < 60s | 四家默认值互相矛盾（PW 5s/60s、CDM 5s/10s/60s、BU 180s）；DSH MCP `toolCallTimeoutMs` 默认 60s |
-| 图片 | 超过阈值**落盘返回路径**，不无脑内联；无图片能力时给可读诊断 | CDM 的 2MB 内联阈值；DSH 需 attachment store + 模型声明 `inputModalities` 含 image |
-| `eval` | 只做**页面上下文**求值，且默认关闭 | PW 的 `run_code_unsafe` 是服务端进程、自述 RCE-equivalent，**不可合并** |
-| 会话归属 | 单 provider；绑定确切 live Agent+Session；attach 独占；跨 Session 调用拒绝；工具名 `mcp__webctl__*`；**不写入 `toolOrder`** | DSH 既有硬规范 |
+| 1 | `fetch` | 取回 URL，返回状态、头、重定向链、内容或落盘路径 |
+| 2 | `extract` | 选择器/正文提取，返回结构化结果 + markdown/文本 |
+| 3 | `search` | 页面内文本/正则搜索，返回命中 + 结构化路径 + 上下文 |
+| 4 | `links` | 链接清单（绝对化、rel、可选过滤） |
+| 5 | `tables` | 表格结构化（行列、跨行跨列语义确定） |
+| 6 | `forms` | 表单与字段清单（类型、默认值、action/method） |
+| 7 | `fill_form` | 一次调用填表并提交（含隐藏字段与 CSRF） |
+| 8 | `paginate` | 分页遍历（next 识别 + 上限） |
+| 9 | `session` | 会话查看/保存/加载/清理（cookie 持久化） |
+| 10 | `cookies` | 查看/导出 cookie（导出需 `--yes`、权限 600、值脱敏） |
+| 11 | `json_query` | 内置 JSON 查询子集（替代 `jq`） |
+| 12 | `doc_text` | PDF / HTML / XML 文本层提取（替代 `pdftotext`/`pandoc`） |
+| 13 | `download` | 文件下载到指定目录（尺寸上限、类型白名单、落盘路径） |
+| 14 | `robots` | robots.txt 与站点策略查询（礼貌爬取依据） |
+| 15 | `caps` | 内置能力与版本自检 |
+
+**明确不做**：screenshot / pdf 打印 / click / hover / drag / press_key / upload_file / handle_dialog / wait_for / evaluate / console_messages / network_requests（这些都是浏览器语义）。
+
+### 3.8 限速、礼貌与封禁姿态
+
+- 默认并发上限（每主机 2）、默认最小请求间隔、`Retry-After` 尊重、指数退避上限。
+- 默认解析 `robots.txt`（可显式关闭并记录在信封里）。
+- 明确不承诺绕过 Cloudflare/验证码：识别到拦截页 → `BLOCKED` + 可读诊断。
 
 ---
 
 ## 4. 模块划分
 
-### 4.1 拆分判据（先定纪律，再定目录）
+### 4.1 拆分判据（沿用 v0.3）
 
-依据 DSH 的 capability-seam 纪律——**"角色不独立演进就不要预先拆包"**——本项目采用：
+> 只有当两个模块 (a) 变更来源或节奏明显不同，且 (b) 依赖方向单向无环时，才拆成独立 crate；否则同一 crate 内用目录分隔即可。
 
-> **只有当两个模块 (a) 变更来源或节奏明显不同，且 (b) 依赖方向单向无环时，才拆成独立 crate；否则同一 crate 内用目录分隔即可。**
-
-"每个 PR ≤1000 行"是**评审粒度**约束，靠目录与 PR 边界满足，**不靠增加 crate 数量**。
-
-### 4.2 布局（7 个 crate，比初稿减少 4 个）
+### 4.2 布局（4 个 crate，v0.3 的 7 个中 3 个随 T3 一起删除）
 
 ```
 webctl/
 ├─ crates/
-│  ├─ webctl/           # bin：CLI 入口 + MCP 入口（feature 切换）
-│  ├─ webctl-core/      # envelope/错误码/配置/能力探测/tier 路由/会话与状态
-│  ├─ webctl-web/       # T0+T1：HTTP、编码、cookie、解析、正文、链接/表格/表单、协议会话引擎、T2 白名单桥
-│  ├─ webctl-cdp/       # T3 底座：线协议信封、传输、分发、事件、target 会话、浏览器发现与启动
-│  ├─ webctl-cdp-types/ # T3：手写最小协议类型（唯一因"来源不同 + 体量"而拆的 crate）
-│  ├─ webctl-browser/   # T3 语义层：快照、交互原语、截图/PDF、网络捕获
-│  └─ webctl-mcp/       # rmcp server + 工具 schema + SKILL.md 生成
-└─ tests/               # mock CDP server、fixture 站点、golden、E2E 基线
+│  ├─ webctl/        # bin：CLI 入口 + MCP 入口（feature 切换）
+│  ├─ webctl-core/   # envelope/错误码/配置/能力探测/会话与状态/安全与脱敏
+│  ├─ webctl-web/    # 取回 + 解析 + 会话 + 文档/数据（全部内置）
+│  └─ webctl-mcp/    # rmcp server + 工具 schema + SKILL.md 生成
+└─ tests/            # fixture 站、golden、mock HTTP
 ```
 
-**拆包理由（逐条）**
+依赖方向：`bin → mcp → core`、`bin → web → core`，`core` 不依赖任何上层。
 
-| crate | 为什么独立 |
-|---|---|
-| `webctl-cdp-types` | 变更来源是 CDP 协议版本，与业务逻辑无关；体量可能与其余全部相当 |
-| `webctl-cdp` | 依赖方向单向（只依赖 types），且是唯一有"协议语义状态机"复杂度的层 |
-| `webctl-browser` | 面向 AI 的语义（ref/快照/交互），变更节奏跟随模型用法而非协议 |
-| `webctl-web` | T0/T1 完全不依赖 T3，且必须能在无浏览器环境独立测试 |
-| `webctl-mcp` | 工具面契约（DSH function-name、schema）独立演进 |
-| `webctl-core` | 被所有层依赖，必须无上层依赖 |
-| `webctl`（bin） | 仅组装与参数解析 |
-
-**禁止**：协议类型、传输、会话语义、工具面跨层混改（同一 PR 只动一类）。
+**禁止**：接口契约与内核语义跨层混改（同一 PR 只动一类）。
 
 ---
 
@@ -163,37 +194,35 @@ webctl/
 ### 5.1 行数口径（先写死，可机械校验）
 
 - 口径 = `git diff --shortstat` 的 `additions + deletions`。
-- **不计入**：`webctl-cdp-types` 下生成/批量录入的协议类型文件、`docs/` 纯文档、测试 fixture 数据文件。**但必须在 PR 描述里写明实际行数**，避免成为后门。
+- **不计入**：`docs/` 纯文档、测试 fixture 数据文件。**但必须在 PR 描述里写明实际行数**。
 - **目标 ≤1000 行**；越线需维护者在 issue 或 PR 中显式批准并说明理由。
 
-### 5.2 PR 清单
+### 5.2 PR 清单（v0.4 重切，14 个）
 
-| PR | 内容 | 预估行数 | 依赖 | 验收标准 |
+| PR | 内容 | 预估 | 依赖 | 验收标准 |
 |---|---|---|---|---|
-| 01 | workspace 骨架、envelope/错误码、`caps` 能力探测、CI | 450 | — | `webctl caps --json` 在无浏览器机输出正确分层；三平台 `cargo build` 绿 |
-| 02 | T0 传输：wreq 封装、重定向、cookie jar、编码、内容类型路由 | 700 | 01 | golden：多编码/压缩/重定向用例全绿 |
-| 03 | T0 解析：正文提取、链接/表格/表单、markdown 输出 | 800 | 02 | 离线 fixture 站 golden 全绿 |
-| 04 | T1 协议会话引擎：cookie 持久化、表单提交、CSRF 提取 | 700 | 02 | 本地 axum 表单站「登录→翻页→提交」端到端断言 |
-| 05 | CDP 线协议信封（`MethodCall`/`CallId`/`Command`/`Event`/`Response`）+ 错误类型 | 550 | 01 | 帧编解码单测；与真实 Edge 握手成功 |
-| 06 | CDP 传输：WebSocket 读写、写队列、超时、pump 任务 | 400 | 05 | 对真实 Edge 收发 `Browser.getVersion` |
-| 07 | CDP 分发：id 分配、pending 表、响应/错误解复用、sessionId 路由 | 700 | 06 | 并发 100 命令不串号；超时正确归类 |
-| 08 | CDP 事件：监听注册、类型过滤、Stream 广播、未知事件容忍 | 450 | 07 | 事件顺序与去重断言 |
-| 09 | target-session：Target 发现、`attachToTarget(flatten)`、多会话生命周期 | 800 | 08 | 多标签并发会话隔离断言 |
-| 10 | 浏览器发现/启动：可执行文件探测、受管 profile、spawn、端点探测、清理与崩溃恢复 | 900 | 09 | 冷启动→就绪→关闭；僵尸进程回收 |
-| 11a | 最小协议类型（一）：Page / Runtime / Target | 900 | 05 | 序列化断言（不计入行数口径，另附实际行数） |
-| 11b | 最小协议类型（二）：DOM / Input / Accessibility / Network / Emulation | 900 | 05 | 同上 |
-| 12 | page-nav：navigate、生命周期等待、frame | 600 | 10, 11a | 导航到 fixture 站并拿到 title |
-| 13 | page-capture：截图、PDF、Emulation（移动仿真四件套） | 500 | 11b, 12 | 截图非空；**超阈值落盘返回路径**（不无脑内联）；移动视口 `innerWidth` 正确（注意 980 陷阱） |
-| 14 | snapshot + `find`：a11y 语义 ref（role+name 复用、仅可交互元素）、字符预算与截断标记、快照内搜索 | 900 | 13 | 大页面快照有界（预算生效且带截断标记）；ref 失效返回 `STALE_REF` + 重取指引；`find` 返回祖先路径与上下文 |
-| 15 | 交互原语：click/hover/fill/**fill_form**/select/press/drag/upload/scroll/wait/handle_dialog（几何 + Input） | 900 | 14 | 批量填表一次调用完成；真实站点点击与中文输入生效；dialog 正确处置 |
-| 16 | Network 捕获：事件 + `getResponseBody` + 缓冲上限；console 消息分级 | 800 | 11b, 09 | 抓到 XHR/Fetch 与响应体；console 分级；超限截断 |
-| 17 | MCP server（rmcp）+ 工具 schema + SKILL.md 生成 + 会话归属与命名契约 | 500 | 15, 16 | DSH 挂载后 `mcp__webctl__*` 出现并可调用；服务器指令 ≤32KB；不写入 `toolOrder` |
-| 18 | T2 文档桥：白名单、`canonicalize`、`--no-external` | 600 | 02 | 白名单外命令被拒；关闭开关后不外部调用 |
-| 19 | 安全红线：eval 开关、cookie 导出脱敏、trust 标记、日志脱敏 | 500 | 15 | 越权用例全部被拒 |
-| 20 | 测试基建：mock CDP server、fixture 站、golden、探针固化 | 800 | 01 | 无浏览器 CI 下 L2 逻辑可测 |
-| 21 | 打包发布：cargo-dist、musl 静态、三平台、双语 README | 500 | 全 | Release 资产可下载即用；启动基线防回归 |
+| 01 | workspace 骨架、envelope/错误码、`caps`（内置能力自检）、CI | 450 | — | `webctl caps --json` 报告内置能力；三平台 `cargo build` 绿 |
+| 02 | 内置取回：wreq 封装、重定向链、cookie jar、编码、内容类型路由 | 700 | 01 | 多编码/压缩/重定向 golden 全绿 |
+| 03 | 解析：正文、链接、表格、表单、markdown | 800 | 02 | 离线 fixture golden 全绿 |
+| 04 | 协议级会话引擎：cookie 持久化、表单提交、CSRF、multipart | 700 | 02 | 本地表单站「登录→翻页→提交」端到端断言 |
+| 05 | 会话与状态：state dir、文件锁、TTL、CLI/MCP 共享 | 500 | 04 | 并发/过期/损坏三类用例全绿 |
+| 06 | 抽取引擎：`extract`/`search`/`links`/`tables`/`forms` 结构化输出与截断上限 | 700 | 03 | 结构化路径与上下文断言；超限带截断标记 |
+| 07 | 文档与数据内置：PDF 文本层、`json_query`、格式转换 | 600 | 03 | PDF 文本层用例；扫描件 `UNSUPPORTED` |
+| 08 | 礼貌与限速：robots、并发/间隔上限、退避、`BLOCKED` 识别 | 500 | 02 | 限速生效；拦截页归类为 `BLOCKED` |
+| 09 | SPA/JS 降级语义：检测与 `DEGRADED` + `UNSUPPORTED` 传播 | 400 | 06 | JS 页必须 `DEGRADED`，不得返回"0 条成功" |
+| 10 | CLI 体验与配置：配置档、代理、输出格式、退出码 | 500 | 05 | 配置优先级与退出码用例全绿 |
+| 11 | MCP server：15 工具 schema、SKILL.md、DSH 契约、会话归属 | 600 | 09,10 | DSH 挂载后 `mcp__webctl__*` 可调用；≤32KB；不写 `toolOrder` |
+| 12 | 安全与凭据：cookie 导出、脱敏、日志、trust 标记 | 500 | 11 | 越权用例全部被拒 |
+| 13 | 测试基建：fixture 站、mock HTTP、golden、离线 lane | 700 | 01 | 无网络 CI 下 L0 用例可跑 |
+| 14 | 打包发布：cargo-dist、musl 静态、三平台、双语 README | 500 | 全 | Release 资产下载即用；基线防回归 |
 
-**验收锚点（必须过）**：`quotes.toscrape.com/js/` 静态抓取 0 条 → webctl 必须拿到 **10 条**（实测基线见 SURVEY §2.4）。
+### 5.3 验收锚点（v0.4 重定）
+
+v0.3 的锚点（JS 页必须拿到 10 条）**作废**。v0.4 的锚点：
+
+1. **诚实降级锚点**：`quotes.toscrape.com/js/` 必须返回 `code=DEGRADED`（或 `UNSUPPORTED`）并说明原因，**不得**返回"成功但 0 条"。
+2. **静态等价锚点**：`quotes.toscrape.com/`（静态版）必须稳定取到 **10 条**（SURVEY §2.4 实测基线）。
+3. **会话锚点**：本地表单站「登录→翻页→提交」端到端通过。
 
 ---
 
@@ -207,21 +236,13 @@ webctl/
 | feat 前先写 issue，维护团队批准后再动手 | 同上 |
 | 联动层单开逻辑区域，与核心完全解耦 | 同上 |
 | 拆分独立变更；修复落在引入它的那个 PR | DSH `AGENTS.md` |
-| ≥2 层依赖链必须用官方 stack，部分落地需显式边界 PR | DSH `.agents/notes/.../native-github-stacks...md` |
 | **一次 PR 只加一类**变更，禁止"顺手规范化" | `dsh-ecosystem-spec/CONTRIBUTING.md` §4 |
-| 治理/挂载 revision 升级必须是独立 PR | `dsh-ecosystem-spec/governance/rules.md` §3 |
 | 角色不独立演进就不预先拆包 | DSH `AGENTS.md`（capability seam） |
 | 业务规则独立成包；新行为走插件而非改主干 | DSH `packages/AGENTS.md` |
 
-### 6.2 待写入的新规则（本计划的执行依据）
+### 6.2 待写入的新规则（已落地）
 
-「每 1000 行 PR 需审批」**目前没有仓库依据**（SURVEY §1.2）。为使其可执行，建议按下列措辞写进项目的 `CONTRIBUTING.md`：
-
-> 单个 PR 的 `git diff --shortstat` 改动行数（additions + deletions）目标不超过 1000 行；超过时需维护者在关联 issue 中显式批准并写明理由。生成产物、协议类型批量录入、纯文档与测试 fixture 不计入该口径，但必须在 PR 描述中列明实际行数。
-
-注意两点风险（来自调查）：
-- 组织级审批门禁是**加权 2 分制**（`T-Auto/.github` 的 `approval-policy.json`），与行数无关；新规则若要与门禁联动，须改 CI 而非只写文档。
-- 策略类改动**合并进默认分支后才生效**，不能在自身 PR 内改变门禁。
+「每 1000 行 PR 需审批」此前**没有仓库依据**（SURVEY §1.2）。措辞已写入 [CONTRIBUTING.md](../CONTRIBUTING.md) §2，本计划按它执行。两点风险仍然成立：组织级门禁是**加权 2 分制**（与行数无关）；策略类改动**合并进默认分支后才生效**。
 
 ---
 
@@ -230,12 +251,12 @@ webctl/
 | 阶段 | 门禁命令 | 通过标准 |
 |---|---|---|
 | 每 PR | `cargo fmt --check && cargo clippy -- -D warnings && cargo test` | 全绿 |
-| 无浏览器 lane | `WEBCTL_DISABLE_BROWSER=1 cargo test --features no-browser` | T0/T1/T2 用例全部通过 |
-| L2 离线 lane | `cargo test --features mock-cdp` | mock CDP 回放用例全绿 |
-| 真机 E2E | `./tests/e2e/run-edge.sh` | Edge 全链路通过（探针固化自 SURVEY §2.2） |
-| 冷启动基线 | `./tests/bench/startup.sh` | 不劣于 P0 记录基线（292–313ms） |
-| 体积基线 | `cargo build --release --target x86_64-unknown-linux-musl` | 基线在 P0 确定后防回归 |
-| PR 行数 | `git diff --shortstat` 对照 5.1 口径 | ≤1000 或已获批准 |
+| L0 离线 lane | `cargo test --features offline`（fixture 站 + mock HTTP，无外网） | 取回/解析/会话/文档用例全绿 |
+| 真站 smoke | `./tests/e2e/run-real.sh`（可跳过的网络用例） | 静态锚点 10 条；JS 页 `DEGRADED` |
+| 体积基线 | `cargo build --release --target x86_64-unknown-linux-musl` | P0 定基线后防回归 |
+| PR 行数 | `git diff --shortstat` 对照 §5.1 | ≤1000 或已获批准 |
+
+**"无浏览器 lane"这个门禁随 T3 一起消失**：v0.4 全部用例本来就无浏览器。
 
 ---
 
@@ -243,25 +264,23 @@ webctl/
 
 | 风险 | 缓解 |
 |---|---|
-| Edge/Chrome 升级导致 CDP 漂移 | 只用稳定子集、忽略未知字段；`caps --protocol` 打印版本与实测能力 |
-| 协议类型体量失控 | 手写最小子集；全量走独立生成 crate 并按 5.1 单列 |
-| a11y ref 失效 | ref 优先 + CSS/XPath 兜底；失效返回 `STALE_REF` 并提示重新快照 |
-| headless 被识别 | 有头模式 + 受管真实 profile + CDP stealth；不承诺破解 |
-| 会话/进程泄漏 | 文件锁 + TTL + 关停路径测试 + 僵尸回收 + 30 分钟长跑用例 |
-| 移动仿真陷阱 | 需设备指标 + viewport meta + touch + UA 多件套，否则 `innerWidth` 恒为 980 |
-| MCP 60s 超时 | 工具调用分片；长任务显式配置 |
-| 规则无成文依据导致复现争议 | 先按 6.2 写入 CONTRIBUTING，再开工 |
+| 用户/agent 期待 JS 页面可用，实际 `DEGRADED` | 在 README、SKILL.md、信封里三处显式说明；失败绝不伪装成成功 |
+| 纯 Rust PDF 文本层质量不足 | §9 先 spike；不够用则只承诺文本型 PDF，扫描件 `UNSUPPORTED` |
+| 无浏览器指纹，被反爬拦截 | TLS 指纹（wreq）+ 合规头 + 限速 + robots；拦截即 `BLOCKED`，不承诺绕过 |
+| 内存/响应体失控 | 全链路尺寸上限 + 截断标记 + 落盘路径（`LIMIT` 码） |
+| 会话/状态泄漏 | 文件锁 + TTL + 权限 700 + 关停路径测试 |
+| MCP 60s 超时 | 工具分片；长任务显式配置；单次调用预算写进 SKILL.md |
+| 文档与实际能力脱节 | 本计划 §0 的代价清单必须随能力变化同步更新 |
 
 ---
 
 ## 9. 待验证清单（不得当作已证实）
 
-1. `wreq` 在 Rust 1.98 + rustls 下的编译与特性组合。
-2. 大响应（>10MB DOM / 网络 body）下 CDP WebSocket 的内存表现。
-3. Edge headless 下 `Fetch` 域拦截改写的稳定性。
-4. DSH MCP **探测进程**与 session 文件锁的兼容性。
-5. 30 分钟以上会话的浏览器是否泄漏。
-6. `Lightpanda` 作为可选后端：CDP 覆盖度与 AGPL-3.0 许可结论。
+1. `wreq` 在 Rust 1.98 + rustls 下的编译与特性组合（P0 第一件事）。
+2. 纯 Rust PDF 文本层（`pdf-extract` / `lopdf`）在中文 PDF 上的实际质量。
+3. `json_query` 自研子集 vs `jmespath` crate 的取舍。
+4. 大响应（>50MB）下的内存表现与截断策略。
+5. 礼貌限速在真实站点上的实际有效性（不被封 vs 太慢）。
 
 ---
 
@@ -269,7 +288,9 @@ webctl/
 
 | # | 决策 | 默认值 |
 |---|---|---|
-| 1 | 项目名与仓库 | `webctl`，新建 `Thatgfsj/webctl`；旧仓仅加迁移说明 |
-| 2 | T2 文档桥 | 保留，白名单 + 可关闭 |
-| 3 | 旧 Python 版 | 归档不兼容，只出迁移映射表 |
-| 4 | 1000 行规则 | 按 §6.2 写入 CONTRIBUTING 后执行 |
+| 1 | 项目名与仓库 | `webctl`，`Thatgfsj/webctl`（已建） |
+| 2 | JS 渲染 | **本期不做**；JS 页显式 `DEGRADED`，将来可作为可选内置引擎（Boa/rquickjs + 自建 DOM）加入 |
+| 3 | OCR | 不支持；扫描件 `UNSUPPORTED` |
+| 4 | 旧 Python 版 | 归档不兼容，只出迁移映射表 |
+| 5 | 1000 行规则 | 按 §6.2 执行（已写入 CONTRIBUTING） |
+| 6 | 许可证 | MIT（沿用） |
