@@ -452,3 +452,92 @@ fn state_09_cleanup_is_isolated_per_session() {
         "删除不存在的会话返回 false"
     );
 }
+
+/// STATE-10（回归，阻塞项 1）：`<state>/sessions` 本身是指向 state dir 之外的
+/// symlink 时，save / load / remove / list / purge_expired 必须在 **每个入口**
+/// 就返回可读的 UnsafePath（映射 BLOCKED），不得读、写或删掉外部文件；任何
+/// 返回路径的函数（path_for / lock_path）同样拒绝。
+///
+/// 构造：
+/// - `<state>/sessions` -> `<outside>`（越界 symlink）；
+/// - `<outside>/expired.json` 是一个**已过期**的会话文件（最危险场景：修复前
+///   purge_expired 会真的把它删掉）；
+/// - `<outside>/sentinel.json` 是内容固定的哨兵（证明未被删除/改写）。
+#[cfg(unix)]
+#[test]
+fn state_10_sessions_symlink_escape_is_blocked_at_every_entry() {
+    use std::os::unix::fs::symlink;
+
+    let tmp = temp_state("state10");
+    let outside = temp_state("state10-outside");
+
+    // 外部目录里的哨兵与“已过期会话”。
+    let sentinel = outside.path().join("sentinel.json");
+    let sentinel_bytes = b"outside-sentinel-do-not-touch";
+    fs::write(&sentinel, sentinel_bytes).expect("sentinel");
+
+    let expired_path = outside.path().join("expired.json");
+    let mut expired = SessionStore::new(tmp.path())
+        .new_state("expired")
+        .expect("state");
+    expired.expires_at = Some(1);
+    let expired_bytes = expired.export_json().expect("export");
+    fs::write(&expired_path, &expired_bytes).expect("write expired");
+
+    // <state>/sessions 指向 state dir 之外的目录。
+    let sessions = tmp.path().join("sessions");
+    symlink(outside.path(), &sessions).expect("sessions symlink");
+
+    let store = tmp.store();
+    let assert_blocked = |result: Result<(), SessionError>, what: &str| {
+        let error = result.expect_err(what);
+        assert!(
+            matches!(error, SessionError::UnsafePath(_)),
+            "{what}: 期望 UnsafePath，实际 {error:?}"
+        );
+        assert_eq!(error.code(), ErrorCode::Blocked, "{what}");
+        assert!(!error.message().is_empty(), "{what}: 必须可读");
+    };
+
+    // 任何返回路径的函数。
+    assert_blocked(store.path_for("expired").map(|_| ()), "path_for");
+    assert_blocked(store.lock_path("expired").map(|_| ()), "lock_path");
+
+    // 每个数据入口：一个都不得静默成功。
+    let mut fresh = store.new_state("fresh").expect("state");
+    fresh.note_origin("http://127.0.0.1/1");
+    assert_blocked(store.save(&fresh).map(|_| ()), "save");
+    assert_blocked(store.load("expired").map(|_| ()), "load");
+    assert_blocked(store.remove("expired").map(|_| ()), "remove");
+    assert_blocked(store.list().map(|_| ()), "list");
+    assert_blocked(store.purge_expired().map(|_| ()), "purge_expired");
+
+    // 越界哨兵证据：外部文件既未被删、也未被改。
+    assert!(sentinel.exists(), "外部哨兵文件不得被删除");
+    assert_eq!(
+        fs::read(&sentinel).expect("sentinel read"),
+        sentinel_bytes.as_slice(),
+        "外部哨兵内容不得被改写"
+    );
+    assert!(expired_path.exists(), "外部过期会话文件不得被 purge 删除");
+    assert_eq!(
+        fs::read(&expired_path).expect("expired read"),
+        expired_bytes.as_bytes(),
+        "外部过期会话文件不得被改写"
+    );
+    // sessions 仍是越界 symlink，state dir 内没有留下任何文件。
+    assert!(
+        fs::symlink_metadata(&sessions)
+            .expect("sessions metadata")
+            .file_type()
+            .is_symlink(),
+        "sessions 应仍是指向外部目录的 symlink"
+    );
+    assert!(
+        fs::read_dir(&sessions)
+            .expect("read sessions symlink")
+            .flatten()
+            .any(|entry| entry.file_name() == "sentinel.json"),
+        "哨兵应仍在外部目录中（证明未被搬移/删除）"
+    );
+}

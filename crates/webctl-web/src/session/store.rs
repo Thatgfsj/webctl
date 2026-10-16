@@ -3,11 +3,25 @@
 //! 序列化、导入导出与名字校验复用 session::state 的 SessionState 与
 //! validate_session_name；本模块只负责“怎么安全地落盘/读回”。
 //!
+//! 路径安全：containment root 恒为 **state root**，而不是 <state>/sessions 子目录。
+//! save / load / remove / list / purge_expired / path_for / lock_path 每个入口
+//! 都先经 ensure_contained(state_root, ...) 把关；<state>/sessions 本身是指向
+//! state root 之外的 symlink 时全部返回可读的 UnsafePath（映射 BLOCKED），
+//! 绝不读写或删除 state dir 之外的文件。
+//!
 //! 并发模型：每个会话一个 <sessions>/.<name>.lock，使用 webctl_core::state 的
 //! flock 语义 advisory 锁。锁属于 open file description，因此同一进程内的两个
 //! 独立 open（两个线程、两把句柄）也真实互斥；跨进程由同一内核锁语义保证。
-//! 本实现与测试都不创建子进程（零子进程硬约束）：真正多进程场景由同一把锁
-//! 的语义覆盖，进程被杀时内核在 fd 关闭时自动释放锁，不会留下死锁。
+//! 本实现与测试都不创建子进程（零子进程硬约束）。
+//!
+//! 互斥语义的覆盖边界（如实记录，未覆盖的不得宣称“已全测”）：
+//! - **未覆盖**：持锁进程被信号杀死后由内核自动释放锁。内核只在最后一个 fd
+//!   关闭时释放 flock；本模块只用同一进程内的 drop / 持有线程结束来模拟
+//!   “句柄消失”（见 state::lock 的 holder_disappears 用例），**没有**真正
+//!   kill 一个独立进程验证。既有的“残留锁文件”用例只是写了个锁文件、从未
+//!   真正持锁，不能据此宣称覆盖了“持锁者被杀”。
+//! - **未覆盖**：NFS 及一般网络文件系统的 flock 语义。本模块只在本地文件系统
+//!   上验证，网络文件系统上的锁语义可能不同，无任何断言。
 //!
 //! 原子写：先写同目录临时文件并 fsync，再 rename 覆盖目标；临时文件与目标文件
 //! 权限均为 0600。写入被中断只会留下临时文件，绝不会被当成会话读取。
@@ -79,15 +93,36 @@ impl SessionStore {
     }
 
     /// 会话文件路径；非法名字或越界 symlink 直接报错。
+    ///
+    /// 校验以 **state root** 为 containment root（不是 sessions 子目录），
+    /// 因此 `<state>/sessions` 本身是越界 symlink 时这里就返回 UnsafePath，
+    /// 不会把 state dir 之外的路径交给上层。
     pub fn path_for(&self, name: &str) -> Result<PathBuf, SessionError> {
         validate_session_name(name)?;
-        core_state::safe_join(&self.sessions_dir(), &format!("{name}.json")).map_err(path_error)
+        self.path_in_sessions(&format!("{name}.json"))
     }
 
-    /// 会话锁文件路径。
+    /// 会话锁文件路径（同样以 state root 为 containment root）。
     pub fn lock_path(&self, name: &str) -> Result<PathBuf, SessionError> {
         validate_session_name(name)?;
-        core_state::safe_join(&self.sessions_dir(), &format!(".{name}.lock")).map_err(path_error)
+        self.path_in_sessions(&format!(".{name}.lock"))
+    }
+
+    /// 已校验的 sessions 目录：canonicalize 后必须仍落在 state root 内。
+    ///
+    /// 这是所有落盘入口的唯一把关点；`sessions_dir()` 只返回未校验的原始路径，
+    /// 内部使用一律先经过这里。
+    fn checked_sessions_dir(&self) -> Result<PathBuf, SessionError> {
+        let sessions = self.sessions_dir();
+        core_state::ensure_contained(&self.root, &sessions).map_err(path_error)?;
+        Ok(sessions)
+    }
+
+    /// sessions 下的候选路径：先确认 sessions 目录不越界，再确认叶节点不越界。
+    fn path_in_sessions(&self, file_name: &str) -> Result<PathBuf, SessionError> {
+        let candidate = self.checked_sessions_dir()?.join(file_name);
+        core_state::ensure_contained(&self.root, &candidate).map_err(path_error)?;
+        Ok(candidate)
     }
 
     /// 新建一个（尚未落盘的）会话状态。
@@ -106,7 +141,7 @@ impl SessionStore {
         state.version = SESSION_FILE_VERSION;
         state.updated_at = now_secs();
         let json = state.export_json()?;
-        let tmp = self.temp_path(&state.name);
+        let tmp = self.temp_path(&state.name)?;
         if let Err(error) = write_temp(&tmp, json.as_bytes()) {
             let _ = fs::remove_file(&tmp);
             return Err(error);
@@ -171,7 +206,7 @@ impl SessionStore {
 
     /// 当前目录下的会话名（排序；不含临时文件与锁文件）。
     pub fn list(&self) -> Result<Vec<String>, SessionError> {
-        let dir = self.sessions_dir();
+        let dir = self.checked_sessions_dir()?;
         let entries = match fs::read_dir(&dir) {
             Ok(entries) => entries,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
@@ -229,8 +264,7 @@ impl SessionStore {
     }
 
     fn ensure_dirs(&self) -> Result<(), SessionError> {
-        let sessions = self.sessions_dir();
-        core_state::ensure_contained(&self.root, &sessions).map_err(path_error)?;
+        let sessions = self.checked_sessions_dir()?;
         fs::create_dir_all(&sessions)
             .map_err(|error| SessionError::Io(format!("create {}: {error}", sessions.display())))?;
         let _ = core_state::restrict_dir(&self.root);
@@ -248,17 +282,22 @@ impl SessionStore {
         })
     }
 
-    fn temp_path(&self, name: &str) -> PathBuf {
+    fn temp_path(&self, name: &str) -> Result<PathBuf, SessionError> {
         let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map(|duration| duration.as_nanos())
             .unwrap_or(0);
-        self.sessions_dir().join(format!(".{name}.tmp{nanos:032x}"))
+        Ok(self
+            .checked_sessions_dir()?
+            .join(format!(".{name}.tmp{nanos:032x}")))
     }
 
     fn cleanup_stale_temps(&self, name: &str) {
         let prefix = format!(".{name}.tmp");
-        let Ok(entries) = fs::read_dir(self.sessions_dir()) else {
+        let Ok(sessions) = self.checked_sessions_dir() else {
+            return;
+        };
+        let Ok(entries) = fs::read_dir(&sessions) else {
             return;
         };
         for entry in entries.flatten() {
