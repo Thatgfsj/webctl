@@ -5,9 +5,22 @@
 //! - pdf::extract_pdf_text：PDF 文本层（替代 pdftotext）；
 //! - json_query::json_query：JSON 查询子集（替代 jq）。
 //!
-//! 格式转换（HTML 到文本/markdown）属于 PR 03 解析层。本 PR 不依赖、不重复实现
-//! parse 模块（尚未合并）；doc_text 的 Html/Xml 分支当前显式返回 UNSUPPORTED，
-//! 将来接入 parse 层后改为调用它，并去掉该降级记录。
+//! # DOC-09 交接点（待 PR 03 解析层）
+//!
+//! TESTING §2.9 的 DOC-09 要求「HTML→文本复用解析层，结果与 PARSE-01 一致」。
+//! 解析层属于 PR 03，截至本 PR 尚未合并到 main，因此 DOC-09 的完整验收
+//! **当前无法满足**。本 PR 不做假通过，处置方式是可验收的交接，而不是把缺口藏起来：
+//!
+//! 1. **现在**：doc_text 的 Html/Xml 分支显式返回 UNSUPPORTED，降级标识由
+//!    [`DOC09_DEFERRED_DEGRADED_FROM`] 给出（值 `parse-layer-pending-pr03`），
+//!    诊断文本写明缺口的归属与验收口径；
+//! 2. **PR 03 合并后**：删除 Html/Xml 降级分支，改为调用 parse 层；本 PR 的
+//!    `tests/doc.rs::doc_09_deferred_boundary_is_explicit` 随之删除或改写；
+//! 3. **验收**：去掉 `doc_09_acceptance_after_pr03` 的 `#[ignore]` 后必须通过——
+//!    即 doc_text 对 HTML 返回 `code=OK`、`degraded_from=None`、正文与 PARSE-01 一致；
+//!    同时 `parse-layer-pending-pr03` 必须从代码与测试中彻底消失。
+//!
+//! 这三步让「未达成」可跟踪、可验收，而不是一句模糊的「以后再接」。
 //!
 //! # 硬约束
 //!
@@ -30,6 +43,12 @@ use webctl_core::{Envelope, ErrorCode, Trust};
 
 /// 文档输入上限（8 MiB）：超限只返回 LIMIT，不进入任何解析。
 pub const DEFAULT_MAX_DOC_BYTES: usize = 8 * 1024 * 1024;
+
+/// DOC-09 过渡期的稳定降级标识：HTML/XML→文本由 PR 03 解析层提供。
+///
+/// 只应出现在 PR 03 合并之前。按模块文档「DOC-09 交接点」接入 parse 层后，
+/// 这个常量与 Html/Xml 降级分支必须一并删除（验收条件之一）。
+pub const DOC09_DEFERRED_DEGRADED_FROM: &str = "parse-layer-pending-pr03";
 
 /// doc_text 参数。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -198,7 +217,8 @@ pub fn doc_text(bytes: &[u8], options: &DocOptions) -> Envelope<DocText> {
         );
     }
 
-    match detect_format(bytes) {
+    let format = detect_format(bytes);
+    match format {
         DocFormat::Pdf => extract_pdf_text(bytes, options.max_bytes),
         DocFormat::Text => match std::str::from_utf8(bytes) {
             Ok(text) => Envelope::ok(
@@ -228,22 +248,20 @@ pub fn doc_text(bytes: &[u8], options: &DocOptions) -> Envelope<DocText> {
             ErrorCode::Unsupported,
             elapsed(),
         ),
-        DocFormat::Html | DocFormat::Xml => {
-            let format = detect_format(bytes);
-            Envelope::degraded(
-                DocText::unsupported(
-                    format,
-                    None,
-                    vec![
-                        "HTML/XML 到文本属于 PR 03 解析层；该层尚未合并，本 PR 不重复实现"
-                            .to_string(),
-                    ],
-                ),
-                "parse-layer-pending-pr03",
-                ErrorCode::Unsupported,
-                elapsed(),
-            )
-        }
+        DocFormat::Html | DocFormat::Xml => Envelope::degraded(
+            DocText::unsupported(
+                format,
+                None,
+                vec![format!(
+                    "DOC-09 未达成：HTML/XML→文本应由 PR 03 解析层（parse）提供，本层不重复实现；\
+                     交接点：PR 03 合并后改为调用 parse 层，验收口径为「与 PARSE-01 结果一致且无 degraded_from」。\
+                     当前降级标识：{DOC09_DEFERRED_DEGRADED_FROM}"
+                )],
+            ),
+            DOC09_DEFERRED_DEGRADED_FROM,
+            ErrorCode::Unsupported,
+            elapsed(),
+        ),
         DocFormat::Unknown => Envelope::degraded(
             DocText::unsupported(
                 DocFormat::Unknown,
