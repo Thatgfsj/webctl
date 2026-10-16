@@ -3,8 +3,9 @@
 //! 优先级（高 → 低）：**CLI 参数 > 环境变量 > 配置文件 > 内置默认**。
 //!
 //! 本模块只负责“配置语义、合并与配置文件解析”，不联网、不落盘、不启动子进程。
-//! 会话状态目录的文件锁 / TTL 属议题 #34（PR 05）；本模块只保留既有的默认目录解析，
-//! 不实现任何持久化。
+//! 会话状态目录的文件锁 / TTL 属议题 #34（PR 05）；路径解析本身**不在这里**，
+//! `default_state_dir()` 只是 crate::state::resolve_state_dir 的薄委托，全仓
+//! 只有 state::dir 一处路径拼装。
 //!
 //! 代理语义（CLI-03）：
 //! - 只有**显式**配置才走代理：WEBCTL_PROXY 环境变量、配置文件 proxy、CLI --proxy。
@@ -200,17 +201,15 @@ pub fn load_config_file(path: &Path) -> Result<ConfigLayer, ConfigError> {
     })
 }
 
-/// 默认状态目录：优先 WEBCTL_STATE_DIR，其次用户主目录下的 .webctl。
+/// 默认状态目录：**委托** `crate::state::resolve_state_dir(None)`，全仓只有
+/// state::dir 一处路径拼装（消除历史上这里的第二份解析）。
 ///
-/// 仅路径解析；文件锁、TTL 与持久化属议题 #34。
+/// 优先级（高 → 低）：显式参数（CLI --state-dir 语义） > `WEBCTL_STATE_DIR` >
+/// `$HOME/.webctl`（Windows 回退 `$USERPROFILE`） > `./.webctl`。
+/// 空值语义：`WEBCTL_STATE_DIR=""`、空的显式参数、空的 HOME 一律视为未设置，
+/// 逐层回退，**绝不返回空路径**。文件锁、TTL 与持久化属议题 #34，见 crate::state。
 pub fn default_state_dir() -> PathBuf {
-    if let Some(dir) = std::env::var_os("WEBCTL_STATE_DIR") {
-        return PathBuf::from(dir);
-    }
-    if let Some(home) = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")) {
-        return PathBuf::from(home).join(".webctl");
-    }
-    PathBuf::from(".webctl")
+    crate::state::resolve_state_dir(None)
 }
 
 /// 环境变量名：配置文件路径。

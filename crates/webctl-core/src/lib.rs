@@ -9,6 +9,7 @@ pub mod caps;
 pub mod config;
 pub mod envelope;
 pub mod error;
+pub mod state;
 
 pub use caps::{Capability, CapabilityDomain, CapabilityState, CapsReport};
 pub use config::{

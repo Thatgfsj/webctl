@@ -22,6 +22,9 @@ serde_json = "1.0"
 webctl-core = { path = "crates/webctl-core" }
 webctl-web = { path = "crates/webctl-web" }
 webctl-mcp = { path = "crates/webctl-mcp" }
+# PR 05 状态层：advisory 文件锁；fslock 在 Unix 上直接调用 flock(2)，
+# 锁属于 open file description（per-handle），进程死亡时由内核释放。
+fslock = "0.2"
 # PR 02 取回层：HTTP 客户端、字符解码、URL 解析与流式读取
 encoding_rs = "0.8"
 futures-util = { version = "0.3", default-features = false, features = ["std"] }

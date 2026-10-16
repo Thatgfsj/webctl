@@ -12,6 +12,8 @@ authors.workspace = true
 serde.workspace = true
 # PR 10：配置文件（TOML）解析
 toml = "0.8"
+# PR 05 状态层：flock 语义的 advisory 文件锁（纯 Rust + libc FFI，无 C 工具链）。
+fslock.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true

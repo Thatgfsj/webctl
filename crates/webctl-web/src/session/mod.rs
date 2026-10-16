@@ -16,6 +16,7 @@ pub mod html;
 pub mod pagination;
 pub mod spa;
 pub mod state;
+pub mod store;
 
 pub use csrf::{
     CsrfSource, CsrfToken, extract_form_tokens, extract_meta_tokens, extract_tokens, is_csrf_name,
@@ -30,5 +31,6 @@ pub use pagination::{NextLink, NextSource, find_next};
 pub use spa::{SpaSignal, detect as detect_spa};
 pub use state::{
     DEFAULT_TTL, MAX_SESSION_NAME_LEN, SESSION_FILE_VERSION, SessionError, SessionState,
-    SessionStore, validate_session_name,
+    validate_session_name,
 };
+pub use store::SessionStore;

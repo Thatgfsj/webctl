@@ -2189,6 +2189,7 @@ dependencies = [
 name = "webctl-core"
 version = "0.1.0"
 dependencies = [
+ "fslock",
  "serde",
  "serde_json",
  "toml",
