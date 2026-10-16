@@ -296,7 +296,7 @@ pub fn find_ignore_ascii_case(haystack: &str, from: usize, needle: &str) -> Opti
             && hay[index..index + needle_bytes.len()]
                 .iter()
                 .zip(needle_bytes)
-                .all(|(a, b)| a.to_ascii_lowercase() == b.to_ascii_lowercase())
+                .all(|(a, b)| a.eq_ignore_ascii_case(b))
         {
             return Some(index);
         }

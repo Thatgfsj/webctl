@@ -4,6 +4,7 @@
 //! 1. link[rel=next][href]；
 //! 2. a[rel=next][href]；
 //! 3. a[href]，其文本是 next / “下一页” / › / » 等。
+//!
 //! 只做识别与相对 URL 解析；遍历、页数上限与循环终止在 engine::paginate。
 
 use serde::{Deserialize, Serialize};
@@ -43,10 +44,10 @@ pub fn find_next(html: &str, base: &Url) -> Option<NextLink> {
         if tag.closing || tag.name != "link" {
             continue;
         }
-        if rel_has_next(tag.attr("rel")) {
-            if let Some(link) = resolve(tag.attr("href"), base, None, NextSource::LinkRel) {
-                return Some(link);
-            }
+        if rel_has_next(tag.attr("rel"))
+            && let Some(link) = resolve(tag.attr("href"), base, None, NextSource::LinkRel)
+        {
+            return Some(link);
         }
     }
 
@@ -57,15 +58,15 @@ pub fn find_next(html: &str, base: &Url) -> Option<NextLink> {
         }
         let text = anchor_text(&nodes, index);
         let text_ref = text.as_deref();
-        if rel_has_next(tag.attr("rel")) {
-            if let Some(link) = resolve(tag.attr("href"), base, text_ref, NextSource::AnchorRel) {
-                return Some(link);
-            }
+        if rel_has_next(tag.attr("rel"))
+            && let Some(link) = resolve(tag.attr("href"), base, text_ref, NextSource::AnchorRel)
+        {
+            return Some(link);
         }
-        if is_next_text(text_ref) {
-            if let Some(link) = resolve(tag.attr("href"), base, text_ref, NextSource::AnchorText) {
-                return Some(link);
-            }
+        if is_next_text(text_ref)
+            && let Some(link) = resolve(tag.attr("href"), base, text_ref, NextSource::AnchorText)
+        {
+            return Some(link);
         }
     }
     None

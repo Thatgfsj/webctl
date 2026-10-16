@@ -749,7 +749,7 @@ async fn sess_03_cookie_persists_across_engines() {
     assert!(env.ok, "{}", env.error);
     assert!(env.data.expect("data").html.contains("Welcome alice"));
     second.load_state().expect("load");
-    assert!(second.cookie_jar().len() >= 1);
+    assert!(!second.cookie_jar().is_empty());
 }
 
 /// SESS-04：CSRF token 从页面提取并回填，服务端断言匹配。
