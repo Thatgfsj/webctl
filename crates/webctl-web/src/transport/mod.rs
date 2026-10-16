@@ -249,6 +249,19 @@ async fn run(start: Url, options: &FetchOptions) -> Result<Fetched, TransportErr
             continue;
         }
 
+        if status.is_client_error() || status.is_server_error() {
+            // HTTP-14：4xx/5xx 归类为 BLOCKED（拦截/拒绝），不与 PARSE 混淆。
+            return Err(TransportError::new(
+                ErrorCode::Blocked,
+                format!(
+                    "HTTP {} {} at {}",
+                    status.as_u16(),
+                    status.canonical_reason().unwrap_or("Unknown"),
+                    current
+                ),
+            ));
+        }
+
         return finish(response, current, hops, options, started).await;
     }
 }
