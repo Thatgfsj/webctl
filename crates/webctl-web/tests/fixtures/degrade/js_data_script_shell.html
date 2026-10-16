@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Quotes to Scrape</title>
+  <link rel="stylesheet" href="/static/main.css">
+</head>
+<body>
+  <div class="container">
+    <div class="row header-box">
+      <h1><a href="/">Quotes to Scrape</a></h1>
+      <p><a href="/login">Login</a></p>
+    </div>
+    <script src="/static/jquery.js"></script>
+    <script>
+      var data = [
+        {"text": "Quote number 1 rendered only by the inline script in this page."},
+        {"text": "Quote number 2 rendered only by the inline script in this page."},
+        {"text": "Quote number 3 rendered only by the inline script in this page."},
+        {"text": "Quote number 4 rendered only by the inline script in this page."},
+        {"text": "Quote number 5 rendered only by the inline script in this page."},
+        {"text": "Quote number 6 rendered only by the inline script in this page."},
+        {"text": "Quote number 7 rendered only by the inline script in this page."},
+        {"text": "Quote number 8 rendered only by the inline script in this page."},
+        {"text": "Quote number 9 rendered only by the inline script in this page."},
+        {"text": "Quote number 10 rendered only by the inline script in this page."}
+      ];
+      for (var i in data) {
+        document.write("<div class='quote'><span class='text'>" + data[i].text + "</span></div>");
+      }
+    </script>
+    <nav><ul class="pager"><li class="next"><a href="/js/page/2/">Next</a></li></ul></nav>
+    <footer class="footer"><p>Quotes by: GoodReads.com</p><p>Made with by Zyte</p></footer>
+  </div>
+</body>
+</html>
