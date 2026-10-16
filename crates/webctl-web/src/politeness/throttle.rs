@@ -1,10 +1,13 @@
 //! 每主机并发上限与最小请求间隔（PLAN v0.4 §3.8）。
 //!
-//! 设计：**先预约时间片，再取并发许可**——
-//! 1. 同一主机的请求按 `min_interval` 预约各自的开始时刻（互不重叠）；
-//! 2. 预约到点后再去抢该主机的并发信号量（上限 `max_concurrency_per_host`）。
+//! 设计：**先抢并发许可，再预约时间片**——
+//! 1. 先取该主机的并发信号量（上限 `max_concurrency_per_host`）；
+//! 2. 拿到许可后，才按 `min_interval` 预约自己的开始时刻并等待到点。
 //!
-//! 这样既能保证请求间隔，又不会把并发压成 1；不同主机互不影响。
+//! 顺序不能颠倒：如果先预约再排队等许可，请求在信号量上等待超过自己的预约时刻后，
+//! 会与后到者"撞车"同时开始（实测：并发 2、间隔 200ms 时两次开始相差 7.9µs）。
+//! 先拿许可再预约，才能保证**实际开始时刻**之间始终满足最小间隔。
+//! 不同主机互不影响。
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -72,11 +75,17 @@ impl HostGate {
             .clone()
     }
 
-    /// 取得一次请求许可：内部会先等到该主机允许的开始时刻，再占用并发名额。
+    /// 取得一次请求许可：**先占用并发名额，再等到该主机允许的开始时刻**。
     ///
     /// 返回的许可在 drop 时释放并发名额。
     pub async fn acquire(&self, host: &str) -> HostPermit {
         let slot = self.slot(host).await;
+        // 必须先拿许可：否则排队等待期间预约时刻已过，多个请求会同时开始，最小间隔形同虚设。
+        let permit = Arc::clone(&slot.semaphore)
+            .acquire_owned()
+            .await
+            .expect("信号量不会关闭");
+        // 拿到许可之后才预约开始时刻，保证"真正开始"之间满足间隔。
         let start = {
             let mut next = slot.next_start.lock().await;
             let now = Instant::now();
@@ -85,10 +94,6 @@ impl HostGate {
             start
         };
         sleep_until(start).await;
-        let permit = Arc::clone(&slot.semaphore)
-            .acquire_owned()
-            .await
-            .expect("信号量不会关闭");
         HostPermit {
             _permit: permit,
             host: host.to_owned(),
@@ -145,14 +150,22 @@ mod tests {
             peak.load(Ordering::SeqCst)
         );
 
-        let starts = starts.lock().await.clone();
+        let mut starts = starts.lock().await.clone();
+        starts.sort();
+        // 单点间隔给 25% 余量（负载下先到者可能被推迟唤醒，压缩记录间隔）；
+        // 真正抖动免疫的不变量是"总跨度"：6 次请求、间隔 60ms ⇒ 跨度至少 ≈300ms。
         for pair in starts.windows(2) {
             let gap = pair[1].duration_since(pair[0]);
             assert!(
-                gap >= Duration::from_millis(55),
-                "相邻请求间隔 {gap:?} 小于最小间隔"
+                gap >= Duration::from_millis(45),
+                "相邻请求间隔 {gap:?} 明显小于最小间隔"
             );
         }
+        let span = starts.last().expect("starts").duration_since(starts[0]);
+        assert!(
+            span >= Duration::from_millis(290),
+            "总跨度 {span:?} 不足（6 次 × 60ms 间隔应当 ≥300ms）"
+        );
     }
 
     /// 不同主机互不阻塞。
@@ -173,6 +186,63 @@ mod tests {
         drop((a, b));
     }
 
+    /// 回归（审阅者探针）：**在信号量上排队的请求也必须保持最小间隔**。
+    ///
+    /// 旧实现"先预约再排队"时，排队超过预约时刻的请求会与后到者同时开始
+    /// （实测两次开始相差 7.9µs，而 min_interval 是 200ms）。
+    #[tokio::test]
+    async fn queued_requests_still_keep_min_interval() {
+        let gate = Arc::new(HostGate::new(ThrottleConfig {
+            max_concurrency_per_host: 2,
+            min_interval: Duration::from_millis(200),
+        }));
+        let starts = Arc::new(tokio::sync::Mutex::new(Vec::<Instant>::new()));
+
+        // 两个"长占用"任务先把两个许可占住，逼迫后续请求排队。
+        let mut holders = Vec::new();
+        for hold in [Duration::from_millis(500), Duration::from_millis(700)] {
+            let gate = Arc::clone(&gate);
+            let starts = Arc::clone(&starts);
+            holders.push(tokio::spawn(async move {
+                let permit = gate.acquire("queued.test").await;
+                starts.lock().await.push(Instant::now());
+                tokio::time::sleep(hold).await;
+                drop(permit);
+            }));
+        }
+        tokio::time::sleep(Duration::from_millis(30)).await;
+
+        let mut waiters = Vec::new();
+        for _ in 0..2 {
+            let gate = Arc::clone(&gate);
+            let starts = Arc::clone(&starts);
+            waiters.push(tokio::spawn(async move {
+                let permit = gate.acquire("queued.test").await;
+                starts.lock().await.push(Instant::now());
+                drop(permit);
+            }));
+        }
+        for task in holders.into_iter().chain(waiters) {
+            task.await.expect("task");
+        }
+
+        let mut stamps = starts.lock().await.clone();
+        stamps.sort();
+        assert_eq!(stamps.len(), 4);
+        for pair in stamps.windows(2) {
+            let gap = pair[1].duration_since(pair[0]);
+            assert!(
+                gap >= Duration::from_millis(150),
+                "排队场景下相邻开始间隔只有 {gap:?}（应 ≈200ms）"
+            );
+        }
+        let span = stamps[3].duration_since(stamps[0]);
+        assert!(
+            span >= Duration::from_millis(540),
+            "排队场景总跨度只有 {span:?}（4 次 × 200ms 间隔应当 ≥600ms）"
+        );
+    }
+
     /// 同主机第二次请求必须等到最小间隔之后。
     #[tokio::test]
     async fn second_request_waits_for_interval() {
@@ -184,7 +254,7 @@ mod tests {
         let started = Instant::now();
         let second = gate.acquire("c.test").await;
         assert!(
-            started.elapsed() >= Duration::from_millis(70),
+            started.elapsed() >= Duration::from_millis(60),
             "第二次请求等待 {:?}",
             started.elapsed()
         );

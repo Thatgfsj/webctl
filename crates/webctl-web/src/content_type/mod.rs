@@ -28,7 +28,7 @@ pub enum ContentKind {
 }
 
 impl ContentKind {
-    /// 是否按文本解码（html/json/xml 为真，pdf/binary 为假）。
+    /// 是否按文本解码（html / json / xml / text 为真，pdf / binary 为假）。
     pub fn is_text(self) -> bool {
         matches!(self, Self::Html | Self::Json | Self::Xml | Self::Text)
     }

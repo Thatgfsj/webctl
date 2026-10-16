@@ -59,8 +59,11 @@ impl RobotsRules {
     /// 解析 robots.txt 文本。任何非法行都被忽略（robots.txt 宽容解析是行业惯例）。
     pub fn parse(text: &str) -> Self {
         let mut result = RobotsRules::default();
-        let mut current: Option<String> = None; // None = 尚未出现 User-agent
         let mut targets: Vec<String> = Vec::new();
+        // 一个"组"= 连续若干 User-agent 行 + 后续规则行。
+        // 只有在**已经给当前组写过规则**之后再次遇到 User-agent，才开启新组
+        // （RFC 9309 §2.2.1：连续 User-agent 行共享同一组规则）。
+        let mut group_has_rules = false;
 
         for raw in text.lines() {
             let line = raw.split('#').next().unwrap_or("").trim();
@@ -75,9 +78,9 @@ impl RobotsRules {
             match key.as_str() {
                 "user-agent" | "useragent" => {
                     let token = value.to_ascii_lowercase();
-                    if current.as_deref() != Some(token.as_str()) {
+                    if group_has_rules {
                         targets.clear();
-                        current = Some(token.clone());
+                        group_has_rules = false;
                     }
                     targets.push(token);
                 }
@@ -85,6 +88,7 @@ impl RobotsRules {
                     if targets.is_empty() {
                         continue;
                     }
+                    group_has_rules = true;
                     let allow = key == "allow";
                     let path = value.to_owned();
                     for target in &targets {
@@ -113,14 +117,13 @@ impl RobotsRules {
     /// 针对某个 user-agent 选出规则组：精确 token 优先，其次 token 前缀匹配，最后 `*`。
     pub fn rules_for(&self, user_agent: &str) -> &AgentRules {
         let ua = user_agent.to_ascii_lowercase();
-        if let Some((_, rules)) = self
-            .named
+        // 最长 token 优先：UA `webctl-bot/1.0` 同时命中 `webctl` 与 `webctl-bot` 时取后者。
+        self.named
             .iter()
-            .find(|(name, _)| ua.contains(name.as_str()))
-        {
-            return rules;
-        }
-        &self.wildcard
+            .filter(|(name, _)| ua.contains(name.as_str()))
+            .max_by_key(|(name, _)| name.len())
+            .map(|(_, rules)| rules)
+            .unwrap_or(&self.wildcard)
     }
 }
 
@@ -225,6 +228,39 @@ Disallow:
         assert!(allows(&rules, "x", "/a"), "同长时 Allow 胜");
         assert!(!allows(&rules, "x", "/a/b"), "更长 Disallow 胜");
         assert!(allows(&rules, "x", "/c"));
+    }
+
+    /// 回归（审阅者）：连续 User-agent 行必须共享同一组规则（RFC 9309 §2.2.1）。
+    #[test]
+    fn consecutive_user_agent_lines_share_one_group() {
+        let rules = RobotsRules::parse("User-agent: alpha\nUser-agent: beta\nDisallow: /x\n");
+        assert_eq!(rules.named.len(), 2, "两组都应在场：{:?}", rules.named);
+        assert!(!allows(&rules, "alpha", "/x"), "alpha 组应被禁");
+        assert!(!allows(&rules, "beta", "/x"), "beta 组应被禁");
+        assert!(
+            allows(&rules, "gamma", "/x"),
+            "未列出的 UA 落到 * 组（无规则=允许）"
+        );
+    }
+
+    /// 回归（审阅者）：UA 同时命中多组时取**最长 token**那组。
+    #[test]
+    fn longest_matching_agent_token_wins() {
+        let rules = RobotsRules::parse(
+            "User-agent: webctl\nDisallow: /a\n\nUser-agent: webctl-bot\nDisallow: /b\n",
+        );
+        assert!(
+            !allows(&rules, "webctl-bot/1.0", "/b"),
+            "webctl-bot 组应禁 /b"
+        );
+        assert!(
+            allows(&rules, "webctl-bot/1.0", "/a"),
+            "不应落到更短的 webctl 组"
+        );
+        assert!(
+            !allows(&rules, "webctl/1.0", "/a"),
+            "纯 webctl 仍走 webctl 组"
+        );
     }
 
     #[test]
