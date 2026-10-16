@@ -519,6 +519,7 @@ impl SessionEngine {
                 RequestError::new(ErrorCode::Internal, format!("client init failed: {error}"))
             })?;
 
+        let initial = url.clone();
         let mut current = url;
         let mut hops = 0usize;
         let mut visited: Vec<String> = vec![current.to_string()];
@@ -533,7 +534,12 @@ impl SessionEngine {
             if let Some(header) = self.jar.cookie_header(&current) {
                 request = request.header(wreq::header::COOKIE, header);
             }
+            // SEC-06：跨源重定向不得携带原始凭据（与 transport 同一策略）。
+            let cross_origin = !crate::transport::same_origin(&initial, &current);
             for (name, value) in &self.options.headers {
+                if cross_origin && webctl_core::security::redact::is_sensitive_header(name) {
+                    continue;
+                }
                 request = request.header(name.as_str(), value.as_str());
             }
             // 重定向可能重发同一请求体（307/308），因此这里只能借用而不能 take()；

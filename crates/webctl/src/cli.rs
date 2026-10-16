@@ -11,10 +11,13 @@ use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
 use clap::{CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum};
+use serde::Serialize;
+use webctl_core::security::paths::{SafeRoot, write_secret_file};
 use webctl_core::{
     CapabilityState, CapsReport, Config, ConfigError, ConfigLayer, ENV_VARS, Envelope, ErrorCode,
     OutputFormat, Trust, default_config_path, load_config_file, redact_url_userinfo, resolve,
 };
+use webctl_web::SessionStore;
 use webctl_web::transport::{FetchOptions, Fetched, fetch};
 
 /// 错误码 → 进程退出码的稳定映射（CLI-05）。
@@ -117,6 +120,35 @@ enum Command {
     },
     /// 打印生效配置（代理凭据已脱敏）。
     Config,
+    /// 查看/导出 cookie（默认严格：查看值脱敏；导出需 --yes、文件 0600）。
+    Cookies {
+        /// 子动作。
+        #[command(subcommand)]
+        action: CookiesAction,
+    },
+}
+
+/// `cookies` 子动作。
+#[derive(Debug, Subcommand)]
+enum CookiesAction {
+    /// 列出某个会话的 cookie（值一律脱敏）。
+    List {
+        /// 会话名。
+        #[arg(long, default_value = "default", value_name = "NAME")]
+        session: String,
+    },
+    /// 导出某个会话的 cookie 到文件（需 `--yes`；文件权限 0600）。
+    Export {
+        /// 会话名。
+        #[arg(long, default_value = "default", value_name = "NAME")]
+        session: String,
+        /// 目标文件；必须是相对 state dir 的相对路径（绝对路径与越界一律拒绝）。
+        #[arg(long, value_name = "PATH")]
+        file: PathBuf,
+        /// 明确确认写入凭据。
+        #[arg(long)]
+        yes: bool,
+    },
 }
 
 /// 进程入口：解析参数并执行；解析失败给出可读提示与非零退出码（CLI-08）。
@@ -155,7 +187,9 @@ fn help_footer() -> String {
          只有 WEBCTL_PROXY 会启用代理；宿主 HTTP_PROXY / HTTPS_PROXY / ALL_PROXY 一律忽略，\n\
          未配置时固定直连。\n\n\
          退出码（错误码 → 进程退出码，稳定映射）：\n{}\n\n\
-         配置文件为 TOML，可用键：output / timeout_ms / offline / proxy。",
+         配置文件为 TOML，可用键：output / timeout_ms / offline / proxy。\n\n\
+         安全默认严格：cookies 导出需 --yes 且文件权限 0600；\n\
+         日志与信封中的 cookie / Authorization 一律脱敏；文件参数须落在 state dir 内。",
         env_vars.join("\n"),
         exit_codes.join("\n")
     )
@@ -203,6 +237,7 @@ fn execute(cli: Cli) -> ExitCode {
         Command::Caps => run_caps(&config, started),
         Command::Config => run_config(&config, started),
         Command::Fetch { url } => run_fetch(&config, &url, started),
+        Command::Cookies { action } => run_cookies(&config, action, started),
     }
 }
 
@@ -243,6 +278,10 @@ fn run_fetch(config: &Config, url: &str, started: Instant) -> ExitCode {
             started,
         );
     }
+    // SEC-07：诊断日志里的 URL 必须先脱敏；非 http(s) 不记录（不把本地路径写进日志）。
+    if webctl_core::security::paths::is_http_scheme(url) {
+        crate::logs::log("fetch", url);
+    }
     let options = FetchOptions {
         timeout: Duration::from_millis(config.timeout_ms),
         proxy: config.proxy.clone(),
@@ -271,29 +310,159 @@ fn block_on<F: Future>(future: F) -> Result<F::Output, String> {
     Ok(runtime.block_on(future))
 }
 
-/// 不得出现在输出里的响应头（凭据/cookie 明文，CLI-10）。
-const SENSITIVE_HEADERS: [&str; 4] = [
-    "set-cookie",
-    "cookie",
-    "authorization",
-    "proxy-authorization",
-];
-
-/// 输出前脱敏：敏感响应头置空，错误信息里的代理凭据替换为掩码。
+/// 输出前脱敏（纵深防御：transport 已在 `finish` 脱敏；这里兜底代理凭据与未来新路径）。
 fn redact_sensitive(envelope: &mut Envelope<Fetched>, proxy: Option<&str>) {
+    // SEC-07：错误信息里可能带出含 token 的目标 URL（wreq 的 uri 回显），也必须脱敏。
+    envelope.error = webctl_core::security::redact::redact_log_line(&envelope.error);
     if let Some(proxy) = proxy {
         envelope.error = redact_proxy(&envelope.error, proxy);
     }
     if let Some(data) = &mut envelope.data {
+        webctl_web::redact::redact_fetched(data);
+        // CLI-10 契约：敏感头整体置为占位符（不再保留 cookie 名）。
         for (name, value) in &mut data.headers {
-            if SENSITIVE_HEADERS
-                .iter()
-                .any(|header| name.eq_ignore_ascii_case(header))
-            {
-                *value = "<redacted>".to_owned();
+            if webctl_core::security::redact::is_sensitive_header(name) {
+                *value = webctl_core::security::redact::REDACTED.to_owned();
             }
         }
     }
+}
+
+/// `cookies` 清单里的一条（值恒为脱敏占位符）。
+#[derive(Debug, Serialize)]
+struct CookieView {
+    name: String,
+    value: String,
+    domain: String,
+    path: String,
+    secure: bool,
+    http_only: bool,
+    expires_at: Option<u64>,
+}
+
+/// `cookies list` 的信封数据。
+#[derive(Debug, Serialize)]
+struct CookieReport {
+    session: String,
+    cookies: Vec<CookieView>,
+}
+
+/// `cookies export` 的信封数据（不含任何 cookie 值）。
+#[derive(Debug, Serialize)]
+struct CookieExport {
+    path: String,
+    bytes: usize,
+    mode: Option<u32>,
+}
+
+fn run_cookies(config: &Config, action: CookiesAction, started: Instant) -> ExitCode {
+    match action {
+        CookiesAction::List { session } => {
+            let state = match load_session_for_cookies(config, &session) {
+                Ok(state) => state,
+                Err((code, message)) => return fail(code, &message, config.output, started),
+            };
+            let mut redacted = state;
+            webctl_web::redact::redact_session_state(&mut redacted);
+            let report = CookieReport {
+                session: redacted.name.clone(),
+                cookies: redacted
+                    .cookies
+                    .iter()
+                    .map(|cookie| CookieView {
+                        name: cookie.name.clone(),
+                        value: cookie.value.clone(),
+                        domain: cookie.domain.clone(),
+                        path: cookie.path.clone(),
+                        secure: cookie.secure,
+                        http_only: cookie.http_only,
+                        expires_at: cookie.expires_at,
+                    })
+                    .collect(),
+            };
+            emit(
+                Envelope::ok(report, Trust::TrustedLocal, elapsed(started)),
+                config.output,
+                render_cookies,
+            )
+        }
+        CookiesAction::Export { session, file, yes } => {
+            // SEC-02：导出凭据必须先显式确认；未确认时在**任何文件/会话动作之前**拒绝。
+            if !yes {
+                return fail(
+                    ErrorCode::Blocked,
+                    "cookies export requires --yes: refusing to write credentials without explicit confirmation",
+                    config.output,
+                    started,
+                );
+            }
+            // SEC-11：文件参数先过 canonicalize containment（绝对路径与越界一律拒绝）。
+            let root = SafeRoot::new(config.state_dir.clone());
+            let path = match root.resolve(&file) {
+                Ok(path) => path,
+                Err(error) => return fail(error.code(), &error.message(), config.output, started),
+            };
+            let state = match load_session_for_cookies(config, &session) {
+                Ok(state) => state,
+                Err((code, message)) => return fail(code, &message, config.output, started),
+            };
+            let json = match state.export_json() {
+                Ok(json) => json,
+                Err(error) => return fail(error.code(), &error.message(), config.output, started),
+            };
+            // SEC-03：写入即 0600。
+            if let Err(error) = write_secret_file(&path, json.as_bytes()) {
+                return fail(
+                    ErrorCode::Internal,
+                    &format!("导出 cookie 失败：{error}"),
+                    config.output,
+                    started,
+                );
+            }
+            let export = CookieExport {
+                path: path.display().to_string(),
+                bytes: json.len(),
+                mode: webctl_core::state::file_mode(&path),
+            };
+            emit(
+                Envelope::ok(export, Trust::TrustedLocal, elapsed(started)),
+                config.output,
+                render_cookie_export,
+            )
+        }
+    }
+}
+
+fn load_session_for_cookies(
+    config: &Config,
+    session: &str,
+) -> Result<webctl_web::SessionState, (ErrorCode, String)> {
+    let store = SessionStore::new(config.state_dir.clone());
+    store
+        .load(session)
+        .map_err(|error| (error.code(), error.message()))
+}
+
+fn render_cookies(report: &CookieReport) {
+    println!("session = {}", report.session);
+    for cookie in &report.cookies {
+        println!(
+            "  {}@{}{} = {}（secure={} http_only={}）",
+            cookie.name, cookie.domain, cookie.path, cookie.value, cookie.secure, cookie.http_only
+        );
+    }
+}
+
+fn render_cookie_export(export: &CookieExport) {
+    println!(
+        "exported {} bytes to {}（mode {}）",
+        export.bytes,
+        export.path,
+        export
+            .mode
+            .map(|mode| format!("{mode:o}"))
+            .unwrap_or_else(|| "n/a".to_owned())
+    );
 }
 
 fn redact_proxy(message: &str, proxy: &str) -> String {
@@ -446,7 +615,7 @@ mod tests {
             .get_subcommands()
             .map(clap::Command::get_name)
             .collect();
-        for expected in ["caps", "fetch", "config"] {
+        for expected in ["caps", "fetch", "config", "cookies"] {
             assert!(
                 names.contains(&expected),
                 "缺少子命令 {expected}: {names:?}"

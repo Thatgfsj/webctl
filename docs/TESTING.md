@@ -478,6 +478,35 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 - SESS-10 由既有 `crates/webctl-web/tests/session.rs::sess_10_spa_degrades`（连同 `sess_15_paginate_spa_stays_degraded`）覆盖；接入守卫后仍全绿。
 - **L1（可跳过、不作 CI 门禁）**：`crates/webctl-web/tests/e2e/run-real.sh` 承载 DEGRADE-01/02 与 E2E-01/02——静态锚点计数 10 条、JS 页断言降级码非 OK 且 `degraded_from` 非空；`WEBCTL_REAL!=1` 或无网络/缺 curl/cargo 时显式 SKIP。
 
+### 6.10 PR 12 安全与凭据（议题 #21）
+
+默认严格，全部用例在默认配置下跑（L3），零外网、零子进程。
+
+- **`crates/webctl-web/tests/security.rs` 9 条**：`sec_04_envelope_redacts_cookie_and_query_token`（SEC-04）、`sec_06_cross_origin_redirect_drops_authorization`、`sec_06_same_origin_redirect_keeps_authorization`（SEC-06，含对照组）、`sec_07_url_query_tokens_are_redacted_in_logs`（SEC-07）、`sec_08_password_form_fields_are_redacted_in_logs`（SEC-08）、`sec_14_download_whitelist_and_size_limit`、`sec_14_commit_download_enforces_policy_and_containment`（SEC-14）、`sec_11_file_arguments_are_canonicalized`（SEC-11）、`sec_15_dangerous_schemes_are_rejected`（SEC-15）。
+- **`crates/webctl/tests/security.rs` 7 条**：`sec_01_sec_02_default_strict_and_export_confirmation`（SEC-01 + SEC-02）、`sec_03_export_file_is_mode_600`（SEC-03）、`sec_05_cookie_values_never_reach_output_or_logs`（SEC-05）、`sec_07_url_query_token_is_redacted_in_logs`（SEC-07）、`sec_11_cli_file_arguments_are_contained`（SEC-11：`../`、绝对路径、越界 symlink、坏会话名）、`sec_13_errors_carry_no_stack_or_paths`（SEC-13）、`sec_15_dangerous_scheme_via_cli`（SEC-15）。
+- **新增单元/护栏**：`webctl-core::security::redact`（`cookie_values_are_redacted_but_names_kept`、`authorization_is_fully_redacted`、`url_query_tokens_are_redacted`、`log_line_redacts_urls_headers_and_form_fields`）、`webctl-core::security::paths`（`rejects_traversal_and_absolute_arguments`、`allows_relative_argument_under_root`、`rejects_symlink_escape`、`secret_file_is_mode_600_even_if_previously_wider`、`scheme_whitelist_rejects_file_and_data`）、`webctl-web::redact`（`envelope_redaction_removes_secrets_everywhere`、`session_state_display_never_contains_cookie_values`）、`webctl-web::paths`（`whitelist_and_size_limit_are_enforced`、`commit_download_writes_inside_root_only`、`commit_download_rejects_traversal_and_symlink`）、`webctl::logs`（`cookie_values_never_reach_the_log`、`url_query_tokens_are_redacted_in_logs`、`password_form_fields_are_redacted_in_logs`）。
+
+覆盖与交接（对齐 §2.14）：
+
+| 编号 | 覆盖位置 | 说明 |
+|---|---|---|
+| SEC-01 | `webctl/tests/security.rs` | 帮助中无放宽开关；默认配置下导出仍需 `--yes` |
+| SEC-02 | 同上 | 无 `--yes` → `BLOCKED`，且不创建文件 |
+| SEC-03 | 同上 | envelope `mode=384` 与文件系统 `0600` 双向验证 |
+| SEC-04 | `webctl-web/tests/security.rs` | transport `finish` 即脱敏；正则断言无明文 |
+| SEC-05 | `webctl/tests/security.rs` + `webctl::logs` 单测 | fixture 注入 cookie，输出/日志均无明文 |
+| SEC-06 | `webctl-web/tests/security.rs` | 自造跨域 fixture；跨源丢 `Authorization`，同源保留（对照组） |
+| SEC-07 | 两侧 + `webctl-core` 单测 | URL query token 正则断言脱敏，且无重复占位 |
+| SEC-08 | `webctl-web/tests/security.rs` + `webctl::logs` | 表单 `password=` 字段不落日志 |
+| SEC-09 | **交接 PR 11（MCP）** | 见本 PR 描述「未做到项」；MCP 入口未在本 PR 落地 |
+| SEC-10 | 复用 PR 13 | 未重复实现 |
+| SEC-11 | 两侧 + `webctl-core::security::paths` | `resolve_file_argument` 拒绝绝对路径，`ensure_contained` 拒绝 `..` 与越界 symlink；已系统性覆盖 cookies 导出路径与下载路径 |
+| SEC-12 | 复用 PR 05 | 未重复实现 |
+| SEC-13 | `webctl/tests/security.rs` | 正则断言无 `panicked` / `.rs:N` / `backtrace` / 本地路径 |
+| SEC-14 | `webctl-web/tests/security.rs` | 类型白名单 + 尺寸上限 + containment + 落盘 0600 |
+| SEC-15 | 两侧 + `webctl-core::security::paths` | `file://`/`data:`/`ftp://` 在连接前 `BAD_URL` |
+
+**植入实验**（证明断言可失败，非恒真）：临时令 `redact_log_line` 变为恒等 → SEC-07/08 两侧失败并回显 `SUPER_SECRET_TOKEN`；临时跳过 `resolve_file_argument` 的 `ensure_contained` → SEC-11 两侧失败。两次均 `git checkout` 还原并复跑通过；证据见 PR 描述。
 ## 7. 维护规则
 
 1. 新增用例必须同时写 **通道** 与 **归属 PR**，否则不合并。

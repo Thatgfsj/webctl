@@ -140,7 +140,13 @@ pub async fn fetch(target: &str, options: &FetchOptions) -> Envelope<Fetched> {
     let started = Instant::now();
     let url = match parse_target(target) {
         Ok(url) => url,
-        Err(message) => return Envelope::fail(ErrorCode::BadUrl, message, elapsed_ms(started)),
+        Err(message) => {
+            return Envelope::fail(
+                ErrorCode::BadUrl,
+                crate::redact::redact_log_line(&message),
+                elapsed_ms(started),
+            );
+        }
     };
     match run(url, options, true).await {
         Ok(fetched) => {
@@ -156,7 +162,11 @@ pub async fn fetch(target: &str, options: &FetchOptions) -> Envelope<Fetched> {
             };
             degrade_if_js_dependent(envelope)
         }
-        Err(error) => Envelope::fail(error.code, error.message, elapsed_ms(started)),
+        Err(error) => Envelope::fail(
+            error.code,
+            crate::redact::redact_log_line(&error.message),
+            elapsed_ms(started),
+        ),
     }
 }
 
@@ -191,7 +201,13 @@ pub async fn fetch_raw(target: &str, options: &FetchOptions) -> Envelope<Fetched
     let started = Instant::now();
     let url = match parse_target(target) {
         Ok(url) => url,
-        Err(message) => return Envelope::fail(ErrorCode::BadUrl, message, elapsed_ms(started)),
+        Err(message) => {
+            return Envelope::fail(
+                ErrorCode::BadUrl,
+                crate::redact::redact_log_line(&message),
+                elapsed_ms(started),
+            );
+        }
     };
     match run(url, options, false).await {
         Ok(fetched) => {
@@ -206,7 +222,11 @@ pub async fn fetch_raw(target: &str, options: &FetchOptions) -> Envelope<Fetched
                 Envelope::ok(fetched, Trust::UntrustedPageContent, elapsed_ms(started))
             }
         }
-        Err(error) => Envelope::fail(error.code, error.message, elapsed_ms(started)),
+        Err(error) => Envelope::fail(
+            error.code,
+            crate::redact::redact_log_line(&error.message),
+            elapsed_ms(started),
+        ),
     }
 }
 
@@ -227,6 +247,7 @@ async fn run(
 ) -> Result<Fetched, TransportError> {
     let started = Instant::now();
     let client = build_client(options)?;
+    let initial = start.clone();
     let mut current = start;
     let mut hops: Vec<RedirectHop> = Vec::new();
     let mut visited: Vec<String> = vec![current.as_str().to_owned()];
@@ -241,7 +262,13 @@ async fn run(
         {
             request = request.header(wreq::header::COOKIE, header);
         }
+        // SEC-06：跨源重定向不得携带原始凭据（Authorization / Cookie / API key）。
+        // cookie jar 自身按域作用域下发；这里额外挡住调用方显式传入的敏感头。
+        let cross_origin = !same_origin(&initial, &current);
         for (name, value) in &options.headers {
+            if cross_origin && webctl_core::security::redact::is_sensitive_header(name) {
+                continue;
+            }
             request = request.header(name.as_str(), value.as_str());
         }
 
@@ -342,7 +369,7 @@ async fn finish(
         .map(|(_, value)| value.clone());
     let kind = content_type::classify(content_type.as_deref(), &bytes);
     let content = build_body(kind, content_type, &bytes, declared_len, truncated);
-    Ok(Fetched {
+    let mut fetched = Fetched {
         status,
         version,
         final_url: final_url.to_string(),
@@ -350,7 +377,18 @@ async fn finish(
         redirects: hops,
         content,
         elapsed_ms: elapsed_ms(started),
-    })
+    };
+    // SEC-04：信封一旦离开取回层就不含 cookie / Authorization 明文。
+    crate::redact::redact_fetched(&mut fetched);
+    Ok(fetched)
+}
+
+/// 两个 URL 是否同源（scheme + host + 生效端口）；SEC-06 的判定依据。
+pub(crate) fn same_origin(left: &Url, right: &Url) -> bool {
+    left.scheme() == right.scheme()
+        && left.host_str().map(str::to_ascii_lowercase)
+            == right.host_str().map(str::to_ascii_lowercase)
+        && left.port_or_known_default() == right.port_or_known_default()
 }
 
 /// 流式读取正文，命中上限即停止读取并丢弃连接（不把超大响应读进内存）。

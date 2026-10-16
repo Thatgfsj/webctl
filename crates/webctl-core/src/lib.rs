@@ -9,6 +9,7 @@ pub mod caps;
 pub mod config;
 pub mod envelope;
 pub mod error;
+pub mod security;
 pub mod state;
 
 pub use caps::{Capability, CapabilityDomain, CapabilityState, CapsReport};
@@ -18,3 +19,7 @@ pub use config::{
 };
 pub use envelope::{Engine, Envelope, EnvelopeViolation, Meta, Trust};
 pub use error::ErrorCode;
+pub use security::paths::{
+    ArgumentError, SafeRoot, SchemeError, ensure_http_scheme, is_http_scheme,
+};
+pub use security::redact::{REDACTED, redact_log_line, redact_url};
