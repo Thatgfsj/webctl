@@ -8,6 +8,7 @@
 //! - Scope::Fetch：原始内容仍在 data 里 → DEGRADED（DEGRADE-01/04/05/07）。
 //! - Scope::EmptyExtract：结构化结果为空 → 有回退/占位内容时 DEGRADED，
 //!   连占位都没有时 UNSUPPORTED（DEGRADE-08/09）。
+//!
 //! 两者都不是 OK：绝不返回「成功但 0 条」。
 
 use webctl_core::{Envelope, ErrorCode};

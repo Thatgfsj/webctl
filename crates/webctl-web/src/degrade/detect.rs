@@ -191,18 +191,22 @@ fn diagnose(signals: &Signals) -> Assessment {
 
     // 诊断始终补齐四类量化依据，便于 DEGRADE-03 复核。
     if signals.script_tags > 0 {
-        let ratio = signals.script_bytes * 100 / signals.html_bytes.max(1);
+        let ratio = signals
+            .script_bytes
+            .saturating_mul(100)
+            .checked_div(signals.html_bytes)
+            .unwrap_or(0);
         evidence.push(format!(
             "script density: {} tag(s) / {} bytes ({ratio}% of {} bytes)",
             signals.script_tags, signals.script_bytes, signals.html_bytes
         ));
     }
     let textual = signals.noscript_text + signals.visible_text;
-    let noscript_ratio = if textual == 0 {
-        0
-    } else {
-        signals.noscript_text * 100 / textual
-    };
+    let noscript_ratio = signals
+        .noscript_text
+        .saturating_mul(100)
+        .checked_div(textual)
+        .unwrap_or(0);
     evidence.push(format!(
         "visible text: {} chars; noscript share: {noscript_ratio}% of {textual} textual chars",
         signals.visible_text
