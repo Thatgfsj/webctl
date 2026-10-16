@@ -478,6 +478,37 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 - SESS-10 由既有 `crates/webctl-web/tests/session.rs::sess_10_spa_degrades`（连同 `sess_15_paginate_spa_stays_degraded`）覆盖；接入守卫后仍全绿。
 - **L1（可跳过、不作 CI 门禁）**：`crates/webctl-web/tests/e2e/run-real.sh` 承载 DEGRADE-01/02 与 E2E-01/02——静态锚点计数 10 条、JS 页断言降级码非 OK 且 `degraded_from` 非空；`WEBCTL_REAL!=1` 或无网络/缺 curl/cargo 时显式 SKIP。
 
+### 6.9 PR 11 MCP server（议题 #19）
+
+`crates/webctl-mcp/src/` 单元 **12 条**：`registry_is_exactly_the_plan_list`、`definitions_match_the_static_specs`、`qualified_names_follow_the_dsh_contract`、`all_plan_tools_are_registered_and_available`、`capabilities_mirror_the_dispatch_table`、`instructions_stay_under_limit`、`dsh_snippet_has_no_tool_order_and_no_tool_names`、`bound_session_accepts_only_itself`、`cross_session_error_is_readable_and_mentions_both`、`unbound_defaults_to_default_and_validates`、`small_result_stays_inline`、`large_result_is_spilled_and_keeps_degradation`。
+
+`crates/webctl-mcp/tests/mcp.rs` **16 条通过 + 1 条 ignored**：
+
+- **MCP-01**：`mcp_01_initialize_negotiates_protocol_version`
+- **MCP-02**：`mcp_02_tools_list_is_exactly_the_plan_set`
+- **MCP-03**：`mcp_03_input_schemas_are_valid_json_schema`
+- **MCP-04**：`mcp_04_qualified_names_follow_the_function_name_contract`
+- **MCP-05**：`mcp_05_instructions_stay_under_32k`
+- **MCP-06**：`mcp_06_two_servers_start_without_conflict`
+- **MCP-07**：`mcp_07_cross_session_calls_are_rejected`
+- **MCP-08**：`mcp_08_no_tool_order_in_config_or_instructions`
+- **MCP-09**：`mcp_09_call_budget_times_out_as_envelope`
+- **MCP-10**：`mcp_10_tool_failures_use_the_envelope`
+- **MCP-11**：`mcp_11_large_results_are_spilled_to_disk`
+- **MCP-12**：`mcp_12_skill_md_matches_tools_list`（另有 `scripts/check-skill-tools.sh` 与 `webctl mcp --list-tools` 同源校验）
+- **MCP-13 / STATE-06**：`mcp_13_shares_state_dir_with_core_resolution`
+- **SEC-09**：`sec_09_mcp_content_is_untrusted`
+- **ENV-06**：`env_06_cli_and_mcp_map_the_same_error_code`
+- 补充：`all_tools_are_dispatchable`
+
+**ignored**：`mcp_js_degradation_pending_pr09` —— DEGRADE-*（JS 降级传播）依赖 PR 09，故意保持失败状态作为「未达成」的机器证据（交接点常量 `DEGRADE_HANDOFF_PENDING_PR09`）；PR 09 合并后去 ignore 即成为 MCP 侧验收。
+
+`crates/webctl-mcp/tests/mcp14.rs` **1 条**：`mcp_14_in_process_dispatch_spawns_no_children`（单独二进制，避免其他用例的子进程污染基线；复用 PR 13 的 `tests/support/resources.rs`）。
+
+议题 #68（caps 诚实性）：`crates/webctl-core/src/caps.rs` 新增 `missing_tools_never_report_interface_available`、`unavailable_tools_do_not_light_up_interface`、`registered_tools_light_up_interface`；`webctl caps --json` 现枚举 §3.7 的 15 个工具并逐项给 state/reason，`interface` 只在工具真注册且可用时 available。
+
+服务 ENV-06、STATE-06、MCP-01…14、SEC-09。
+
 ### 6.10 PR 12 安全与凭据（议题 #21）
 
 默认严格，全部用例在默认配置下跑（L3），零外网、零子进程。
@@ -507,6 +538,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 | SEC-15 | 两侧 + `webctl-core::security::paths` | `file://`/`data:`/`ftp://` 在连接前 `BAD_URL` |
 
 **植入实验**（证明断言可失败，非恒真）：临时令 `redact_log_line` 变为恒等 → SEC-07/08 两侧失败并回显 `SUPER_SECRET_TOKEN`；临时跳过 `resolve_file_argument` 的 `ensure_contained` → SEC-11 两侧失败。两次均 `git checkout` 还原并复跑通过；证据见 PR 描述。
+
 ## 7. 维护规则
 
 1. 新增用例必须同时写 **通道** 与 **归属 PR**，否则不合并。

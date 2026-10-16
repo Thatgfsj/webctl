@@ -26,10 +26,11 @@ pub fn spill_dir(state_dir: &Path) -> PathBuf {
 /// - 超过上限但 ok=false：不会发生（失败信封不含 data），保险起见原样返回。
 pub fn ingest(state_dir: &Path, tool: &str, rendered: &str) -> Result<Value, String> {
     if rendered.len() <= MAX_INLINE_BYTES {
-        return serde_json::from_str(rendered).map_err(|error| format!("invalid envelope json: {error}"));
+        return serde_json::from_str(rendered)
+            .map_err(|error| format!("invalid envelope json: {error}"));
     }
-    let original: Value =
-        serde_json::from_str(rendered).map_err(|error| format!("invalid envelope json: {error}"))?;
+    let original: Value = serde_json::from_str(rendered)
+        .map_err(|error| format!("invalid envelope json: {error}"))?;
     if original.get("ok") != Some(&Value::Bool(true)) {
         return Ok(original);
     }
@@ -85,7 +86,8 @@ mod tests {
     #[test]
     fn small_result_stays_inline() {
         let dir = temp_state("small");
-        let rendered = json!({"ok": true, "data": {"a": 1}, "error": "", "code": "OK", "meta": {}}).to_string();
+        let rendered = json!({"ok": true, "data": {"a": 1}, "error": "", "code": "OK", "meta": {}})
+            .to_string();
         let value = ingest(&dir, "caps", &rendered).expect("ingest");
         assert_eq!(value["data"]["a"], 1);
         assert!(!spill_dir(&dir).exists(), "小结果不得落盘");

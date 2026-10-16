@@ -52,21 +52,66 @@ pub fn qualified_name(raw: &str) -> String {
 
 /// 15 个工具的静态清单（顺序同 TOOL_NAMES）。
 pub const TOOL_SPECS: [ToolSpec; 15] = [
-    ToolSpec { name: "fetch", description: "取回 http(s) URL：状态、头、重定向链、内容或落盘路径" },
-    ToolSpec { name: "extract", description: "用 CSS 选择器抽取元素，返回结构化命中；零命中是合法空结果" },
-    ToolSpec { name: "search", description: "页面内文本/正则搜索，返回命中位置与上下文" },
-    ToolSpec { name: "links", description: "链接清单：绝对化与 rel/域名/正则过滤" },
-    ToolSpec { name: "tables", description: "表格结构化：行列与跨行跨列语义确定" },
-    ToolSpec { name: "forms", description: "表单与字段清单：类型、默认值、action/method" },
-    ToolSpec { name: "fill_form", description: "一次调用填表并提交（含隐藏字段与 CSRF）" },
-    ToolSpec { name: "paginate", description: "分页遍历：next 识别与页数上限" },
-    ToolSpec { name: "session", description: "会话查看/保存/加载/清理（cookie 持久化）" },
-    ToolSpec { name: "cookies", description: "查看/导出 cookie（导出需 yes=true，值脱敏）" },
-    ToolSpec { name: "json_query", description: "内置 JSON 查询子集（替代 jq，零外部进程）" },
-    ToolSpec { name: "doc_text", description: "PDF/HTML/XML 文本层提取（替代 pdftotext/pandoc）" },
-    ToolSpec { name: "download", description: "文件下载到指定目录（尺寸上限与落盘路径）" },
-    ToolSpec { name: "robots", description: "robots.txt 与站点策略查询（礼貌爬取依据）" },
-    ToolSpec { name: "caps", description: "内置能力与版本自检，逐项列出 15 个工具的可用性" },
+    ToolSpec {
+        name: "fetch",
+        description: "取回 http(s) URL：状态、头、重定向链、内容或落盘路径",
+    },
+    ToolSpec {
+        name: "extract",
+        description: "用 CSS 选择器抽取元素，返回结构化命中；零命中是合法空结果",
+    },
+    ToolSpec {
+        name: "search",
+        description: "页面内文本/正则搜索，返回命中位置与上下文",
+    },
+    ToolSpec {
+        name: "links",
+        description: "链接清单：绝对化与 rel/域名/正则过滤",
+    },
+    ToolSpec {
+        name: "tables",
+        description: "表格结构化：行列与跨行跨列语义确定",
+    },
+    ToolSpec {
+        name: "forms",
+        description: "表单与字段清单：类型、默认值、action/method",
+    },
+    ToolSpec {
+        name: "fill_form",
+        description: "一次调用填表并提交（含隐藏字段与 CSRF）",
+    },
+    ToolSpec {
+        name: "paginate",
+        description: "分页遍历：next 识别与页数上限",
+    },
+    ToolSpec {
+        name: "session",
+        description: "会话查看/保存/加载/清理（cookie 持久化）",
+    },
+    ToolSpec {
+        name: "cookies",
+        description: "查看/导出 cookie（导出需 yes=true，值脱敏）",
+    },
+    ToolSpec {
+        name: "json_query",
+        description: "内置 JSON 查询子集（替代 jq，零外部进程）",
+    },
+    ToolSpec {
+        name: "doc_text",
+        description: "PDF/HTML/XML 文本层提取（替代 pdftotext/pandoc）",
+    },
+    ToolSpec {
+        name: "download",
+        description: "文件下载到指定目录（尺寸上限与落盘路径）",
+    },
+    ToolSpec {
+        name: "robots",
+        description: "robots.txt 与站点策略查询（礼貌爬取依据）",
+    },
+    ToolSpec {
+        name: "caps",
+        description: "内置能力与版本自检，逐项列出 15 个工具的可用性",
+    },
 ];
 
 /// 由 schemars 生成 inputSchema 的 rmcp 工具定义。
@@ -76,8 +121,23 @@ fn tool<P: schemars::JsonSchema + 'static>(name: &'static str, description: &'st
 
 /// 供 tools/list 使用的 15 个工具定义（顺序与 TOOL_NAMES 一致）。
 pub fn tool_definitions() -> Vec<Tool> {
-    let [fetch, extract, search, links, tables, forms, fill_form, paginate, session, cookies, json_query, doc_text, download, robots, caps] =
-        TOOL_NAMES;
+    let [
+        fetch,
+        extract,
+        search,
+        links,
+        tables,
+        forms,
+        fill_form,
+        paginate,
+        session,
+        cookies,
+        json_query,
+        doc_text,
+        download,
+        robots,
+        caps,
+    ] = TOOL_NAMES;
     vec![
         tool::<params::FetchParams>(fetch, TOOL_SPECS[0].description),
         tool::<params::ExtractParams>(extract, TOOL_SPECS[1].description),

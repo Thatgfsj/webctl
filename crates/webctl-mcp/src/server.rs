@@ -20,10 +20,10 @@ use serde_json::Value;
 use webctl_core::{Envelope, ErrorCode};
 
 use crate::context::McpContext;
+use crate::dispatch;
 use crate::instructions::INSTRUCTIONS;
 use crate::spill;
 use crate::tools;
-use crate::dispatch;
 
 /// 单次工具调用的默认预算（毫秒）：DSH 的工具调用超时是 60s（PLAN §3.6）。
 pub const DEFAULT_CALL_BUDGET_MS: u64 = 60_000;
@@ -55,12 +55,55 @@ impl WebctlMcp {
         &self.context
     }
 
+    /// 调用预算。
+    pub fn call_budget(&self) -> Duration {
+        self.call_budget
+    }
+
     /// initialize 响应的静态部分（协议版本由 rmcp 协商后覆盖）。
     pub fn info() -> ServerConfig {
         ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
-            .with_server_info(Implementation::new(tools::SERVER_NAME, env!("CARGO_PKG_VERSION")))
+            .with_server_info(Implementation::new(
+                tools::SERVER_NAME,
+                env!("CARGO_PKG_VERSION"),
+            ))
             .with_instructions(INSTRUCTIONS)
     }
+
+    /// 执行一次工具调用（含预算）；未知工具返回 None。
+    ///
+    /// 与 `call_tool` 共用同一条路径，便于直接测试预算与信封语义（MCP-09/MCP-10）。
+    pub async fn invoke(&self, name: &str, args: Value) -> Option<Value> {
+        if !dispatch::is_known_tool(name) {
+            return None;
+        }
+        let future = async {
+            dispatch::dispatch(&self.context, name, args)
+                .await
+                .unwrap_or(Value::Null)
+        };
+        Some(self.guard(future).await)
+    }
+
+    /// 给任意 future 套上单次调用预算；超时返回 TIMEOUT 信封（MCP-09）。
+    pub async fn guard<F>(&self, future: F) -> Value
+    where
+        F: std::future::Future<Output = Value>,
+    {
+        match tokio::time::timeout(self.call_budget, future).await {
+            Ok(value) => value,
+            Err(_) => timeout_envelope(self.call_budget),
+        }
+    }
+}
+
+fn timeout_envelope(budget: Duration) -> Value {
+    let message = format!(
+        "工具调用超过 {} ms 预算（MCP-09）：请用分片参数缩小单次工作量",
+        budget.as_millis()
+    );
+    serde_json::to_value(Envelope::<()>::fail(ErrorCode::Timeout, message, 0))
+        .unwrap_or(Value::Null)
 }
 
 impl ServerHandler for WebctlMcp {
@@ -82,27 +125,16 @@ impl ServerHandler for WebctlMcp {
         _context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, McpError> {
         let name = request.name.to_string();
-        if !dispatch::is_known_tool(&name) {
-            return Err(McpError::method_not_found::<CallToolRequestMethod>());
-        }
         let args = request.arguments.map(Value::Object).unwrap_or(Value::Null);
-        let outcome =
-            tokio::time::timeout(self.call_budget, dispatch::dispatch(&self.context, &name, args))
-                .await;
-        let envelope = match outcome {
-            Ok(Some(value)) => value,
-            Ok(None) => return Err(McpError::method_not_found::<CallToolRequestMethod>()),
-            Err(_) => {
-                let message = format!(
-                    "工具调用超过 {} ms 预算（MCP-09）：请用分片参数缩小单次工作量",
-                    self.call_budget.as_millis()
-                );
-                serde_json::to_value(Envelope::<()>::fail(ErrorCode::Timeout, message, 0))
-                    .unwrap_or(Value::Null)
-            }
+        let Some(envelope) = self.invoke(&name, args).await else {
+            return Err(McpError::method_not_found::<CallToolRequestMethod>());
         };
-        Ok(CallToolResult::success(vec![ContentBlock::text(render(&self.context, &name, &envelope))])
-            .into())
+        Ok(CallToolResult::success(vec![ContentBlock::text(render(
+            &self.context,
+            &name,
+            &envelope,
+        ))])
+        .into())
     }
 }
 

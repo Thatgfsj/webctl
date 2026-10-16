@@ -47,7 +47,10 @@ mod tests {
     #[test]
     fn capabilities_mirror_the_dispatch_table() {
         for capability in tool_capabilities() {
-            assert_eq!(capability.is_available(), dispatch::is_known_tool(&capability.name));
+            assert_eq!(
+                capability.is_available(),
+                dispatch::is_known_tool(&capability.name)
+            );
         }
         assert!(!dispatch::is_known_tool("screenshot"));
     }

@@ -200,7 +200,10 @@ mod tests {
             .iter()
             .map(|c| c.domain.as_str())
             .collect();
-        assert_eq!(domains, ["fetch", "parse", "session", "doc_data", "interface"]);
+        assert_eq!(
+            domains,
+            ["fetch", "parse", "session", "doc_data", "interface"]
+        );
         for domain in [
             CapabilityDomain::Fetch,
             CapabilityDomain::Parse,
@@ -234,7 +237,10 @@ mod tests {
             "playwright",
             "cdp",
         ] {
-            assert!(!json.contains(forbidden), "caps 报告不应包含外部依赖名：{forbidden}");
+            assert!(
+                !json.contains(forbidden),
+                "caps 报告不应包含外部依赖名：{forbidden}"
+            );
         }
     }
 
@@ -258,7 +264,10 @@ mod tests {
     #[test]
     fn missing_tools_never_report_interface_available() {
         let report = CapsReport::detect(&Config::default());
-        assert_eq!(report.get(CapabilityDomain::Interface).state, CapabilityState::Unavailable);
+        assert_eq!(
+            report.get(CapabilityDomain::Interface).state,
+            CapabilityState::Unavailable
+        );
         assert!(report.tools.is_empty());
     }
 
@@ -272,14 +281,20 @@ mod tests {
         };
         let report = CapsReport::detect_with(&Config::default(), vec![tool]);
         assert!(!report.tool("fetch").expect("present").is_available());
-        assert_eq!(report.get(CapabilityDomain::Interface).state, CapabilityState::Unavailable);
+        assert_eq!(
+            report.get(CapabilityDomain::Interface).state,
+            CapabilityState::Unavailable
+        );
     }
 
     /// 议题 #68：真注册且可用的工具才点亮 interface。
     #[test]
     fn registered_tools_light_up_interface() {
         let report = CapsReport::detect_with(&Config::default(), vec![stub_tool("fetch")]);
-        assert_eq!(report.get(CapabilityDomain::Interface).state, CapabilityState::Available);
+        assert_eq!(
+            report.get(CapabilityDomain::Interface).state,
+            CapabilityState::Available
+        );
         assert!(report.tool("fetch").expect("present").is_available());
     }
 }

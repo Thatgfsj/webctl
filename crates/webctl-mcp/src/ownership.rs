@@ -70,7 +70,8 @@ impl SessionBinding {
             };
         }
         let name = requested.unwrap_or(DEFAULT_SESSION).to_owned();
-        validate_session_name(&name).map_err(|error| OwnershipError::InvalidName(error.message()))?;
+        validate_session_name(&name)
+            .map_err(|error| OwnershipError::InvalidName(error.message()))?;
         Ok(name)
     }
 }
@@ -84,10 +85,13 @@ mod tests {
         let binding = SessionBinding::new(Some("agent-7".to_owned()));
         assert_eq!(binding.resolve(None).as_deref(), Ok("agent-7"));
         assert_eq!(binding.resolve(Some("agent-7")).as_deref(), Ok("agent-7"));
-        assert_eq!(binding.resolve(Some("agent-8")), Err(OwnershipError::CrossSession {
-            owner: "agent-7".to_owned(),
-            requested: "agent-8".to_owned(),
-        }));
+        assert_eq!(
+            binding.resolve(Some("agent-8")),
+            Err(OwnershipError::CrossSession {
+                owner: "agent-7".to_owned(),
+                requested: "agent-8".to_owned(),
+            })
+        );
     }
 
     #[test]
@@ -96,7 +100,10 @@ mod tests {
             .resolve(Some("beta"))
             .expect_err("must reject");
         let message = error.to_string();
-        assert!(message.contains("alpha") && message.contains("beta"), "{message}");
+        assert!(
+            message.contains("alpha") && message.contains("beta"),
+            "{message}"
+        );
         assert!(message.contains("归属拒绝"), "{message}");
     }
 
@@ -105,6 +112,9 @@ mod tests {
         let binding = SessionBinding::unbound();
         assert_eq!(binding.resolve(None).as_deref(), Ok(DEFAULT_SESSION));
         assert!(binding.resolve(Some("ok-name")).is_ok());
-        assert!(matches!(binding.resolve(Some("../escape")), Err(OwnershipError::InvalidName(_))));
+        assert!(matches!(
+            binding.resolve(Some("../escape")),
+            Err(OwnershipError::InvalidName(_))
+        ));
     }
 }

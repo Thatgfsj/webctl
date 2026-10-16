@@ -58,7 +58,7 @@ pub fn dsh_config_snippet() -> String {
 name = "webctl"
 command = "webctl"
 args = ["mcp"]"#
-    .to_owned()
+        .to_owned()
 }
 
 #[cfg(test)]
@@ -80,7 +80,10 @@ mod tests {
         let snippet = dsh_config_snippet();
         assert!(!snippet.contains("toolOrder"), "配置不得写 toolOrder");
         for name in crate::tools::TOOL_NAMES {
-            assert!(!snippet.contains(name), "配置不得枚举 webctl 工具名：{name}");
+            assert!(
+                !snippet.contains(name),
+                "配置不得枚举 webctl 工具名：{name}"
+            );
         }
     }
 }

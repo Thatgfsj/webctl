@@ -11,13 +11,13 @@ use std::time::Duration;
 
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
-use webctl_core::{CapsReport, ErrorCode, Envelope, Trust};
+use url::Url;
+use webctl_core::{CapsReport, Envelope, ErrorCode, Trust};
 use webctl_web::doc::{DocOptions, doc_text, json_query};
 use webctl_web::extract::{self, ExtractOptions, LinkFilter, SearchOptions};
 use webctl_web::politeness::{PoliteFetcher, PolitenessConfig};
 use webctl_web::session::{FormFill, SessionEngine, SessionState};
 use webctl_web::transport::{Fetched, fetch};
-use url::Url;
 
 use crate::context::McpContext;
 use crate::params::*;
@@ -327,7 +327,11 @@ async fn tool_fill_form(ctx: &McpContext, args: &Value) -> Value {
             fill.check(name.clone(), *checked);
         }
     }
-    to_value(engine.submit_form(&page, params.form_index.unwrap_or(0), &fill).await)
+    to_value(
+        engine
+            .submit_form(&page, params.form_index.unwrap_or(0), &fill)
+            .await,
+    )
 }
 
 async fn tool_paginate(ctx: &McpContext, args: &Value) -> Value {
@@ -548,7 +552,10 @@ async fn read_source_bytes(
         .filter(|present| **present)
         .count();
     if given != 1 {
-        return Err(fail(ErrorCode::BadUrl, "必须且只能给出 json / url / path 之一"));
+        return Err(fail(
+            ErrorCode::BadUrl,
+            "必须且只能给出 json / url / path 之一",
+        ));
     }
     if let Some(text) = json_text {
         return Ok(text.as_bytes().to_vec());
@@ -669,10 +676,7 @@ async fn tool_download(ctx: &McpContext, args: &Value) -> Value {
 
 fn default_filename(url: &str) -> Option<String> {
     let parsed = Url::parse(url).ok()?;
-    let last = parsed
-        .path_segments()?
-        .filter(|part| !part.is_empty())
-        .next_back()?;
+    let last = parsed.path_segments()?.rfind(|part| !part.is_empty())?;
     let cleaned: String = last
         .chars()
         .filter(|ch| ch.is_ascii_alphanumeric() || ".-_".contains(*ch))

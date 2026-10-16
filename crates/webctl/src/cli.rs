@@ -131,6 +131,9 @@ enum Command {
         /// 绑定的会话名；跨 Session 调用会被拒绝。
         #[arg(long, value_name = "SESSION")]
         owner_session: Option<String>,
+        /// 只打印 tools/list 的工具名（每行一个）后退出；供 MCP-12 一致性校验。
+        #[arg(long)]
+        list_tools: bool,
     },
 }
 
@@ -244,7 +247,10 @@ fn execute(cli: Cli) -> ExitCode {
         Command::Config => run_config(&config, started),
         Command::Fetch { url } => run_fetch(&config, &url, started),
         Command::Cookies { action } => run_cookies(&config, action, started),
-        Command::Mcp { owner_session } => run_mcp(&config, owner_session),
+        Command::Mcp {
+            owner_session,
+            list_tools,
+        } => run_mcp(&config, owner_session, list_tools),
     }
 }
 
@@ -549,7 +555,14 @@ fn render_caps(report: &CapsReport) {
 }
 
 /// MCP server：以 stdio 运行到对端关闭（MCP-01…MCP-11）。
-fn run_mcp(config: &Config, owner_session: Option<String>) -> ExitCode {
+fn run_mcp(config: &Config, owner_session: Option<String>, list_tools: bool) -> ExitCode {
+    if list_tools {
+        // MCP-12：与 tools/list 同源的静态清单，供校验脚本比对 SKILL.md。
+        for tool in webctl_mcp::TOOL_NAMES {
+            println!("{tool}");
+        }
+        return ExitCode::SUCCESS;
+    }
     let owner = owner_session.or_else(webctl_mcp::owner_from_env);
     let context = webctl_mcp::McpContext::new(config.clone(), owner);
     match block_on(webctl_mcp::run_stdio(context)) {
