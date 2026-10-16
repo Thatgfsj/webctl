@@ -11,6 +11,9 @@ pub mod envelope;
 pub mod error;
 
 pub use caps::{Capability, CapabilityDomain, CapabilityState, CapsReport};
-pub use config::{Config, OutputFormat};
+pub use config::{
+    Config, ConfigError, ConfigLayer, ENV_VARS, OutputFormat, default_config_path,
+    load_config_file, redact_url_userinfo, resolve,
+};
 pub use envelope::{Engine, Envelope, EnvelopeViolation, Meta, Trust};
 pub use error::ErrorCode;
