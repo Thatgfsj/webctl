@@ -32,16 +32,14 @@
 
 ```
 crates/
-├─ webctl/            # bin：CLI 入口 + MCP 入口（feature 切换）
-├─ webctl-core/       # envelope / 错误码 / 配置 / 能力探测 / tier 路由 / 会话与状态
-├─ webctl-web/        # T0 + T1：HTTP、编码、cookie、解析、正文、表单、协议会话引擎、T2 白名单桥
-├─ webctl-cdp/        # T3 底座：线协议信封、传输、分发、事件、target 会话、浏览器发现与启动
-├─ webctl-cdp-types/  # T3：手写最小协议类型
-├─ webctl-browser/    # T3 语义层：快照、交互原语、截图/PDF、网络捕获
-└─ webctl-mcp/        # rmcp server + 工具 schema + SKILL.md 生成
+├─ webctl/        # bin：CLI 入口 + MCP 入口（feature 切换）
+├─ webctl-core/   # envelope / 错误码 / 配置 / 能力自检 / 会话状态 / 安全脱敏
+├─ webctl-web/    # 取回 + 解析 + 会话 + 文档与数据（全部内置）
+└─ webctl-mcp/    # rmcp server + 工具 schema + SKILL.md 生成
 ```
 
-- 依赖方向单向：`bin → mcp/browser/web → cdp → cdp-types`，`core` 被所有层依赖且不依赖任何上层。
+- 依赖方向单向：`bin → mcp → core`、`bin → web → core`，`core` 不依赖任何上层。
+- **运行时零外部进程、零浏览器**：代码里不得出现子进程调用（`std::process::Command` 等），也不得引入 CDP/WebDriver 依赖。
 - **不要为了"看起来模块化"新增 crate**：只有 (a) 变更来源或节奏明显不同、且 (b) 依赖方向单向无环时，才拆成独立 crate。
 - 每个 crate 稳定后自带一份 `CONTRIBUTING.md`，声明本模块的边界与验收（照搬 biome / ruff 的组织方式）。
 
@@ -50,11 +48,12 @@ crates/
 | 阶段 | 命令 | 通过标准 |
 |---|---|---|
 | 每 PR | `cargo fmt --check && cargo clippy -- -D warnings && cargo test` | 全绿 |
-| 无浏览器 lane | `WEBCTL_DISABLE_BROWSER=1 cargo test --features no-browser` | T0/T1/T2 用例全部通过 |
-| L2 离线 lane | `cargo test --features mock-cdp` | mock CDP 回放用例全绿 |
-| 真机 E2E | `./tests/e2e/run-edge.sh` | Edge 全链路通过 |
-| 冷启动基线 | `./tests/bench/startup.sh` | 不劣于 P0 基线（292–313 ms） |
+| L0 离线 lane | `cargo test --features offline` | 取回/解析/会话/文档用例全绿（不依赖外网） |
+| 真站 smoke | `./tests/e2e/run-real.sh` | 静态锚点取到 10 条；JS 页返回 `DEGRADED` |
+| 体积基线 | `cargo build --release --target x86_64-unknown-linux-musl` | 不超 P0 基线，防回归 |
 | PR 行数 | `git diff --shortstat` 对照 §2 | ≤1000 或已获批准 |
+
+> **v0.4 起没有"无浏览器 lane"和"mock-cdp lane"**：运行时不再有浏览器，所有用例本来就无浏览器、且不得依赖外部进程。
 
 ## 5. PR 描述必须包含
 
