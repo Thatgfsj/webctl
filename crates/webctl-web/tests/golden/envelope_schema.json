@@ -1,0 +1,46 @@
+{
+  "degraded": {
+    "code": "LIMIT",
+    "data": {
+      "truncated": true
+    },
+    "error": "",
+    "meta": {
+      "degraded_from": "response-body-truncated",
+      "elapsed_ms": 7,
+      "engine": "builtin",
+      "stale": false,
+      "trust": "untrusted_page_content"
+    },
+    "ok": true
+  },
+  "fail": {
+    "code": "BLOCKED",
+    "data": null,
+    "error": "HTTP 404 Not Found at fixture",
+    "meta": {
+      "degraded_from": null,
+      "elapsed_ms": 5,
+      "engine": "builtin",
+      "stale": false,
+      "trust": "untrusted_page_content"
+    },
+    "ok": false
+  },
+  "ok": {
+    "code": "OK",
+    "data": {
+      "kind": "html",
+      "text": "hi"
+    },
+    "error": "",
+    "meta": {
+      "degraded_from": null,
+      "elapsed_ms": 12,
+      "engine": "builtin",
+      "stale": false,
+      "trust": "untrusted_page_content"
+    },
+    "ok": true
+  }
+}
