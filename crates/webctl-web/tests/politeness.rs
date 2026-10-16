@@ -207,8 +207,12 @@ async fn min_interval_is_enforced() {
     // 服务器记录的是"到达时刻"，若第一条请求的到达记录被负载推迟，间隔会被压缩
     // （macOS CI 实测 86.48ms < 150ms 就是这种假红）。
     // 而"从第一次调用开始到第二次调用结束"的墙钟只会变大（定时器只可能晚醒），
-    // 因此 ≥ interval 这条下界是稳的；原 bug（先预约再排队）会让第二次几乎立刻返回，
-    // 整体耗时骤降到毫秒级，照样会被抓住。
+    // 因此 ≥ interval 这条下界是稳的。
+    //
+    // 边界（PR #75 复审实测后订正，别过度声称）：本用例只证明"串行的两次 fetch 确实隔开了"。
+    // 它**抓不到**"预约顺序倒置"那个缺陷——那需要信号量排队（并发被占满）才会显现，
+    // 而这里并发是空闲的；把 acquire 改回旧顺序后本文件仍然 8/8 通过。
+    // 那个缺陷的防线是 lib 单测 queued_requests_still_keep_min_interval。
     let started = Instant::now();
     fetcher.fetch(&server.url("/ok")).await;
     fetcher.fetch(&server.url("/ok")).await;
