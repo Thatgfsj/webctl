@@ -560,8 +560,10 @@ fn is_allowed_authority(authority: &str) -> bool {
     if host == "::1" || host == "[::1]" {
         return true;
     }
-    if host.starts_with("127.") {
-        return true;
+    // 只放行**真正的 IPv4 回环**（127.0.0.0/8）；不能用前缀匹配——
+    // 否则 `127.0.0.1.evil.com` 这类真域名会被误放行（复审发现的残余漏洞）。
+    if let Ok(ip) = host.parse::<std::net::Ipv4Addr>() {
+        return ip.is_loopback();
     }
     const RESERVED_TLDS: [&str; 4] = ["test", "invalid", "example", "localhost"];
     if RESERVED_TLDS

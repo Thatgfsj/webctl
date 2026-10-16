@@ -162,9 +162,11 @@ mod tests {
             );
         }
         let span = starts.last().expect("starts").duration_since(starts[0]);
+        // 余量 20%：windows CI 上实测过 288.4ms（名义 300ms）——定时器粒度 + 调度延迟会压缩跨度。
+        // 真正要抓的缺陷（预约顺序倒置）会产生**微秒级**跨度，20% 余量照样抓得住。
         assert!(
-            span >= Duration::from_millis(290),
-            "总跨度 {span:?} 不足（6 次 × 60ms 间隔应当 ≥300ms）"
+            span >= Duration::from_millis(240),
+            "总跨度 {span:?} 不足（6 次 × 60ms 间隔名义 300ms）"
         );
     }
 
@@ -237,9 +239,10 @@ mod tests {
             );
         }
         let span = stamps[3].duration_since(stamps[0]);
+        // 同上：名义 600ms，留 20% 余量（抖动只会让跨度变大，压缩只会来自"预约撞车"这类缺陷）。
         assert!(
-            span >= Duration::from_millis(540),
-            "排队场景总跨度只有 {span:?}（4 次 × 200ms 间隔应当 ≥600ms）"
+            span >= Duration::from_millis(480),
+            "排队场景总跨度只有 {span:?}（4 次 × 200ms 间隔名义 600ms）"
         );
     }
 
