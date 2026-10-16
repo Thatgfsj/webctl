@@ -1,6 +1,7 @@
 //! webctl 内置层：取回 + 解析 + 会话 + 文档与数据（PLAN v0.4 §2）。
 //!
-//! PR 01 只建立 crate 骨架；PR 02 落地取回层（`transport` / `encoding` / `content_type`）。
+//! PR 01 只建立 crate 骨架；PR 02 落地取回层（`transport` / `encoding` / `content_type`）；
+//! PR 03 落地解析层（`parse`）。
 //! 硬约束：零外部进程、零浏览器（PLAN v0.4 §3.1）。
 //!
 //! # feature `offline`（议题 #22）
@@ -12,6 +13,7 @@
 pub mod content_type;
 pub mod doc;
 pub mod encoding;
+pub mod parse;
 pub mod politeness;
 pub mod session;
 pub mod transport;

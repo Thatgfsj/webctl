@@ -1,0 +1,72 @@
+[
+  {
+    "absolute": true,
+    "href": "https://fixture.example/base/page.html",
+    "index": 0,
+    "raw_href": "page.html",
+    "rel": [
+      "next",
+      "nofollow"
+    ],
+    "target": null,
+    "text": "Relative",
+    "title": "relative"
+  },
+  {
+    "absolute": true,
+    "href": "https://fixture.example/root.html",
+    "index": 1,
+    "raw_href": "/root.html",
+    "rel": [
+      "external"
+    ],
+    "target": null,
+    "text": "Root",
+    "title": null
+  },
+  {
+    "absolute": true,
+    "href": "https://other.example/x",
+    "index": 2,
+    "raw_href": "https://other.example/x",
+    "rel": [
+      "noopener",
+      "noreferrer"
+    ],
+    "target": "_blank",
+    "text": "Absolute",
+    "title": null
+  },
+  {
+    "absolute": true,
+    "href": "https://fixture.example/base/#frag",
+    "index": 3,
+    "raw_href": "#frag",
+    "rel": [],
+    "target": null,
+    "text": "Fragment",
+    "title": null
+  },
+  {
+    "absolute": true,
+    "href": "https://cdn.example/a.js",
+    "index": 4,
+    "raw_href": "//cdn.example/a.js",
+    "rel": [
+      "preload"
+    ],
+    "target": null,
+    "text": "Protocol",
+    "title": null
+  },
+  {
+    "absolute": true,
+    "href": "https://fixture.example/base/map.html",
+    "index": 5,
+    "raw_href": "map.html",
+    "rel": [],
+    "target": null,
+    "text": "",
+    "title": null
+  }
+]
