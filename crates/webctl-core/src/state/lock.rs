@@ -10,6 +10,15 @@
 //! 备选与差异：fs2 同样基于 flock，但 fslock 的 per-handle 语义有明确文档、
 //! 且 try_lock 直接返回布尔值。rustix/libc 需要在本 crate 内写 unsafe 调用，
 //! 会被 workspace 的 unsafe_code = forbid 卡住，故不采用。
+//!
+//! 覆盖边界（如实记录，未覆盖的不得宣称“多进程已全测”）：
+//! - 已覆盖：同一进程内两个独立 open（两把句柄 / 两个线程）真实互斥；持锁者
+//!   drop / 持有线程结束后可再次获取；磁盘上遗留的锁文件本身不构成锁。
+//! - **未覆盖**：真正 kill 一个独立持锁进程后由内核自动释放锁。flock 语义为
+//!   最后一个 fd 关闭即释放，本模块只用同进程内的 drop / 线程结束模拟“句柄
+//!   消失”（见 holder_disappears_releases_lock），零子进程约束下无法真正 kill。
+//! - **未覆盖**：NFS 及一般网络文件系统的 flock 语义（本地文件系统可能与
+//!   网络文件系统不同），无任何断言。
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -147,7 +156,10 @@ mod tests {
         testutil::cleanup(&dir);
     }
 
-    /// 锁文件残留（持锁进程被杀）不造成死锁：flock 已由内核释放。
+    /// 锁文件残留本身不构成锁：flock 只有真正持有 fd 才互斥。
+    ///
+    /// 注意：本用例只是往磁盘写了一个锁文件，**从未真正持锁**，因此不能用来
+    /// 宣称覆盖“持锁进程被杀”；后者见 holder_disappears_releases_lock。
     #[test]
     fn stale_lock_file_does_not_block() {
         let dir = testutil::temp_dir("lock-stale");
@@ -155,6 +167,32 @@ mod tests {
         std::fs::write(&path, b"stale pid 12345").expect("stale file");
         let lock = FileLock::acquire(&path, Duration::from_millis(200));
         assert!(lock.is_ok(), "残留锁文件不得阻塞新写者");
+        testutil::cleanup(&dir);
+    }
+
+    /// 持锁者消失（句柄关闭 / 持有线程结束）后锁被释放，不残留死锁。
+    ///
+    /// 用同进程内的 drop / 线程结束模拟“持锁进程退出时内核关闭 fd 并释放
+    /// flock”。零子进程约束下**没有**真正 kill 独立进程，见模块文档的覆盖边界。
+    #[test]
+    fn holder_disappears_releases_lock_without_deadlock() {
+        let dir = testutil::temp_dir("lock-holder-gone");
+        let path = dir.join("session.lock");
+
+        // 持有线程结束 → 线程内的 FileLock drop → fd 关闭 → 锁释放。
+        let holder_path = path.clone();
+        let holder = std::thread::spawn(move || {
+            let lock =
+                FileLock::acquire(&holder_path, Duration::from_millis(200)).expect("holder lock");
+            assert!(lock.path().ends_with("session.lock"));
+            // 不显式 release：让 Drop 走内核释放路径，模拟进程消失。
+        });
+        holder.join().expect("holder thread");
+
+        assert!(
+            FileLock::try_acquire(&path).expect("try").is_some(),
+            "持锁者消失后锁必须可再次获取，不得残留死锁"
+        );
         testutil::cleanup(&dir);
     }
 }
