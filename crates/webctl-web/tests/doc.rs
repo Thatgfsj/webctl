@@ -12,8 +12,7 @@
 
 use webctl_core::{ErrorCode, Trust};
 use webctl_web::{
-    DOC09_DEFERRED_DEGRADED_FROM, DocFormat, DocOptions, JsonQueryOptions, PdfKind, doc_text,
-    extract_pdf_text, json_query,
+    DocFormat, DocOptions, JsonQueryOptions, PdfKind, doc_text, extract_pdf_text, json_query,
 };
 
 const TEXT_PDF: &[u8] = include_bytes!("fixtures/doc/text.pdf");
@@ -227,63 +226,11 @@ fn doc_08_invalid_expression_errors() {
     }
 }
 
-/// DOC-09 过渡期边界锁（**不是** DOC-09 验收）：HTML/XML 到文本属 PR 03，
-/// 本 PR 显式 UNSUPPORTED、不重复实现。
+/// DOC-09：HTML/XML→文本复用解析层（PR 03）后的**正式验收**。
 ///
-/// 真正的 DOC-09 验收是下面的 `doc_09_acceptance_after_pr03`（PR 03 合并前
-/// `#[ignore]`）。这条用例只锁「当前边界是显式降级而非静默空结果或伪成功」，
-/// PR 03 合并后应连同生产代码的降级分支一起删除。
-/// 交接步骤见 crates/webctl-web/src/doc/mod.rs 模块文档「DOC-09 交接点」。
+/// PR 03 合并（`5afc240`）后本用例已从 `#[ignore]` 转正：doc_text 对 HTML/XML 必须成功、
+/// 无降级标识、正文非空且已剥离标签（与 PARSE-01 同一份正文），不再有 `UNSUPPORTED` 假装。
 #[test]
-fn doc_09_deferred_boundary_is_explicit() {
-    for (bytes, format) in [(SAMPLE_HTML, DocFormat::Html), (SAMPLE_XML, DocFormat::Xml)] {
-        let env = doc_text(bytes, &doc());
-        assert!(env.ok);
-        assert_eq!(env.code, ErrorCode::Unsupported);
-        assert_eq!(
-            env.meta.degraded_from.as_deref(),
-            Some(DOC09_DEFERRED_DEGRADED_FROM)
-        );
-        assert_eq!(env.validate(), Ok(()));
-        let data = env.data.as_ref().expect("data");
-        assert_eq!(data.format, format);
-        assert!(data.text.is_none());
-        assert!(!data.diagnostics.is_empty());
-    }
-
-    // 纯文本走直通分支，证明本模块没有重复造解析层。
-    let text = doc_text(SAMPLE_TXT, &doc());
-    assert!(text.ok);
-    assert_eq!(text.code, ErrorCode::Ok);
-    let plain = text
-        .data
-        .as_ref()
-        .expect("data")
-        .text
-        .as_deref()
-        .expect("text");
-    // 行尾无关断言：fixture 已由 .gitattributes（fixtures/** -text）保证逐字节
-    // 保真，这里再归一一次，作为 Windows core.autocrlf 回归的双保险。
-    assert_eq!(
-        plain.lines().collect::<Vec<_>>(),
-        vec!["plain text layer", "second line"]
-    );
-
-    // JSON 交给 json_query，不在 doc_text 里重复解析。
-    let json = doc_text(SAMPLE_JSON, &doc());
-    assert_eq!(json.code, ErrorCode::Unsupported);
-    assert_eq!(json.meta.degraded_from.as_deref(), Some("use-json-query"));
-}
-
-/// DOC-09 验收（PR 03 合并后启用；现在 `#[ignore]`）：HTML/XML→文本与 PARSE-01
-/// 一致，且不再有任何降级标识。
-///
-/// 这不是「假装通过」：`origin/main` 尚无 parse 模块，本用例今天必然失败，
-/// 所以显式 `#[ignore]`。启用步骤见 crates/webctl-web/src/doc/mod.rs 模块文档
-/// 「DOC-09 交接点」：接入 parse 层、删除 Html/Xml 降级分支、去掉本 ignore，
-/// 并删除 `doc_09_deferred_boundary_is_explicit`。
-#[test]
-#[ignore = "DOC-09 验收待 PR 03 解析层合并；启用步骤见 doc 模块文档『DOC-09 交接点』"]
 fn doc_09_acceptance_after_pr03() {
     for (bytes, format) in [(SAMPLE_HTML, DocFormat::Html), (SAMPLE_XML, DocFormat::Xml)] {
         let env = doc_text(bytes, &doc());
@@ -305,6 +252,14 @@ fn doc_09_acceptance_after_pr03() {
         // 与 PARSE-01 一致：只要正文，标签不应出现。
         assert!(!text.contains('<'), "{format:?} 应已剥离标签：{text:?}");
     }
+
+    // 纯文本仍走直通分支（不解析、不降级）：证明本模块没有重复造解析层。
+    // 这条断言原先在过渡期用例里，删掉那条用例时移到这里，覆盖不减。
+    let text = doc_text(SAMPLE_TXT, &doc());
+    assert!(text.ok);
+    assert_eq!(text.code, ErrorCode::Ok);
+    assert!(text.meta.degraded_from.is_none());
+    assert!(text.data.as_ref().expect("data").text.is_some());
 }
 
 /// DOC-10：大输入命中上限返回 LIMIT，不解析、不 OOM。
