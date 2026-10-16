@@ -5,10 +5,12 @@
 
 pub mod content_type;
 pub mod encoding;
+pub mod politeness;
 pub mod transport;
 
 pub use content_type::ContentKind;
 pub use encoding::{CharsetSource, DecodedText, decode_body};
+pub use politeness::{PoliteFetched, PoliteFetcher, PolitenessConfig, RobotsOutcome};
 pub use transport::{
     Body, CookieJar, DEFAULT_MAX_BODY_BYTES, DEFAULT_MAX_REDIRECTS, DEFAULT_TIMEOUT, FetchOptions,
     Fetched, RedirectHop, StoredCookie, fetch,

@@ -18,14 +18,19 @@ pub enum ContentKind {
     Xml,
     /// `application/pdf`。
     Pdf,
+    /// 其他 `text/*`（例如 `text/plain` 的 robots.txt）。
+    ///
+    /// 存在的理由：`text/plain` 不总是 HTML/JSON/XML，但**确实是文本**——
+    /// 上层（如礼貌层读 robots.txt）需要解码后的文本，而不是"按二进制原样返回"。
+    Text,
     /// 其余一切类型；按字节原样返回，不做文本解析。
     Binary,
 }
 
 impl ContentKind {
-    /// 是否按文本解码（html/json/xml 为真，pdf/binary 为假）。
+    /// 是否按文本解码（html / json / xml / text 为真，pdf / binary 为假）。
     pub fn is_text(self) -> bool {
-        matches!(self, Self::Html | Self::Json | Self::Xml)
+        matches!(self, Self::Html | Self::Json | Self::Xml | Self::Text)
     }
 
     /// 稳定的线上字符串（与 serde 重命名一致）。
@@ -35,6 +40,7 @@ impl ContentKind {
             Self::Json => "json",
             Self::Xml => "xml",
             Self::Pdf => "pdf",
+            Self::Text => "text",
             Self::Binary => "binary",
         }
     }
@@ -47,8 +53,13 @@ pub fn classify(content_type: Option<&str>, body: &[u8]) -> ContentKind {
         Some(mime) if is_json(&mime) => ContentKind::Json,
         Some(mime) if is_xml(&mime) => ContentKind::Xml,
         Some(mime) if mime == "application/pdf" => ContentKind::Pdf,
-        // text/plain 与未知 MIME 一样，交给嗅探决定；嗅探不出即 binary。
-        Some(mime) if mime == "text/plain" => sniff(body),
+        // text/plain：先按嗅探识别伪装的 HTML；嗅探不出即视为普通文本（不再当二进制）。
+        Some(mime) if mime == "text/plain" => match sniff(body) {
+            ContentKind::Binary => ContentKind::Text,
+            other => other,
+        },
+        // 其余 text/* 一律按文本处理。
+        Some(mime) if mime.starts_with("text/") => ContentKind::Text,
         Some(_) => ContentKind::Binary,
         None => sniff(body),
     }
@@ -119,6 +130,16 @@ mod tests {
         );
     }
 
+    /// 新增：`text/plain` 的 robots.txt 必须是可解码文本（礼貌层的硬依赖）。
+    #[test]
+    fn plain_text_is_decodable_text() {
+        let robots = b"User-agent: *\nDisallow: /private/\n";
+        let kind = classify(Some("text/plain"), robots);
+        assert_eq!(kind, ContentKind::Text);
+        assert!(kind.is_text(), "文本分支必须可解码");
+        assert_eq!(kind.as_str(), "text");
+    }
+
     #[test]
     fn suffix_types_are_recognized() {
         assert_eq!(
@@ -152,7 +173,7 @@ mod tests {
         );
         assert_eq!(
             classify(Some("text/plain"), b"just words"),
-            ContentKind::Binary
+            ContentKind::Text
         );
     }
 
