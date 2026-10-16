@@ -292,6 +292,30 @@ fn parse_09_form_fields() {
     );
 }
 
+/// PARSE-09（补充）：缺省 method/action/enctype 与无 name 字段不丢。
+#[test]
+fn parse_09b_form_defaults_and_unnamed_fields() {
+    let env = extract_forms(
+        "<form><input name=\"q\"><input type=\"submit\" value=\"Send\"></form>",
+        None,
+    );
+    assert_valid(&env);
+    assert!(env.ok, "{}", env.error);
+    let forms = env.data.as_ref().expect("forms");
+    assert_eq!(forms.len(), 1);
+    let form = &forms[0];
+    assert_eq!(form.method, "get");
+    assert_eq!(form.action, None);
+    assert_eq!(form.action_url, None);
+    assert_eq!(form.enctype, "application/x-www-form-urlencoded");
+    assert_eq!(form.fields.len(), 2);
+    assert_eq!(form.fields[0].name.as_deref(), Some("q"));
+    assert_eq!(form.fields[0].field_type, "text");
+    assert_eq!(form.fields[1].name, None);
+    assert_eq!(form.fields[1].field_type, "submit");
+    assert_eq!(form.fields[1].default_value.as_deref(), Some("Send"));
+}
+
 /// PARSE-10：markdown 视图输出标题/列表/链接/强调标记。
 #[test]
 fn parse_10_markdown_rendering() {
