@@ -98,7 +98,8 @@ pub struct SearchResult {
 /// - 非法正则 → ok=false + code=PARSE；
 /// - 超长模式 → ok=false + code=BLOCKED；
 /// - 零命中 → ok=true + 空数组 + 结论；
-/// - 超 max_results / char_budget → ok=true + code=LIMIT + 非空 degraded_from。
+/// - 超 max_results / char_budget → ok=true + code=LIMIT + 非空 degraded_from；
+/// - 超过 max_elapsed_ms（含扫描推进本身，与是否有命中无关）→ ok=false + code=TIMEOUT。
 pub fn search(text: &str, query: &str, options: &SearchOptions) -> Envelope<SearchResult> {
     let started = Instant::now();
     if query.is_empty() {
@@ -137,6 +138,9 @@ pub fn search(text: &str, query: &str, options: &SearchOptions) -> Envelope<Sear
     };
 
     let line_starts = line_starts(text);
+    if let Some(envelope) = super::budget_timeout(started, options.max_elapsed_ms, "search") {
+        return envelope;
+    }
     let mut result = SearchResult {
         query: query.to_owned(),
         regex: options.regex,
@@ -152,17 +156,35 @@ pub fn search(text: &str, query: &str, options: &SearchOptions) -> Envelope<Sear
     let mut reasons: Vec<String> = Vec::new();
     let mut more = false;
 
-    for found in compiled.find_iter(text) {
-        if elapsed_ms(started) >= options.max_elapsed_ms {
-            return Envelope::fail(
-                ErrorCode::Timeout,
-                format!(
-                    "search exceeded wall-clock budget of {} ms",
-                    options.max_elapsed_ms
-                ),
-                elapsed_ms(started),
-            );
+    // 手动 find_at 推进（等价展开 find_iter；空匹配 / 多字节边界行为与
+    // regex 的 Matches 迭代器一致，见 extract_17 用例）：find_iter 只在「命中时」
+    // 才交回循环体，零命中时整轮扫描发生在一次 next() 内部，预算检查轮不到。
+    // 这里每次推进前检查一次预算，扫描本身因而受 max_elapsed_ms 约束。
+    let mut search_start = 0usize;
+    let mut last_match_end: Option<usize> = None;
+    loop {
+        if let Some(envelope) = super::budget_timeout(started, options.max_elapsed_ms, "search") {
+            return envelope;
         }
+        if search_start > text.len() {
+            break;
+        }
+        let Some(first) = compiled.find_at(text, search_start) else {
+            break;
+        };
+        let found = if first.is_empty() && Some(first.end()) == last_match_end {
+            // 与 regex 的 Matches 迭代器一致：重叠空匹配向后挪一个字节再找。
+            let next = first.end() + 1;
+            if next > text.len() {
+                break;
+            }
+            match compiled.find_at(text, next) {
+                Some(found) => found,
+                None => break,
+            }
+        } else {
+            first
+        };
         result.observed_matches += 1;
         if result.matches.len() >= options.max_results {
             more = true;
@@ -210,6 +232,13 @@ pub fn search(text: &str, query: &str, options: &SearchOptions) -> Envelope<Sear
             before,
             after,
         });
+        search_start = found.end();
+        last_match_end = Some(found.end());
+    }
+
+    // 扫描结束（自然结束或 break）后再兜底一次：最后一次推进可能刚好越界。
+    if let Some(envelope) = super::budget_timeout(started, options.max_elapsed_ms, "search") {
+        return envelope;
     }
 
     if reasons.is_empty() {

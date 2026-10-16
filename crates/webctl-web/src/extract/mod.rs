@@ -186,7 +186,7 @@ impl ExtractResult {
 /// - 超长/超复杂选择器 → ok=false + code=BLOCKED（拒绝评估不受信选择器）；
 /// - 命中数超 max_results、字符超 char_budget、扫描超 max_scan_matches
 ///   → ok=true + code=LIMIT + 非空 meta.degraded_from；
-/// - 超过 max_elapsed_ms → ok=false + code=TIMEOUT。
+/// - 超过 max_elapsed_ms（含 parse_document 与逐元素扫描本身）→ ok=false + code=TIMEOUT。
 ///
 /// 结果只含 UTF-8 文本字段，不夹带原始字节（EXTRACT-16）。
 pub fn select_matches(
@@ -203,23 +203,37 @@ pub fn select_matches(
         Err(message) => return Envelope::fail(ErrorCode::Parse, message, elapsed_ms(started)),
     };
     let document = crate::parse::html::parse_document(html_text);
+    // 解析耗时也必须计入墙钟预算：否则大页面在解析阶段就能轻松越过预算，
+    // 而零命中时后面没有任何检查点（审阅者实测 1MB 零命中 → 4s + OK）。
+    if let Some(envelope) = budget_timeout(started, options.max_elapsed_ms, "extract") {
+        return envelope;
+    }
     let index = context::DocumentText::build(&document);
+    if let Some(envelope) = budget_timeout(started, options.max_elapsed_ms, "extract") {
+        return envelope;
+    }
 
     let mut result = ExtractResult::empty(selector);
     let mut used_chars = 0usize;
     let mut reasons: Vec<String> = Vec::new();
     let mut more = false;
 
-    for element in document.select(&css) {
-        if elapsed_ms(started) >= options.max_elapsed_ms {
-            return Envelope::fail(
-                ErrorCode::Timeout,
-                format!(
-                    "extract exceeded wall-clock budget of {} ms",
-                    options.max_elapsed_ms
-                ),
-                elapsed_ms(started),
-            );
+    // 逐元素手动推进，而不是 document.select(&css)：后者只在「命中时」才把控制权
+    // 交回循环体，零命中时整轮扫描发生在一次 next() 内部，预算检查永远轮不到
+    // （这正是审阅者实测的 1MB 零命中 → 4s + OK）。这里在每次元素推进前检查预算，
+    // 扫描本身因而受 max_elapsed_ms 约束；语义与 Select 一致（跳过无父节点者）。
+    for node in document.tree.nodes() {
+        let Some(element) = scraper::ElementRef::wrap(node) else {
+            continue;
+        };
+        if element.parent().is_none() {
+            continue;
+        }
+        if let Some(envelope) = budget_timeout(started, options.max_elapsed_ms, "extract") {
+            return envelope;
+        }
+        if !css.matches(&element) {
+            continue;
         }
         result.observed_matches += 1;
         if result.matches.len() >= options.max_results {
@@ -252,6 +266,11 @@ pub fn select_matches(
         result.matches.push(hit);
     }
 
+    // 扫描结束（自然结束或 break）后再兜底一次：最后一次推进可能刚好越界。
+    if let Some(envelope) = budget_timeout(started, options.max_elapsed_ms, "extract") {
+        return envelope;
+    }
+
     if reasons.is_empty() {
         result.conclusion = if result.matches.is_empty() {
             zero_conclusion(selector)
@@ -273,6 +292,22 @@ pub fn select_matches(
         );
         let from = result.truncated_reasons.join(",");
         Envelope::degraded(result, from, ErrorCode::Limit, elapsed_ms(started))
+    }
+}
+
+/// 墙钟预算兜底：自 started 起已用满 budget_ms 时返回 TIMEOUT 信封。
+///
+/// 调用点必须覆盖「零命中也能到达」的位置：解析 / 建索引之后、逐元素扫描的每次
+/// 推进、以及扫描结束构造结果之前。budget_ms=0 表示不分配任何时间，任何耗时都超时。
+fn budget_timeout<T>(started: Instant, budget_ms: u64, what: &str) -> Option<Envelope<T>> {
+    if elapsed_ms(started) >= budget_ms {
+        Some(Envelope::fail(
+            ErrorCode::Timeout,
+            format!("{what} exceeded wall-clock budget of {budget_ms} ms"),
+            elapsed_ms(started),
+        ))
+    } else {
+        None
     }
 }
 
