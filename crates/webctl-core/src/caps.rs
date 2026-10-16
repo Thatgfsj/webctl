@@ -1,7 +1,13 @@
 //! 内置能力自检（caps）。
 //!
 //! 硬约束（PLAN v0.4 §3.1）：caps 不联网、不探测外部程序、不启动子进程。
-//! 因此这里只报告进程内能力域的状态，不出现任何外部工具名。
+//! 因此这里只报告进程内能力域与**实际注册**的工具，不出现任何外部工具名。
+//!
+//! # 诚实性（议题 #68）
+//!
+//! `interface` 域只有在调用方真的注册了工具时才可能为 available；
+//! `detect_with` 的 `tools` 参数必须来自接口层的真实注册表（webctl-mcp 的派发表）。
+//! 工具“存在但不可用”不得被报告成 available——这是发布说明与 README 的唯一事实来源。
 use serde::{Deserialize, Serialize};
 
 use crate::config::Config;
@@ -63,6 +69,8 @@ pub enum CapabilityState {
     Available,
     /// 被配置显式关闭。
     Disabled,
+    /// 不存在或未注册（缺失）。
+    Unavailable,
 }
 
 /// 单个能力域的报告。
@@ -76,6 +84,24 @@ pub struct Capability {
     pub reason: String,
 }
 
+/// 单个工具的能力报告（§3.7 的 15 个工具逐项）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ToolCapability {
+    /// 原始工具名（不带 mcp__webctl__ 前缀）。
+    pub name: String,
+    /// 状态；缺失必须是 Unavailable，绝不允许 available。
+    pub state: CapabilityState,
+    /// 原因说明（人类可读）。
+    pub reason: String,
+}
+
+impl ToolCapability {
+    /// 该工具是否可用。
+    pub fn is_available(&self) -> bool {
+        self.state == CapabilityState::Available
+    }
+}
+
 /// 能力自检报告。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CapsReport {
@@ -85,27 +111,43 @@ pub struct CapsReport {
     pub engine: &'static str,
     /// 能力域清单。
     pub capabilities: Vec<Capability>,
+    /// 工具清单（由接口层实际注册情况派生）。
+    pub tools: Vec<ToolCapability>,
 }
 
 impl CapsReport {
-    /// 按配置生成报告。离线只影响取回域。
+    /// 没有接口层工具时的报告（core 单元测试 / CLI-only 场景）。
     pub fn detect(config: &Config) -> Self {
+        Self::detect_with(config, Vec::new())
+    }
+
+    /// 按配置与实际注册的工具生成报告。
+    ///
+    /// `tools` 必须来自接口层的真实注册表；空列表意味着“没有接口工具”，
+    /// 此时 interface 为 unavailable，而不是硬编码 available。
+    pub fn detect_with(config: &Config, tools: Vec<ToolCapability>) -> Self {
+        let interface_available = tools.iter().any(ToolCapability::is_available);
         let capabilities = CapabilityDomain::ALL
             .into_iter()
             .map(|domain| {
-                let available = !(config.offline && domain == CapabilityDomain::Fetch);
+                let (state, reason) = match domain {
+                    CapabilityDomain::Fetch if config.offline => (
+                        CapabilityState::Disabled,
+                        format!("{}：离线模式已关闭", domain.description()),
+                    ),
+                    CapabilityDomain::Interface if !interface_available => (
+                        CapabilityState::Unavailable,
+                        "MCP/接口工具未注册（本进程没有可用的接口层工具）".to_owned(),
+                    ),
+                    _ => (
+                        CapabilityState::Available,
+                        format!("{}（进程内实现，无外部依赖）", domain.description()),
+                    ),
+                };
                 Capability {
                     domain,
-                    state: if available {
-                        CapabilityState::Available
-                    } else {
-                        CapabilityState::Disabled
-                    },
-                    reason: if available {
-                        format!("{}（进程内实现，无外部依赖）", domain.description())
-                    } else {
-                        format!("{}：离线模式已关闭", domain.description())
-                    },
+                    state,
+                    reason,
                 }
             })
             .collect();
@@ -113,6 +155,7 @@ impl CapsReport {
             version: env!("CARGO_PKG_VERSION").to_owned(),
             engine: "builtin",
             capabilities,
+            tools,
         }
     }
 
@@ -128,11 +171,24 @@ impl CapsReport {
     pub fn is_available(&self, domain: CapabilityDomain) -> bool {
         self.get(domain).state == CapabilityState::Available
     }
+
+    /// 取某个工具的报告（若有）。
+    pub fn tool(&self, name: &str) -> Option<&ToolCapability> {
+        self.tools.iter().find(|tool| tool.name == name)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn stub_tool(name: &str) -> ToolCapability {
+        ToolCapability {
+            name: name.to_owned(),
+            state: CapabilityState::Available,
+            reason: "stub".to_owned(),
+        }
+    }
 
     /// CAPS-01：五个能力域齐全且顺序固定。
     #[test]
@@ -148,7 +204,12 @@ mod tests {
             domains,
             ["fetch", "parse", "session", "doc_data", "interface"]
         );
-        for domain in CapabilityDomain::ALL {
+        for domain in [
+            CapabilityDomain::Fetch,
+            CapabilityDomain::Parse,
+            CapabilityDomain::Session,
+            CapabilityDomain::DocData,
+        ] {
             assert!(report.is_available(domain));
         }
         assert_eq!(report.engine, "builtin");
@@ -158,7 +219,10 @@ mod tests {
     /// CAPS-02：报告里不得出现任何外部工具或浏览器（v0.4 已全部内置）。
     #[test]
     fn report_never_mentions_external_tools() {
-        let report = CapsReport::detect(&Config::default());
+        let report = CapsReport::detect_with(
+            &Config::default(),
+            vec![stub_tool("fetch"), stub_tool("caps")],
+        );
         let json = serde_json::to_string(&report)
             .expect("serialize")
             .to_lowercase();
@@ -187,12 +251,50 @@ mod tests {
             offline: true,
             ..Config::default()
         };
-        let report = CapsReport::detect(&config);
+        let report = CapsReport::detect_with(&config, vec![stub_tool("fetch")]);
         assert!(!report.is_available(CapabilityDomain::Fetch));
         assert!(report.is_available(CapabilityDomain::Parse));
         assert!(report.is_available(CapabilityDomain::Session));
         assert!(report.is_available(CapabilityDomain::DocData));
         assert!(report.is_available(CapabilityDomain::Interface));
         assert!(report.get(CapabilityDomain::Fetch).reason.contains("离线"));
+    }
+
+    /// 议题 #68：没有注册任何工具时 interface 不得报 available。
+    #[test]
+    fn missing_tools_never_report_interface_available() {
+        let report = CapsReport::detect(&Config::default());
+        assert_eq!(
+            report.get(CapabilityDomain::Interface).state,
+            CapabilityState::Unavailable
+        );
+        assert!(report.tools.is_empty());
+    }
+
+    /// 议题 #68：存在但不可用的工具不得被洗成 available，也不能点亮 interface。
+    #[test]
+    fn unavailable_tools_do_not_light_up_interface() {
+        let tool = ToolCapability {
+            name: "fetch".to_owned(),
+            state: CapabilityState::Unavailable,
+            reason: "未注册".to_owned(),
+        };
+        let report = CapsReport::detect_with(&Config::default(), vec![tool]);
+        assert!(!report.tool("fetch").expect("present").is_available());
+        assert_eq!(
+            report.get(CapabilityDomain::Interface).state,
+            CapabilityState::Unavailable
+        );
+    }
+
+    /// 议题 #68：真注册且可用的工具才点亮 interface。
+    #[test]
+    fn registered_tools_light_up_interface() {
+        let report = CapsReport::detect_with(&Config::default(), vec![stub_tool("fetch")]);
+        assert_eq!(
+            report.get(CapabilityDomain::Interface).state,
+            CapabilityState::Available
+        );
+        assert!(report.tool("fetch").expect("present").is_available());
     }
 }

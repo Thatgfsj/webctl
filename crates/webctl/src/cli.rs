@@ -126,6 +126,15 @@ enum Command {
         #[command(subcommand)]
         action: CookiesAction,
     },
+    /// 以 stdio 运行 MCP server（DSH 挂载入口）。
+    Mcp {
+        /// 绑定的会话名；跨 Session 调用会被拒绝。
+        #[arg(long, value_name = "SESSION")]
+        owner_session: Option<String>,
+        /// 只打印 tools/list 的工具名（每行一个）后退出；供 MCP-12 一致性校验。
+        #[arg(long)]
+        list_tools: bool,
+    },
 }
 
 /// `cookies` 子动作。
@@ -238,6 +247,10 @@ fn execute(cli: Cli) -> ExitCode {
         Command::Config => run_config(&config, started),
         Command::Fetch { url } => run_fetch(&config, &url, started),
         Command::Cookies { action } => run_cookies(&config, action, started),
+        Command::Mcp {
+            owner_session,
+            list_tools,
+        } => run_mcp(&config, owner_session, list_tools),
     }
 }
 
@@ -256,7 +269,8 @@ fn output_hint(cli: &Cli) -> OutputFormat {
 }
 
 fn run_caps(config: &Config, started: Instant) -> ExitCode {
-    let report = CapsReport::detect(config);
+    // 议题 #68：caps 的工具清单必须来自 MCP 的真实注册表，而不是硬编码 available。
+    let report = CapsReport::detect_with(config, webctl_mcp::caps::tool_capabilities());
     // caps 是本地自检数据，因此 trust 为 trusted_local（页面内容才用 untrusted）。
     let envelope = Envelope::ok(report, Trust::TrustedLocal, elapsed(started));
     emit(envelope, config.output, render_caps)
@@ -508,19 +522,55 @@ fn fail(code: ErrorCode, message: &str, format: OutputFormat, started: Instant) 
     emit(envelope, format, |_| {})
 }
 
+/// 能力状态 → 线上字符串（与 serde 的 snake_case 一致）。
+fn capability_state(state: CapabilityState) -> &'static str {
+    match state {
+        CapabilityState::Available => "available",
+        CapabilityState::Disabled => "disabled",
+        CapabilityState::Unavailable => "unavailable",
+    }
+}
+
 fn render_caps(report: &CapsReport) {
     println!("webctl {}（engine={}）", report.version, report.engine);
     for capability in &report.capabilities {
-        let state = match capability.state {
-            CapabilityState::Available => "available",
-            CapabilityState::Disabled => "disabled",
-        };
         println!(
-            "  {:<10} {:<10} {}",
+            "  {:<10} {:<12} {}",
             capability.domain.as_str(),
-            state,
+            capability_state(capability.state),
             capability.reason
         );
+    }
+    if !report.tools.is_empty() {
+        println!("  工具（{} 个）：", report.tools.len());
+        for tool in &report.tools {
+            println!(
+                "    {:<10} {:<12} {}",
+                tool.name,
+                capability_state(tool.state),
+                tool.reason
+            );
+        }
+    }
+}
+
+/// MCP server：以 stdio 运行到对端关闭（MCP-01…MCP-11）。
+fn run_mcp(config: &Config, owner_session: Option<String>, list_tools: bool) -> ExitCode {
+    if list_tools {
+        // MCP-12：与 tools/list 同源的静态清单，供校验脚本比对 SKILL.md。
+        for tool in webctl_mcp::TOOL_NAMES {
+            println!("{tool}");
+        }
+        return ExitCode::SUCCESS;
+    }
+    let owner = owner_session.or_else(webctl_mcp::owner_from_env);
+    let context = webctl_mcp::McpContext::new(config.clone(), owner);
+    match block_on(webctl_mcp::run_stdio(context)) {
+        Ok(Ok(())) => ExitCode::SUCCESS,
+        Ok(Err(message)) | Err(message) => {
+            eprintln!("webctl: {message}");
+            ExitCode::from(exit_code(ErrorCode::Internal))
+        }
     }
 }
 
@@ -615,7 +665,7 @@ mod tests {
             .get_subcommands()
             .map(clap::Command::get_name)
             .collect();
-        for expected in ["caps", "fetch", "config", "cookies"] {
+        for expected in ["caps", "fetch", "config", "cookies", "mcp"] {
             assert!(
                 names.contains(&expected),
                 "缺少子命令 {expected}: {names:?}"
