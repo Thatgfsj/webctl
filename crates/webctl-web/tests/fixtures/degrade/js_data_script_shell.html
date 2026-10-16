@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Quotes to Scrape</title>
+</head>
+<body>
+  <div class="container">
+    <div class="row header-box">
+      <h1><a href="/">Quotes to Scrape</a></h1>
+      <p><a href="/login">Login</a></p>
+    </div>
+    <script src="/static/jquery.js"></script>
+    <script>
+      var data = [
+        {"text": "The world as we have created it is a process of our thinking."},
+        {"text": "It is our choices that show what we truly are."},
+        {"text": "There are only two ways to live your life."},
+        {"text": "The person who has not pleasure in a good novel is stupid."}
+      ];
+      for (var i in data) {
+        document.write("<div class='quote'><span class='text'>" + data[i].text + "</span></div>");
+      }
+    </script>
+    <nav><ul class="pager"><li class="next"><a href="/js/page/2/">Next</a></li></ul></nav>
+  </div>
+</body>
+</html>

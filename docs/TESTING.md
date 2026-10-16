@@ -457,6 +457,27 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 - **A6 五码互异（补充）**：\`extract_outcomes_have_distinct_codes\`
 - **EXTRACT-17 / EXTRACT-08 预算兜底（PR #71 修复）**：\`extract_17_zero_hit_large_page_over_budget_times_out\`、\`extract_17_zero_hit_parse_over_budget_times_out\`、\`extract_17_zero_hit_within_budget_stays_ok_empty\`、\`extract_17_search_zero_hit_over_budget_times_out\`、\`extract_17_deep_descendant_scan_is_bounded\`、\`extract_08_search_advance_matches_regex_iter\`
 
+### 6.8 PR 09 降级语义（议题 #38）
+
+本 PR 叠在 PR 06（#35）之上：新增 `crates/webctl-web/src/degrade/**`（判定 + 诊断 + 信封守卫层），
+只在 `extract::select_matches` 与 `transport::fetch` 各加一个接入点，不改 PR 06 的既有语义。
+
+- `crates/webctl-web/src/degrade/detect.rs` 单元 **4 条**：`static_text_short_circuits_even_with_scripts`、`empty_root_with_scripts_is_partial`、`blank_shell_without_placeholder_is_total`、`image_only_static_page_is_not_shell`；服务 DEGRADE-04/05/06/09 的判定侧。
+- `crates/webctl-web/tests/degrade.rs` 集成 **11 条**（离线；本地 fixture + 127.0.0.1）：
+  - DEGRADE-01 的 L0 等价物：`degrade_01_l0_js_data_shell_is_degraded`
+  - DEGRADE-02 的 L0 等价物：`degrade_02_l0_static_anchor_yields_ten_quotes`
+  - DEGRADE-03：`degrade_03_diagnosis_names_all_four_signal_kinds`
+  - DEGRADE-04：`degrade_04_noscript_only_page_is_degraded`
+  - DEGRADE-05：`degrade_05_empty_main_container_with_scripts_is_degraded`
+  - DEGRADE-06（不误判 + EXTRACT-06 边界）：`degrade_06_static_page_with_many_scripts_is_not_degraded`
+  - DEGRADE-07：`degrade_07_force_switch_returns_raw_html_with_degraded_from`
+  - DEGRADE-08：`degrade_08_zero_hits_on_js_page_is_never_ok`
+  - DEGRADE-09：`degrade_09_spa_shell_zero_hits_is_unsupported_with_explanation`
+  - DEGRADE-10：`degrade_10_guard_never_rewrites_or_fabricates_content`
+  - 取回层接入点（离线回环 fixture）：`degrade_fetch_entry_marks_js_shell_degraded_offline`
+- SESS-10 由既有 `crates/webctl-web/tests/session.rs::sess_10_spa_degrades`（连同 `sess_15_paginate_spa_stays_degraded`）覆盖；接入守卫后仍全绿。
+- **L1（可跳过、不作 CI 门禁）**：`crates/webctl-web/tests/e2e/run-real.sh` 承载 DEGRADE-01/02 与 E2E-01/02——静态锚点计数 10 条、JS 页断言降级码非 OK 且 `degraded_from` 非空；`WEBCTL_REAL!=1` 或无网络/缺 curl/cargo 时显式 SKIP。
+
 ## 7. 维护规则
 
 1. 新增用例必须同时写 **通道** 与 **归属 PR**，否则不合并。
