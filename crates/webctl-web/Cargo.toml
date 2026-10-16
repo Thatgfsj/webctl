@@ -25,6 +25,12 @@ lopdf = { version = "0.42", default-features = false }
 # 礼貌层需要 tokio 的定时器与信号量（workspace 已统一版本）。
 tokio = { workspace = true, features = ["time", "sync"] }
 
+# PR 03 解析层：DOM/选择器、正文提取、HTML→文本、XML 建树
+scraper = "0.27.0"
+dom_smoothie = "0.18.2"
+html2text = "0.17.3"
+roxmltree = "0.21.1"
+
 [dev-dependencies]
 tokio.workspace = true
 

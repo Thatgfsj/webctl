@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html><body>
+<form id="login" action="/login" method="post" enctype="application/x-www-form-urlencoded">
+  <label for="user">User name</label>
+  <input id="user" name="user" type="text" value="alice" required>
+  <input name="pass" type="password" placeholder="secret">
+  <input type="hidden" name="csrf" value="tok-123">
+  <label><input type="checkbox" name="remember" checked> Remember me</label>
+  <select name="country" multiple>
+    <option value="fr" selected>France</option>
+    <option value="jp" disabled>Japan</option>
+  </select>
+  <textarea name="bio">hello</textarea>
+  <button type="submit" name="go" value="1">Go</button>
+</form>
+<form action="https://other.example/post" method="GET">
+  <input name="q" value="x">
+</form>
+</body></html>
