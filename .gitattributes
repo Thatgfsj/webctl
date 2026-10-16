@@ -1,0 +1,10 @@
+# 测试 fixture 必须逐字节保真。
+#
+# 为什么不加不行：Windows 的 core.autocrlf 会把"看起来像文本"的文件做 LF↔CRLF 转换。
+# 纯 ASCII 的 PDF 正好会被误判为文本 —— 检出后字节被改写，lopdf 报 invalid file trailer，
+# 于是同一份 fixture 在 Linux 通过、在 windows-latest 失败（实测见 PR #49 的 CI）。
+#
+# 规则刻意保持最小：只覆盖 fixture 目录与二进制扩展名，不影响源码的默认行为。
+crates/*/tests/fixtures/** -text
+*.pdf binary
+*.bin binary
