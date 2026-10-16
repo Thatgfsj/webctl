@@ -77,8 +77,13 @@ mod site {
         }
 
         pub fn redirect(location: &str) -> Self {
+            Self::redirect_with(302, location)
+        }
+
+        /// 指定状态码的重定向（303/307/308 语义用例）。
+        pub fn redirect_with(status: u16, location: &str) -> Self {
             Self {
-                status: 302,
+                status,
                 headers: vec![("location".to_owned(), location.to_owned())],
                 body: Vec::new(),
             }
@@ -107,6 +112,10 @@ mod site {
         pub token_seq: usize,
         pub recorded: HashMap<String, HashMap<String, String>>,
         pub upload: Option<(String, Vec<u8>, Option<String>)>,
+        /// 最近一次请求的原始 body（按路径）。
+        pub bodies: HashMap<String, String>,
+        /// 最近一次请求的方法（按路径）。
+        pub methods: HashMap<String, String>,
     }
 
     impl State {
@@ -147,6 +156,13 @@ mod site {
 
         pub fn recorded(&self, path: &str) -> HashMap<String, String> {
             self.recorded.get(path).cloned().unwrap_or_default()
+        }
+
+        /// 记录一次请求的方法与原始 body（用于重定向与同名多值断言）。
+        pub fn record_echo(&mut self, path: &str, method: &str, body: &[u8]) {
+            self.methods.insert(path.to_owned(), method.to_owned());
+            self.bodies
+                .insert(path.to_owned(), String::from_utf8_lossy(body).into_owned());
         }
     }
 
@@ -207,6 +223,16 @@ mod site {
         pub fn with_state<R>(&self, f: impl FnOnce(&State) -> R) -> R {
             let guard = self.state.lock().expect("state");
             f(&guard)
+        }
+
+        /// 某路径最近一次请求的方法。
+        pub fn method(&self, path: &str) -> Option<String> {
+            self.with_state(|state| state.methods.get(path).cloned())
+        }
+
+        /// 某路径最近一次请求的原始 body。
+        pub fn body(&self, path: &str) -> Option<String> {
+            self.with_state(|state| state.bodies.get(path).cloned())
         }
     }
 
@@ -306,6 +332,18 @@ mod site {
     pub fn parse_urlencoded(body: &[u8]) -> HashMap<String, String> {
         let text = String::from_utf8_lossy(body);
         parse_pairs(text.split('&'))
+    }
+
+    /// 保序解析 urlencoded（同名多值断言用，HashMap 会丢序/丢重复）。
+    pub fn parse_pairs_ordered(body: &[u8]) -> Vec<(String, String)> {
+        let text = String::from_utf8_lossy(body);
+        text.split('&')
+            .filter(|pair| !pair.is_empty())
+            .map(|pair| {
+                let (key, value) = pair.split_once('=').unwrap_or((pair, ""));
+                (percent_decode(key), percent_decode(value))
+            })
+            .collect()
     }
 
     fn parse_pairs<'a>(pairs: impl Iterator<Item = &'a str>) -> HashMap<String, String> {
@@ -424,6 +462,9 @@ mod site {
         match status {
             200 => "OK",
             302 => "Found",
+            303 => "See Other",
+            307 => "Temporary Redirect",
+            308 => "Permanent Redirect",
             403 => "Forbidden",
             404 => "Not Found",
             _ => "Status",
@@ -433,6 +474,10 @@ mod site {
     // ---- 路由处理 ----
 
     pub fn handle(request: &Request, state: &mut State) -> Response {
+        if let Some(rest) = request.path.strip_prefix("/echo/") {
+            state.record_echo(&request.path, &request.method, &request.body);
+            return Response::html(200, format!("<html><body>echo {rest}</body></html>"));
+        }
         match (request.method.as_str(), request.path.as_str()) {
             ("GET", "/login") => {
                 let token = state.issue("login");
@@ -618,6 +663,43 @@ mod site {
                     ),
                 )
             }
+            ("GET", "/form/multi") => {
+                let token = state.issue("multi");
+                let checked = request.query.get("checked").map(String::as_str);
+                Response::html(
+                    200,
+                    multi_form(&token, checked == Some("a"), checked == Some("b")),
+                )
+            }
+            ("POST", "/form/multi") => {
+                let fields = request.form();
+                if !state.take("multi", fields.get("csrf_token")) {
+                    return Response::html(403, "<html><body>bad csrf</body></html>");
+                }
+                state.record("/form/multi", fields);
+                state.record_echo("/form/multi", &request.method, &request.body);
+                Response::html(200, "<html><body>multi-ok</body></html>")
+            }
+            ("GET", "/form/redirect") => {
+                let status = request
+                    .query
+                    .get("status")
+                    .cloned()
+                    .unwrap_or_else(|| "307".to_owned());
+                let token = state.issue("redirect");
+                Response::html(
+                    200,
+                    format!(
+                        "<html><body><form action=\"/redirect/{status}\" method=\"post\">\
+                         <input type=\"hidden\" name=\"csrf_token\" value=\"{token}\">\
+                         <input type=\"text\" name=\"q\" value=\"default\">\
+                         <input type=\"submit\" value=\"Go\"></form></body></html>"
+                    ),
+                )
+            }
+            ("POST", "/redirect/307") => Response::redirect_with(307, "/echo/307"),
+            ("POST", "/redirect/308") => Response::redirect_with(308, "/echo/308"),
+            ("POST", "/redirect/303") => Response::redirect_with(303, "/echo/303"),
             ("GET", "/spa") => Response::html(
                 200,
                 "<html><body><div id=\"root\"></div>\
@@ -661,9 +743,27 @@ mod site {
              </form></body></html>"
         )
     }
+    fn multi_form(token: &str, checked_a: bool, checked_b: bool) -> String {
+        format!(
+            "<html><body><form action=\"/form/multi\" method=\"post\">\
+             <input type=\"hidden\" name=\"csrf_token\" value=\"{token}\">\
+             <input type=\"checkbox\" name=\"tags\" value=\"a\"{a}>\
+             <input type=\"checkbox\" name=\"tags\" value=\"b\"{b}>\
+             <input type=\"text\" name=\"q\" value=\"one\">\
+             <input type=\"text\" name=\"q\" value=\"two\">\
+             <select name=\"colors\" multiple>\
+               <option value=\"red\">Red</option>\
+               <option value=\"green\" selected>Green</option>\
+               <option value=\"blue\" selected>Blue</option>\
+             </select>\
+             <input type=\"submit\" value=\"Send\"></form></body></html>",
+            a = if checked_a { " checked" } else { "" },
+            b = if checked_b { " checked" } else { "" },
+        )
+    }
 }
 
-use site::{Site, parse_multipart};
+use site::{Site, parse_multipart, parse_pairs_ordered};
 
 // ---------------------------------------------------------------------------
 // 测试辅助
@@ -1228,4 +1328,174 @@ fn fixture_multipart_parser_sanity() {
     assert_eq!(parts[0].name, "title");
     assert_eq!(parts[1].filename.as_deref(), Some("a.txt"));
     assert_eq!(parts[1].content.as_slice(), b"bytes");
+}
+
+/// 从保序 pairs 里取出某名字的全部值（同名多值断言）。
+fn body_values(pairs: &[(String, String)], name: &str) -> Vec<String> {
+    pairs
+        .iter()
+        .filter(|(key, _)| key == name)
+        .map(|(_, value)| value.clone())
+        .collect()
+}
+
+/// SESS-15：paginate 必须传播页面级降级——SPA 空壳只能是 DEGRADED，绝不 OK+0 条。
+#[tokio::test]
+async fn sess_15_paginate_spa_stays_degraded() {
+    let site = Site::start().await;
+    let engine = engine("sess15");
+    let env = engine.paginate(&site.url("/spa"), Some(3)).await;
+    assert_eq!(env.code, ErrorCode::Degraded, "SPA 分页不得被吞成 OK");
+    assert_ne!(env.code, ErrorCode::Ok);
+    assert_eq!(env.meta.degraded_from.as_deref(), Some("js-render"));
+    assert_eq!(env.validate(), Ok(()));
+    let paginated = env.data.expect("paginated");
+    assert_eq!(paginated.pages.len(), 1);
+    assert_eq!(paginated.total_items, 0);
+    assert!(paginated.pages[0].spa.is_some());
+}
+
+/// FORM-13：同名多 checkbox 各自独立——第 1 个 checked 只提交 tags=a。
+#[tokio::test]
+async fn form_13_duplicate_checkbox_first_checked_only() {
+    let site = Site::start().await;
+    let engine = engine("form13");
+    let page = engine
+        .fetch_page(&site.url("/form/multi?checked=a"))
+        .await
+        .data
+        .expect("page");
+    let env = engine.submit_form(&page, 0, &FormFill::new()).await;
+    assert!(env.ok, "{}", env.error);
+    let pairs = parse_pairs_ordered(site.body("/form/multi").expect("body").as_bytes());
+    assert_eq!(
+        body_values(&pairs, "tags"),
+        vec!["a".to_owned()],
+        "第 1 个 checked 只应提交 tags=a：{pairs:?}"
+    );
+}
+
+/// FORM-14：同名多 checkbox 各自独立——第 2 个 checked 只提交 tags=b（不得带 a）。
+#[tokio::test]
+async fn form_14_duplicate_checkbox_second_checked_only() {
+    let site = Site::start().await;
+    let engine = engine("form14");
+    let page = engine
+        .fetch_page(&site.url("/form/multi?checked=b"))
+        .await
+        .data
+        .expect("page");
+    let env = engine.submit_form(&page, 0, &FormFill::new()).await;
+    assert!(env.ok, "{}", env.error);
+    let pairs = parse_pairs_ordered(site.body("/form/multi").expect("body").as_bytes());
+    assert_eq!(
+        body_values(&pairs, "tags"),
+        vec!["b".to_owned()],
+        "第 2 个 checked 只应提交 tags=b：{pairs:?}"
+    );
+}
+
+/// FORM-15：同名多 text 按出现顺序全部提交（one 在前、two 在后）。
+#[tokio::test]
+async fn form_15_duplicate_text_inputs_keep_order() {
+    let site = Site::start().await;
+    let engine = engine("form15");
+    let page = engine
+        .fetch_page(&site.url("/form/multi?checked=none"))
+        .await
+        .data
+        .expect("page");
+    let env = engine.submit_form(&page, 0, &FormFill::new()).await;
+    assert!(env.ok, "{}", env.error);
+    let pairs = parse_pairs_ordered(site.body("/form/multi").expect("body").as_bytes());
+    assert_eq!(
+        body_values(&pairs, "q"),
+        vec!["one".to_owned(), "two".to_owned()],
+        "同名 text 必须按出现顺序全提交：{pairs:?}"
+    );
+}
+
+/// FORM-16：select multiple 提交全部 selected 选项（按选项顺序）。
+#[tokio::test]
+async fn form_16_select_multiple_submits_all_selected() {
+    let site = Site::start().await;
+    let engine = engine("form16");
+    let page = engine
+        .fetch_page(&site.url("/form/multi?checked=none"))
+        .await
+        .data
+        .expect("page");
+    let env = engine.submit_form(&page, 0, &FormFill::new()).await;
+    assert!(env.ok, "{}", env.error);
+    let pairs = parse_pairs_ordered(site.body("/form/multi").expect("body").as_bytes());
+    assert_eq!(
+        body_values(&pairs, "colors"),
+        vec!["green".to_owned(), "blue".to_owned()],
+        "select multiple 必须提交全部 selected：{pairs:?}"
+    );
+}
+
+/// FORM-17：307 重定向保留方法与 POST body。
+#[tokio::test]
+async fn form_17_307_preserves_post_body() {
+    let site = Site::start().await;
+    let engine = engine("form17");
+    let page = engine
+        .fetch_page(&site.url("/form/redirect?status=307"))
+        .await
+        .data
+        .expect("page");
+    let mut fill = FormFill::new();
+    fill.set("q", "hello");
+    let env = engine.submit_form(&page, 0, &fill).await;
+    assert!(env.ok, "{}", env.error);
+    assert_eq!(site.method("/echo/307").as_deref(), Some("POST"));
+    let pairs = parse_pairs_ordered(site.body("/echo/307").expect("body").as_bytes());
+    assert_eq!(
+        body_values(&pairs, "q"),
+        vec!["hello".to_owned()],
+        "307 后 q=hello 不得丢失：{pairs:?}"
+    );
+}
+
+/// FORM-18：308 重定向保留方法与 POST body。
+#[tokio::test]
+async fn form_18_308_preserves_post_body() {
+    let site = Site::start().await;
+    let engine = engine("form18");
+    let page = engine
+        .fetch_page(&site.url("/form/redirect?status=308"))
+        .await
+        .data
+        .expect("page");
+    let mut fill = FormFill::new();
+    fill.set("q", "hello");
+    let env = engine.submit_form(&page, 0, &fill).await;
+    assert!(env.ok, "{}", env.error);
+    assert_eq!(site.method("/echo/308").as_deref(), Some("POST"));
+    let pairs = parse_pairs_ordered(site.body("/echo/308").expect("body").as_bytes());
+    assert_eq!(
+        body_values(&pairs, "q"),
+        vec!["hello".to_owned()],
+        "308 后 q=hello 不得丢失：{pairs:?}"
+    );
+}
+
+/// FORM-19：303 转 GET 且不带原 POST body。
+#[tokio::test]
+async fn form_19_303_switches_to_get_without_body() {
+    let site = Site::start().await;
+    let engine = engine("form19");
+    let page = engine
+        .fetch_page(&site.url("/form/redirect?status=303"))
+        .await
+        .data
+        .expect("page");
+    let mut fill = FormFill::new();
+    fill.set("q", "hello");
+    let env = engine.submit_form(&page, 0, &fill).await;
+    assert!(env.ok, "{}", env.error);
+    assert_eq!(site.method("/echo/303").as_deref(), Some("GET"));
+    let body = site.body("/echo/303").expect("body");
+    assert!(body.is_empty(), "303 后不得携带 body，实际 {body:?}");
 }
