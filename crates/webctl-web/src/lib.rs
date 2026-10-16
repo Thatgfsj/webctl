@@ -15,7 +15,9 @@ pub mod doc;
 pub mod encoding;
 pub mod extract;
 pub mod parse;
+pub mod paths;
 pub mod politeness;
+pub mod redact;
 pub mod session;
 pub mod transport;
 
@@ -26,7 +28,15 @@ pub use doc::{
     DocOptions, DocText, JsonQueryOptions, JsonQueryOutcome, PdfKind, doc_text, extract_pdf_text,
 };
 pub use encoding::{CharsetSource, DecodedText, decode_body};
+pub use paths::{
+    ALLOWED_DOWNLOAD_TYPES, DEFAULT_MAX_DOWNLOAD_BYTES, DownloadError, DownloadPolicy,
+    commit_download, ensure_download_root,
+};
 pub use politeness::{PoliteFetched, PoliteFetcher, PolitenessConfig, RobotsOutcome};
+pub use redact::{
+    REDACTED, redact_fetched, redact_header_pairs, redact_header_value, redact_log_line,
+    redact_session_state, redact_stored_cookies, redact_url,
+};
 pub use session::{Page, Paginated, SessionEngine, SessionState, SessionStore};
 pub use transport::{
     Body, CookieJar, DEFAULT_MAX_BODY_BYTES, DEFAULT_MAX_REDIRECTS, DEFAULT_TIMEOUT, FetchOptions,

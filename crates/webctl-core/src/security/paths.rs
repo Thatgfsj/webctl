@@ -91,6 +91,31 @@ impl SafeRoot {
     }
 }
 
+/// 以 0600 创建/覆盖一个敏感文件。
+///
+/// 权限在 **open 时**就设好（Unix `OpenOptionsExt::mode`），并在写入后再次收紧，
+/// 因此即使目标文件原先权限更宽，也不会出现“先明文后收紧”的窗口。
+pub fn write_secret_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    use std::io::Write as _;
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let mut file = options.open(path)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        file.set_permissions(std::fs::Permissions::from_mode(0o600))?;
+    }
+    file.write_all(bytes)?;
+    file.sync_all()?;
+    let _ = crate::state::perms::restrict_file(path);
+    Ok(())
+}
+
 /// URL scheme 不合法（SEC-15）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SchemeError {
@@ -206,6 +231,22 @@ mod tests {
         ));
         std::fs::remove_dir_all(&root).ok();
         std::fs::remove_dir_all(&outside).ok();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn secret_file_is_mode_600_even_if_previously_wider() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = temp_dir("secret-file");
+        let path = root.join("cookies.json");
+        std::fs::write(&path, b"{}").expect("seed");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).expect("chmod");
+        write_secret_file(&path, b"{\"cookie\":\"SECRET\"}").expect("write");
+        assert_eq!(
+            std::fs::metadata(&path).expect("meta").permissions().mode() & 0o777,
+            0o600
+        );
+        std::fs::remove_dir_all(&root).ok();
     }
 
     #[test]
