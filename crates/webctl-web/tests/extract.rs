@@ -499,6 +499,145 @@ fn extract_17_catastrophic_input_is_bounded() {
     assert!(wall < 2_000, "catastrophic regex took {wall} ms");
 }
 
+/// EXTRACT-17（补，PR #71 阻塞项）：零命中选择器 + 1ms 预算 + 1MB 页面必须
+/// TIMEOUT，而不是跑完解析/扫描后返回 ok=true + code=OK。
+///
+/// 回归背景：预算检查原先只放在命中循环体顶部，零命中时循环体一次都不执行，
+/// parse_document 的耗时也不计入。修复后在解析结束、逐元素推进与扫描结束三处
+/// 检查，因此本用例在修复前会得到 OK，修复后必须是 TIMEOUT。
+#[test]
+fn extract_17_zero_hit_large_page_over_budget_times_out() {
+    let block = "<div class=\"bulk\">BULK-ITEM</div>";
+    let scale = 1_048_576 / block.len() + 1;
+    let big = block.repeat(scale);
+    assert!(big.len() >= 1_048_576);
+    let mut opts = options();
+    opts.max_elapsed_ms = 1;
+    let started = Instant::now();
+    let env = select_matches(&big, "article.nope", &opts);
+    let wall = started.elapsed().as_millis();
+    assert_valid(&env);
+    assert!(
+        !env.ok,
+        "zero-hit over budget must not be OK: {}",
+        env.error
+    );
+    assert_eq!(env.code, ErrorCode::Timeout);
+    assert!(env.data.is_none());
+    assert!(wall < 20_000, "budget must bound the call: {wall} ms");
+}
+
+/// EXTRACT-17（补）：解析本身就超预算（零命中 + budget=0，即不分配任何时间）
+/// 也必须 TIMEOUT —— 证明 parse_document 的耗时被计入预算，而不是只在有命中
+/// 时才有检查点。
+#[test]
+fn extract_17_zero_hit_parse_over_budget_times_out() {
+    let mut opts = options();
+    opts.max_elapsed_ms = 0;
+    let env = select_matches(PAGE, "article.nope", &opts);
+    assert_valid(&env);
+    assert!(!env.ok, "{}", env.error);
+    assert_eq!(env.code, ErrorCode::Timeout);
+    assert!(env.data.is_none());
+}
+
+/// EXTRACT-17（补）/ EXTRACT-06：正常预算下的零命中仍是 OK + 空数组，
+/// 预算修复不能把合法空结果误判成超时（保住 EXTRACT-06 语义）。
+#[test]
+fn extract_17_zero_hit_within_budget_stays_ok_empty() {
+    let env = select_matches(PAGE, "article.nope", &options());
+    assert_valid(&env);
+    assert!(env.ok, "{}", env.error);
+    assert_eq!(env.code, ErrorCode::Ok);
+    assert!(env.meta.degraded_from.is_none());
+    let result = env.data.expect("extract data");
+    assert!(result.matches.is_empty());
+    assert_eq!(result.observed_matches, 0);
+    assert!(
+        result.conclusion.contains("valid empty result"),
+        "{}",
+        result.conclusion
+    );
+}
+
+/// EXTRACT-17（补）：search 零命中 + 1ms 预算也必须 TIMEOUT —— find_iter 的
+/// 推进本身（而非只有命中）受预算约束。
+#[test]
+fn extract_17_search_zero_hit_over_budget_times_out() {
+    let text = "lorem ipsum dolor sit amet ".repeat(1_048_576 / 27 + 1);
+    assert!(text.len() >= 1_048_576);
+    let opts = SearchOptions {
+        max_elapsed_ms: 1,
+        ..SearchOptions::default()
+    };
+    let env = search(&text, "zzz", &opts);
+    assert_valid(&env);
+    assert!(!env.ok, "{}", env.error);
+    assert_eq!(env.code, ErrorCode::Timeout);
+    assert!(env.data.is_none());
+}
+
+/// EXTRACT-17（补）：审阅者实测的病态路径——合法但深的后代选择器（506B、126 段，
+/// 零命中）打到深链 DOM，曾在无视预算的情况下跑满几十秒后返回 OK；修复后必须
+/// 在预算内判 TIMEOUT，墙钟不再随文档无限增长。
+#[test]
+fn extract_17_deep_descendant_scan_is_bounded() {
+    let depth = 1_000usize;
+    let mut html = String::new();
+    for _ in 0..depth {
+        html.push_str("<div>");
+    }
+    html.push('x');
+    for _ in 0..depth {
+        html.push_str("</div>");
+    }
+    let selector = format!("nosuch {}", "div ".repeat(125));
+    let selector = selector.trim_end().to_owned();
+    assert_eq!(selector.len(), 506);
+    let mut opts = options();
+    opts.max_elapsed_ms = 1;
+    let started = Instant::now();
+    let env = select_matches(&html, &selector, &opts);
+    let wall = started.elapsed().as_millis();
+    assert_valid(&env);
+    assert!(!env.ok, "{}", env.error);
+    assert_eq!(env.code, ErrorCode::Timeout);
+    assert!(wall < 5_000, "scan must be cut at the budget: {wall} ms");
+}
+
+/// EXTRACT-08（补）：为在推进中检查预算，search 用 find_at 手动展开 find_iter；
+/// 该展开必须与 regex 迭代器逐条等价，含零宽（空匹配）与多字节边界。
+#[test]
+fn extract_08_search_advance_matches_regex_iter() {
+    let text = "a☃b\néa";
+    for pattern in ["a*", "é?", ".*", "(?m)^", "(?m)$", "x*"] {
+        let opts = SearchOptions {
+            regex: true,
+            context_chars: 0,
+            ..SearchOptions::default()
+        };
+        let env = search(text, pattern, &opts);
+        assert_valid(&env);
+        assert!(env.ok, "pattern {pattern:?}: {}", env.error);
+        let actual: Vec<(usize, usize)> = env
+            .data
+            .expect("search data")
+            .matches
+            .iter()
+            .map(|found| (found.start, found.end))
+            .collect();
+        let compiled = regex::Regex::new(pattern).expect("pattern");
+        let expected: Vec<(usize, usize)> = compiled
+            .find_iter(text)
+            .map(|found| (found.start(), found.end()))
+            .collect();
+        assert_eq!(
+            actual, expected,
+            "pattern {pattern:?} diverged from find_iter"
+        );
+    }
+}
+
 /// FORM-09：多表单页用 form_index 正确选定表单；越界是明确错误。
 #[test]
 fn form_09_multi_form_selection() {
