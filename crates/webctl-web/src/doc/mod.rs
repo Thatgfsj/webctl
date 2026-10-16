@@ -181,7 +181,9 @@ pub fn detect_format(bytes: &[u8]) -> DocFormat {
 /// - 输入超限 -> LIMIT（degraded_from == "input-size-limit"），不解析、不 OOM；
 /// - PDF -> pdf::extract_pdf_text；
 /// - 纯文本 -> OK；
-/// - JSON / HTML / XML / 未知 -> UNSUPPORTED，且各自带可读诊断与 degraded_from。
+/// - HTML / XML -> **交给解析层**（`parse::extract_article` / `parse::parse_xml`）：失败透传其 code/error，降级保留其 degraded_from；
+/// - JSON -> UNSUPPORTED（degraded_from == "use-json-query"），请改用 json_query，本层不重复解析；
+/// - 未知 -> UNSUPPORTED，且带可读诊断与 degraded_from。
 pub fn doc_text(bytes: &[u8], options: &DocOptions) -> Envelope<DocText> {
     let started = Instant::now();
     let elapsed = || started.elapsed().as_millis() as u64;
