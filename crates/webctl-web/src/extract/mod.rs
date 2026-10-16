@@ -41,6 +41,9 @@ pub mod search;
 pub mod structured;
 
 pub use context::{head_chars, tail_chars};
+
+/// `extract` 是 `select_matches` 的别名，方便 CLI/MCP 以工具名 `extract` 暴露。
+pub use self::select_matches as extract;
 pub use links::{FilteredLinks, LinkFilter, links};
 pub use search::{SearchMatch, SearchOptions, SearchResult, search};
 pub use structured::{extract_body, form_by_index, forms, tables};

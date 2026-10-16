@@ -99,7 +99,6 @@ pub fn links(
     let mut kept: Vec<Link> = Vec::new();
     let mut filtered_out = 0usize;
     let mut reasons: Vec<String> = Vec::new();
-    let mut more = false;
 
     for link in all {
         if elapsed_ms(started) >= options.max_elapsed_ms {
@@ -117,7 +116,6 @@ pub fn links(
             continue;
         }
         if kept.len() >= options.max_results {
-            more = true;
             reasons.push("max-results".to_owned());
             break;
         }
@@ -148,7 +146,6 @@ pub fn links(
             result.truncated_reasons.join(", ")
         );
         let from = result.truncated_reasons.join(",");
-        let _ = more;
         Envelope::degraded(result, from, ErrorCode::Limit, elapsed_ms(started))
     }
 }
@@ -189,10 +186,8 @@ fn keep(
     {
         return false;
     }
-    if filter.internal_only {
-        if base_host.is_none() || host.as_deref() != base_host {
-            return false;
-        }
+    if filter.internal_only && (base_host.is_none() || host.as_deref() != base_host) {
+        return false;
     }
     if filter.external_only {
         match (host.as_deref(), base_host) {

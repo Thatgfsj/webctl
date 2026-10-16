@@ -185,8 +185,10 @@ fn extract_07_invalid_selector_is_parse() {
 #[test]
 fn extract_08_search_text_positions_and_context() {
     let text = "alpha beta alpha gamma\nsecond line alpha";
-    let mut opts = SearchOptions::default();
-    opts.context_chars = 5;
+    let opts = SearchOptions {
+        context_chars: 5,
+        ..SearchOptions::default()
+    };
     let env = search(text, "alpha", &opts);
     assert_valid(&env);
     assert!(env.ok, "{}", env.error);
@@ -213,8 +215,10 @@ fn extract_08_search_text_positions_and_context() {
 /// EXTRACT-09：正则模式可用；非法正则 → 明确 PARSE 错误。
 #[test]
 fn extract_09_search_regex_and_invalid_pattern() {
-    let mut opts = SearchOptions::default();
-    opts.regex = true;
+    let opts = SearchOptions {
+        regex: true,
+        ..SearchOptions::default()
+    };
     let env = search("a1 b22 c333", r"\d+", &opts);
     assert_valid(&env);
     assert!(env.ok, "{}", env.error);
@@ -230,8 +234,10 @@ fn extract_09_search_regex_and_invalid_pattern() {
         env.error
     );
 
-    let mut long = SearchOptions::default();
-    long.regex = true;
+    let long = SearchOptions {
+        regex: true,
+        ..SearchOptions::default()
+    };
     let env = search("abc", &"(".repeat(1000), &long);
     assert_valid(&env);
     assert!(!env.ok);
@@ -479,9 +485,11 @@ fn extract_17_catastrophic_input_is_bounded() {
     assert_eq!(env.code, ErrorCode::Timeout);
 
     let haystack = format!("{}b", "a".repeat(100_000));
-    let mut search_opts = SearchOptions::default();
-    search_opts.regex = true;
-    search_opts.max_results = 10;
+    let search_opts = SearchOptions {
+        regex: true,
+        max_results: 10,
+        ..SearchOptions::default()
+    };
     let started = Instant::now();
     let env = search(&haystack, "(a+)+$", &search_opts);
     let wall = started.elapsed().as_millis();

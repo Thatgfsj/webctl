@@ -447,6 +447,15 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 | 10 CLI（#60） | `cargo test` 133 passed，含 cli 集成 13 条（CLI-01…11）；CLI-12 属 PR 14 |
 | 13 测试基建（#55） | **已合并（e899c2f）**：golden 2 / http_fixture 9 / offline_lane 4+2 ignored / resource 11；含三条「扫描器不空转」永久护栏 + 一条「该放行的不误报」护栏（`scanner_does_not_flag_own_binary_or_loopback_userinfo`） |
 
+### 6.7 PR 06 抽取引擎（议题 #35）
+
+\`crates/webctl-web/tests/extract.rs\` **20 条**（离线；只读本地 fixture 与内存字符串）：
+
+- **PARSE-12**：\`parse_12_full_extract_semantics\`
+- **EXTRACT-01…17**：\`extract_01_structured_path\`、\`extract_02_context\`、\`extract_03_document_order\`、\`extract_04_char_budget_truncates_and_marks\`、\`extract_05_max_results_truncates_and_marks\`、\`extract_06_zero_hits_is_ok_empty\`、\`extract_07_invalid_selector_is_parse\`、\`extract_08_search_text_positions_and_context\`、\`extract_09_search_regex_and_invalid_pattern\`、\`extract_10_tables_match_fixture\`、\`extract_11_forms_feed_fill_form\`、\`extract_12_link_filters\`、\`extract_13_stability_semantics\`、\`extract_14_large_page_is_bounded\`、\`extract_15_matches_parse_layer\`、\`extract_16_no_raw_bytes\`、\`extract_17_catastrophic_input_is_bounded\`
+- **FORM-09**：\`form_09_multi_form_selection\`
+- **A6 五码互异（补充）**：\`extract_outcomes_have_distinct_codes\`
+
 ## 7. 维护规则
 
 1. 新增用例必须同时写 **通道** 与 **归属 PR**，否则不合并。
