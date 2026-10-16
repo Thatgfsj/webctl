@@ -9,6 +9,7 @@ use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -98,6 +99,11 @@ fn state_01_directory_0700_and_files_0600() {
 
 /// STATE-02：两个独立写者并发写同一会话不损坏；后到者明确等待，绝不静默丢弃。
 #[test]
+/// 不变量：**并发写不得损坏**（最终文件完整可解析、只含一次完整写入、无 .tmp 残留）。
+///
+/// **不**断言「每一次写都成功」：锁等待是有界的，争抢激烈时 `LockTimeout` 是**设计内结果**
+/// （STATE-03 单独锁定该行为）。原写法把「不损坏」与「每次都赢」混在一起断言，
+/// 在慢 runner 上随机假红（见议题 #85）。这里只容忍 `LockTimeout`，其它错误一律 panic。
 fn state_02_concurrent_writers_do_not_corrupt() {
     let tmp = temp_state("state02");
     let store = tmp.store();
@@ -111,16 +117,34 @@ fn state_02_concurrent_writers_do_not_corrupt() {
     for index in 0..writers {
         let store = store.clone();
         handles.push(thread::spawn(move || {
+            let mut saved = 0usize;
+            let mut lock_timeouts = 0usize;
             for round in 0..rounds {
                 let mut session = store.new_state("contested").expect("state");
                 session.note_origin(&format!("http://127.0.0.1/{index}/{round}"));
-                store.save(&session).expect("并发写不得失败");
+                match store.save(&session) {
+                    Ok(_) => saved += 1,
+                    // 有界锁等待超时是**设计内的结果**（争抢激烈时等待者放弃，见 STATE-03），
+                    // 不是损坏 —— 本用例要证明的是「不得损坏」，不是「每次都赢」。
+                    Err(SessionError::LockTimeout(_)) => lock_timeouts += 1,
+                    // 其它任何错误都是真问题，绝不放过。
+                    Err(other) => panic!("并发写出现非锁错误：{other:?}"),
+                }
             }
+            (saved, lock_timeouts)
         }));
     }
+    let (mut saved, mut lock_timeouts) = (0usize, 0usize);
     for handle in handles {
-        handle.join().expect("writer thread");
+        let (saved_here, timeouts_here) = handle.join().expect("writer thread");
+        saved += saved_here;
+        lock_timeouts += timeouts_here;
     }
+    eprintln!("并发写结果：saved={saved} lock_timeouts={lock_timeouts}");
+    assert!(
+        saved > 0,
+        "至少要成功写入一次，否则本用例没有验证到任何东西"
+    );
 
     let loaded = store.load("contested").expect("最终文件必须可解析");
     assert_eq!(loaded.name, "contested");
@@ -166,14 +190,20 @@ fn state_03_bounded_lock_wait_and_no_deadlock() {
         .expect("释放后必须成功");
 
     // 4) 后到者确实等待：独立句柄持锁一段时间，写者等到后成功。
+    // 用**信道同步**代替 `sleep(40ms)` 来假定「持锁者已经开始」：
+    // `thread::sleep` 只保证「至少睡这么久」，负载高时会**超睡**，把计时起点往后推、
+    // 从而把可测量的等待压缩到阈值以下（macOS CI 实测 44.9ms < 50ms 即此因，见议题 #85）。
+    // 先等到「已持锁」信号再起表，就把这段不确定性消掉；持有时长也放大到 8× 余量。
     let waited_lock = store.lock_path("waited").expect("lock path");
     let holder_path = waited_lock.clone();
+    let (locked_tx, locked_rx) = mpsc::channel::<()>();
     let holder = thread::spawn(move || {
         let lock = FileLock::acquire(&holder_path, Duration::from_secs(1)).expect("holder");
-        thread::sleep(Duration::from_millis(150));
+        locked_tx.send(()).expect("signal locked");
+        thread::sleep(Duration::from_millis(400));
         lock.release();
     });
-    thread::sleep(Duration::from_millis(40));
+    locked_rx.recv().expect("holder 必须已持锁");
     let waited_state = store.new_state("waited").expect("state");
     let started = Instant::now();
     store
@@ -181,10 +211,10 @@ fn state_03_bounded_lock_wait_and_no_deadlock() {
         .with_lock_wait(Duration::from_secs(3))
         .save(&waited_state)
         .expect("等待者必须成功，而不是被静默丢弃");
+    let waited = started.elapsed();
     assert!(
-        started.elapsed() >= Duration::from_millis(50),
-        "应当真实等待过锁，实际 {:?}",
-        started.elapsed()
+        waited >= Duration::from_millis(50),
+        "应当真实等待过锁，实际 {waited:?}"
     );
     holder.join().expect("holder thread");
 }
