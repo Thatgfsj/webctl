@@ -3,8 +3,9 @@
 //! 覆盖：字段类型映射、默认值/隐藏字段保留、必填校验、未知道具拒绝、
 //! application/x-www-form-urlencoded 与 multipart/form-data 两种编码。
 //!
-//! 边界（诚实声明）：只按 HTML 规范的表单子集工作——单值 select（multiple
-//! 只取一个值）、不实现 datalist、不做客户端约束验证（pattern/min/max）。
+//! 边界（诚实声明）：按 HTML 表单提交语义编码——只有 checked 的 checkbox/radio
+//! 才提交，同名多值（多 checkbox/radio、同名 text、select multiple）按控件出现
+//! 顺序全部提交；不实现 datalist、不做客户端约束验证（pattern/min/max）。
 //! 完整表单抽取属于 PR 06（FORM-09 多表单页选择），本模块提供 form_index。
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -189,14 +190,40 @@ impl Field {
         self.kind.is_text_like()
     }
 
-    /// select 的默认值：首个 selected，否则第一个非禁用选项。
-    pub fn default_select_value(&self) -> String {
+    /// select 的默认提交值集合（HTML 语义）：
+    /// - 全部 selected 且未禁用的选项（multiple 会全部提交，单值 select 通常只有一个）；
+    /// - 若没有任何 selected：单值 select 取第一个非禁用选项，multiple 则为空。
+    pub fn default_select_values(&self) -> Vec<String> {
+        let selected: Vec<String> = self
+            .options
+            .iter()
+            .filter(|option| option.selected && !option.disabled)
+            .map(|option| option.value.clone())
+            .collect();
+        if !selected.is_empty() {
+            return selected;
+        }
+        if self.multiple {
+            return Vec::new();
+        }
         self.options
             .iter()
-            .find(|option| option.selected)
-            .or_else(|| self.options.iter().find(|option| !option.disabled))
-            .map(|option| option.value.clone())
+            .find(|option| !option.disabled)
+            .map(|option| vec![option.value.clone()])
             .unwrap_or_default()
+    }
+
+    /// select 的默认值：取 default_select_values 的第一个。
+    pub fn default_select_value(&self) -> String {
+        self.default_select_values()
+            .into_iter()
+            .next()
+            .unwrap_or_default()
+    }
+
+    /// 该 select 是否存在某提交值。
+    fn has_option(&self, value: &str) -> bool {
+        self.options.iter().any(|option| option.value == value)
     }
 }
 
@@ -254,26 +281,34 @@ impl Form {
                 continue;
             }
             match field.kind {
-                FieldKind::Checkbox => {
-                    fill.checks.insert(field.name.clone(), field.checked);
+                // 复选框/单选框按控件出现顺序记录各自的勾选状态，
+                // 从而保留同名多控件的独立状态（不再被后者覆盖）。
+                FieldKind::Checkbox | FieldKind::Radio => {
+                    fill.checks
+                        .entry(field.name.clone())
+                        .or_default()
+                        .push(field.checked);
                 }
-                FieldKind::Radio => {
-                    let entry = fill.checks.entry(field.name.clone()).or_insert(false);
-                    if field.checked && !*entry {
-                        *entry = true;
-                        fill.values.insert(field.name.clone(), field.value.clone());
-                    }
-                }
+                // 同名 text 也按出现顺序记录，各自保留自己的默认值。
                 FieldKind::Select => {
+                    let values = field.default_select_values();
                     fill.values
-                        .insert(field.name.clone(), field.default_select_value());
+                        .entry(field.name.clone())
+                        .or_default()
+                        .extend(values);
                 }
                 FieldKind::File => {}
                 FieldKind::Submit | FieldKind::Image | FieldKind::Button | FieldKind::Reset => {
-                    fill.values.insert(field.name.clone(), field.value.clone());
+                    fill.values
+                        .entry(field.name.clone())
+                        .or_default()
+                        .push(field.value.clone());
                 }
                 _ => {
-                    fill.values.insert(field.name.clone(), field.value.clone());
+                    fill.values
+                        .entry(field.name.clone())
+                        .or_default()
+                        .push(field.value.clone());
                 }
             }
         }
@@ -305,6 +340,7 @@ impl Form {
             .values
             .keys()
             .chain(fill.checks.keys())
+            .chain(fill.radios.keys())
             .chain(fill.files.keys())
         {
             if !names.contains(name.as_str()) {
@@ -312,32 +348,42 @@ impl Form {
             }
         }
         for field in &self.fields {
-            if field.kind == FieldKind::Select
-                && let Some(value) = fill.values.get(&field.name)
-                && !value.is_empty()
-                && !field.multiple
-                && !field.options.iter().any(|option| option.value == *value)
-            {
-                return Err(FormError::InvalidSelectOption {
-                    name: field.name.clone(),
-                    value: value.clone(),
-                });
+            if field.kind == FieldKind::Select {
+                let values = self.resolve_select_values(field, fill);
+                if !field.multiple && values.len() > 1 {
+                    return Err(FormError::InvalidSelectOption {
+                        name: field.name.clone(),
+                        value: values[1].clone(),
+                    });
+                }
+                if let Some(value) = values
+                    .iter()
+                    .find(|value| !value.is_empty() && !field.has_option(value))
+                {
+                    return Err(FormError::InvalidSelectOption {
+                        name: field.name.clone(),
+                        value: value.clone(),
+                    });
+                }
             }
             if !field.required || field.disabled || field.name.is_empty() {
                 continue;
             }
             let satisfied = match field.kind {
-                FieldKind::Checkbox | FieldKind::Radio => fill
-                    .checks
-                    .get(&field.name)
-                    .copied()
-                    .unwrap_or(field.checked),
+                FieldKind::Checkbox | FieldKind::Radio => self.any_checked(&field.name, fill),
                 FieldKind::File => fill.files.contains_key(&field.name),
-                FieldKind::Select => !self.resolve_select(field, fill).is_empty(),
-                _ => fill
-                    .values
-                    .get(&field.name)
-                    .is_some_and(|value| !value.is_empty()),
+                FieldKind::Select => !self.resolve_select_values(field, fill).is_empty(),
+                _ => {
+                    let values = fill
+                        .values
+                        .get(&field.name)
+                        .map(Vec::as_slice)
+                        .filter(|values| !values.is_empty());
+                    match values {
+                        Some(values) => values.iter().all(|value| !value.is_empty()),
+                        None => !field.value.is_empty(),
+                    }
+                }
             };
             if !satisfied {
                 return Err(FormError::MissingRequired(field.name.clone()));
@@ -346,11 +392,62 @@ impl Form {
         Ok(())
     }
 
-    fn resolve_select(&self, field: &Field, fill: &FormFill) -> String {
-        fill.values
-            .get(&field.name)
-            .cloned()
-            .unwrap_or_else(|| field.default_select_value())
+    /// 名字 name 下第 index 个可提交控件最终是否勾选（validate 与 pairs 共用）。
+    fn checked_at(&self, name: &str, index: usize, total: usize, fill: &FormFill) -> bool {
+        if let Some(chosen) = fill.radios.get(name) {
+            let radio = self
+                .submittable_fields(name)
+                .nth(index)
+                .filter(|field| field.kind == FieldKind::Radio);
+            return radio.is_some_and(|field| field.value == *chosen);
+        }
+        match resolve_positional(fill.checks.get(name).map(Vec::as_slice), index, total) {
+            Some(checked) => checked,
+            None => self
+                .submittable_fields(name)
+                .nth(index)
+                .is_some_and(|field| field.checked),
+        }
+    }
+
+    /// 同名控件是否至少有一个最终勾选（required 校验）。
+    fn any_checked(&self, name: &str, fill: &FormFill) -> bool {
+        let total = self.submittable_count(name);
+        (0..total).any(|index| self.checked_at(name, index, total, fill))
+    }
+
+    fn submittable_fields<'a>(&'a self, name: &'a str) -> impl Iterator<Item = &'a Field> + 'a {
+        self.fields
+            .iter()
+            .filter(move |field| field.name == name && field.is_submittable())
+    }
+
+    fn submittable_count(&self, name: &str) -> usize {
+        self.submittable_fields(name).count()
+    }
+
+    /// 文本类控件第 index 个的最终值（同名多值按出现顺序）。
+    fn text_value(&self, field: &Field, index: usize, total: usize, fill: &FormFill) -> String {
+        resolve_positional(
+            fill.values.get(&field.name).map(Vec::as_slice),
+            index,
+            total,
+        )
+        .unwrap_or_else(|| field.value.clone())
+    }
+
+    /// select 的最终提交值集合（显式填充优先，否则字段自身默认）。
+    fn resolve_select_values(&self, field: &Field, fill: &FormFill) -> Vec<String> {
+        match fill.values.get(&field.name) {
+            Some(values) if !values.is_empty() => {
+                if field.multiple {
+                    values.clone()
+                } else {
+                    vec![values[0].clone()]
+                }
+            }
+            _ => field.default_select_values(),
+        }
     }
 
     fn encode_urlencoded(&self, fill: &FormFill) -> EncodedBody {
@@ -401,44 +498,45 @@ impl Form {
         }
     }
 
-    /// 生成 (name, value) 对，保留文档顺序与 HTML 语义。
+    /// 生成 (name, value) 对，保留文档顺序与 HTML 表单语义。
+    ///
+    /// - 只有 checked 的 checkbox/radio 才提交，radio 组最多提交一个；
+    /// - 同名多控件按出现顺序各自取值并全部提交（不再按名字折叠成一个值）；
+    /// - select multiple 提交全部 selected 选项。
     fn pairs(&self, fill: &FormFill) -> Vec<(String, String)> {
         let mut pairs: Vec<(String, String)> = Vec::new();
         let mut seen_radio: BTreeSet<&str> = BTreeSet::new();
         let mut submit_taken = false;
+        let mut index_by_name: BTreeMap<&str, usize> = BTreeMap::new();
         for field in &self.fields {
             if !field.is_submittable() {
                 continue;
             }
+            let name = field.name.as_str();
+            let index = {
+                let counter = index_by_name.entry(name).or_insert(0);
+                let current = *counter;
+                *counter += 1;
+                current
+            };
+            let total = self.submittable_count(name);
             match field.kind {
                 FieldKind::File => {}
                 FieldKind::Radio => {
-                    if !seen_radio.insert(field.name.as_str()) {
+                    if seen_radio.contains(name) {
                         continue;
                     }
-                    let chosen = match fill.checks.get(&field.name) {
-                        Some(false) => None,
-                        Some(true) => fill
-                            .values
-                            .get(&field.name)
-                            .cloned()
-                            .or_else(|| self.default_radio_value(&field.name)),
-                        None => field.checked.then(|| field.value.clone()),
-                    };
-                    if let Some(chosen) = chosen {
-                        pairs.push((field.name.clone(), chosen));
+                    if self.checked_at(name, index, total, fill) {
+                        seen_radio.insert(name);
+                        pairs.push((field.name.clone(), field.value.clone()));
                     }
                 }
                 FieldKind::Checkbox => {
-                    let checked = fill
-                        .checks
-                        .get(&field.name)
-                        .copied()
-                        .unwrap_or(field.checked);
-                    if checked {
+                    if self.checked_at(name, index, total, fill) {
                         let value = fill
                             .values
-                            .get(&field.name)
+                            .get(name)
+                            .and_then(|values| values.first())
                             .filter(|value| !value.is_empty())
                             .cloned()
                             .unwrap_or_else(|| field.value.clone());
@@ -446,7 +544,9 @@ impl Form {
                     }
                 }
                 FieldKind::Select => {
-                    pairs.push((field.name.clone(), self.resolve_select(field, fill)));
+                    for value in self.resolve_select_values(field, fill) {
+                        pairs.push((field.name.clone(), value));
+                    }
                 }
                 kind if kind.is_submit_like() => {
                     if submit_taken {
@@ -455,34 +555,19 @@ impl Form {
                     submit_taken = true;
                     let value = fill
                         .values
-                        .get(&field.name)
+                        .get(name)
+                        .and_then(|values| values.first())
                         .cloned()
                         .unwrap_or_else(|| field.value.clone());
                     pairs.push((field.name.clone(), value));
                 }
                 _ => {
-                    let value = fill
-                        .values
-                        .get(&field.name)
-                        .cloned()
-                        .unwrap_or_else(|| field.value.clone());
+                    let value = self.text_value(field, index, total, fill);
                     pairs.push((field.name.clone(), value));
                 }
             }
         }
         pairs
-    }
-
-    fn default_radio_value(&self, name: &str) -> Option<String> {
-        self.fields
-            .iter()
-            .find(|field| field.name == name && field.checked)
-            .or_else(|| {
-                self.fields
-                    .iter()
-                    .find(|field| field.name == name && field.kind == FieldKind::Radio)
-            })
-            .map(|field| field.value.clone())
     }
 }
 
@@ -516,11 +601,15 @@ fn multipart_boundary() -> String {
     format!("----webctl{nanos:032x}{count:08x}")
 }
 
-/// 一次表单填充：值、勾选状态与文件。
+/// 一次表单填充：值、勾选状态、radio 选择与文件。
+///
+/// 值为每名字一个列表，按控件出现顺序对齐（default_fill 会为同名多值控件
+/// 逐个填入默认值）。只设置一个值时视为对该名字的所有同名控件生效。
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FormFill {
-    values: BTreeMap<String, String>,
-    checks: BTreeMap<String, bool>,
+    values: BTreeMap<String, Vec<String>>,
+    checks: BTreeMap<String, Vec<bool>>,
+    radios: BTreeMap<String, String>,
     files: BTreeMap<String, FileUpload>,
 }
 
@@ -532,21 +621,43 @@ impl FormFill {
 
     /// 设置文本类字段（含隐藏、select、textarea、提交按钮覆盖）。
     pub fn set(&mut self, name: impl Into<String>, value: impl Into<String>) -> &mut Self {
-        self.values.insert(name.into(), value.into());
+        self.values.insert(name.into(), vec![value.into()]);
         self
     }
 
-    /// 设置复选框勾选状态。
+    /// 按控件出现顺序设置同名多值（同名多个 text / select multiple）。
+    pub fn set_many<I, V>(&mut self, name: impl Into<String>, values: I) -> &mut Self
+    where
+        I: IntoIterator<Item = V>,
+        V: Into<String>,
+    {
+        self.values
+            .insert(name.into(), values.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// 设置复选框勾选状态；对所有同名控件生效。
     pub fn check(&mut self, name: impl Into<String>, checked: bool) -> &mut Self {
-        self.checks.insert(name.into(), checked);
+        self.checks.insert(name.into(), vec![checked]);
         self
     }
 
-    /// 选中某个单选框。
+    /// 设置同名多复选框中第 index 个的勾选状态（按出现顺序）。
+    pub fn check_at(&mut self, name: impl Into<String>, index: usize, checked: bool) -> &mut Self {
+        let entry = self.checks.entry(name.into()).or_default();
+        if entry.len() <= index {
+            entry.resize(index + 1, false);
+        }
+        entry[index] = checked;
+        self
+    }
+
+    /// 选中某个单选框（按 value 匹配该名字下的 radio）。
     pub fn select_radio(&mut self, name: impl Into<String>, value: impl Into<String>) -> &mut Self {
         let name = name.into();
-        self.values.insert(name.clone(), value.into());
-        self.checks.insert(name, true);
+        let value = value.into();
+        self.values.insert(name.clone(), vec![value.clone()]);
+        self.radios.insert(name, value);
         self
     }
 
@@ -556,29 +667,36 @@ impl FormFill {
         self
     }
 
-    /// 合并另一份填充：同名值、勾选与文件由 other 覆盖。
+    /// 合并另一份填充：同名值、勾选、radio 选择与文件由 other 覆盖。
     pub fn merge(&mut self, other: &FormFill) {
-        for (name, value) in &other.values {
-            self.values.insert(name.clone(), value.clone());
+        for (name, values) in &other.values {
+            self.values.insert(name.clone(), values.clone());
         }
-        for (name, checked) in &other.checks {
-            self.checks.insert(name.clone(), *checked);
+        for (name, checks) in &other.checks {
+            self.checks.insert(name.clone(), checks.clone());
+        }
+        for (name, value) in &other.radios {
+            self.radios.insert(name.clone(), value.clone());
         }
         for (name, file) in &other.files {
             self.files.insert(name.clone(), file.clone());
         }
     }
 
-    /// 是否对该名字设置了值/勾选/文件。
+    /// 是否对该名字设置了值/勾选/radio/文件。
     pub fn contains(&self, name: &str) -> bool {
         self.values.contains_key(name)
             || self.checks.contains_key(name)
+            || self.radios.contains_key(name)
             || self.files.contains_key(name)
     }
 
-    /// 读取已设置的值。
+    /// 读取已设置的第一个值。
     pub fn get(&self, name: &str) -> Option<&str> {
-        self.values.get(name).map(String::as_str)
+        self.values
+            .get(name)
+            .and_then(|values| values.first())
+            .map(String::as_str)
     }
 }
 
@@ -838,6 +956,24 @@ pub fn parse_forms(html: &str) -> Vec<Form> {
     forms
 }
 
+/// 从按名字保存的取值列表中解析第 index 个位置的值。
+///
+/// - 列表只有 1 个元素：视为广播到所有同名控件；
+/// - 否则按位置取，越界时退回最后一个（部分显式填充不至于丢值）。
+fn resolve_positional<T: Clone>(list: Option<&[T]>, index: usize, total: usize) -> Option<T> {
+    let list = list?;
+    if list.is_empty() {
+        return None;
+    }
+    if list.len() == 1 {
+        return Some(list[0].clone());
+    }
+    if list.len() >= total {
+        return list.get(index).cloned();
+    }
+    list.get(index).or_else(|| list.last()).cloned()
+}
+
 fn percent_encode(input: &str, space_as_plus: bool) -> String {
     let mut output = String::with_capacity(input.len());
     for byte in input.as_bytes() {
@@ -964,6 +1100,58 @@ mod tests {
         assert_eq!(
             form.encode(&fill),
             Err(FormError::FileNeedsMultipart("doc".to_owned()))
+        );
+    }
+
+    #[test]
+    fn duplicate_checkbox_same_name_submits_only_checked() {
+        let first = first_form(
+            r#"<form action="/f">
+                 <input type="checkbox" name="tags" value="a" checked>
+                 <input type="checkbox" name="tags" value="b">
+               </form>"#,
+        );
+        let body = first.encode(&first.default_fill()).expect("encode");
+        assert_eq!(String::from_utf8(body.bytes).expect("utf8"), "tags=a");
+
+        let second = first_form(
+            r#"<form action="/f">
+                 <input type="checkbox" name="tags" value="a">
+                 <input type="checkbox" name="tags" value="b" checked>
+               </form>"#,
+        );
+        let body = second.encode(&second.default_fill()).expect("encode");
+        assert_eq!(String::from_utf8(body.bytes).expect("utf8"), "tags=b");
+    }
+
+    #[test]
+    fn duplicate_text_inputs_keep_document_order() {
+        let form = first_form(
+            r#"<form action="/f"><input name="q" value="one"><input name="q" value="two"></form>"#,
+        );
+        let body = form.encode(&form.default_fill()).expect("encode");
+        assert_eq!(String::from_utf8(body.bytes).expect("utf8"), "q=one&q=two");
+
+        // 显式只设一个值时广播到所有同名控件。
+        let mut fill = form.default_fill();
+        fill.set("q", "x");
+        let body = form.encode(&fill).expect("encode");
+        assert_eq!(String::from_utf8(body.bytes).expect("utf8"), "q=x&q=x");
+    }
+
+    #[test]
+    fn select_multiple_submits_all_selected() {
+        let form = first_form(
+            r#"<form action="/f"><select name="colors" multiple>
+                 <option value="red">Red</option>
+                 <option value="green" selected>Green</option>
+                 <option value="blue" selected>Blue</option>
+               </select></form>"#,
+        );
+        let body = form.encode(&form.default_fill()).expect("encode");
+        assert_eq!(
+            String::from_utf8(body.bytes).expect("utf8"),
+            "colors=green&colors=blue"
         );
     }
 }
