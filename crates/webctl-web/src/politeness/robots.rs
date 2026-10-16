@@ -5,13 +5,6 @@
 //! 不实现 `Crawl-delay`（限速由本模块外的 HostGate 统一控制）与正则扩展。
 use serde::{Deserialize, Serialize};
 
-/// 一条规则。
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-struct Rule {
-    allow: bool,
-    path: String,
-}
-
 /// 某个 user-agent 组的规则集合。
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AgentRules {
@@ -98,10 +91,7 @@ impl RobotsRules {
                         let group = if target == "*" {
                             &mut result.wildcard
                         } else {
-                            let entry = result
-                                .named
-                                .iter_mut()
-                                .find(|(name, _)| name == target);
+                            let entry = result.named.iter_mut().find(|(name, _)| name == target);
                             match entry {
                                 Some((_, rules)) => rules,
                                 None => {
@@ -123,7 +113,11 @@ impl RobotsRules {
     /// 针对某个 user-agent 选出规则组：精确 token 优先，其次 token 前缀匹配，最后 `*`。
     pub fn rules_for(&self, user_agent: &str) -> &AgentRules {
         let ua = user_agent.to_ascii_lowercase();
-        if let Some((_, rules)) = self.named.iter().find(|(name, _)| ua.contains(name.as_str())) {
+        if let Some((_, rules)) = self
+            .named
+            .iter()
+            .find(|(name, _)| ua.contains(name.as_str()))
+        {
             return rules;
         }
         &self.wildcard
@@ -151,9 +145,9 @@ fn match_pattern(pattern: &str, path: &str) -> Option<usize> {
     let pattern = pattern.strip_suffix('$').unwrap_or(pattern);
     if !pattern.contains('*') {
         if anchored {
-            return (pattern == path).then(|| pattern.len());
+            return (pattern == path).then_some(pattern.len());
         }
-        return path.starts_with(pattern).then(|| pattern.len());
+        return path.starts_with(pattern).then_some(pattern.len());
     }
     // 逐段展开通配
     let parts: Vec<&str> = pattern.split('*').collect();
@@ -168,9 +162,7 @@ fn match_pattern(pattern: &str, path: &str) -> Option<usize> {
             }
             cursor = part.len();
         } else {
-            let Some(found) = path[cursor..].find(part) else {
-                return None;
-            };
+            let found = path[cursor..].find(part)?;
             cursor += found + part.len();
         }
     }
@@ -205,8 +197,11 @@ Disallow:
         // `*` 组
         assert!(allows(&rules, "some-bot", "/"));
         assert!(!allows(&rules, "some-bot", "/private/x"));
-        assert!(allows(&rules, "some-bot", "/private/public/x"), "更长 Allow 胜出");
-        assert!(!allows(&rules, "some-bot", "/a/b.pdf"), "\$ 锚定生效");
+        assert!(
+            allows(&rules, "some-bot", "/private/public/x"),
+            "更长 Allow 胜出"
+        );
+        assert!(!allows(&rules, "some-bot", "/a/b.pdf"), "$ 锚定生效");
         assert!(allows(&rules, "some-bot", "/a/b.pdf.html"));
 
         // 具名组：webctl 的 Disallow 为空 = 全允许（比 `*` 组更具体）
@@ -217,7 +212,10 @@ Disallow:
     fn empty_or_broken_input_allows_everything() {
         for text in ["", "   ", "这不是 robots", "Disallow: /x"] {
             let rules = RobotsRules::parse(text);
-            assert!(allows(&rules, "any", "/whatever"), "输入 {text:?} 应当全允许");
+            assert!(
+                allows(&rules, "any", "/whatever"),
+                "输入 {text:?} 应当全允许"
+            );
         }
     }
 

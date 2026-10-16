@@ -125,13 +125,15 @@ fn route(path: &str, attempt: usize) -> Vec<u8> {
         "/challenge" => raw(
             403,
             "Forbidden",
-            &[
-                ("Server", "cloudflare"),
-                ("Content-Type", "text/html"),
-            ],
+            &[("Server", "cloudflare"), ("Content-Type", "text/html")],
             b"<html><title>Just a moment...</title><div id=\"cf-chl\"></div></html>",
         ),
-        "/boom" => raw(500, "Internal Server Error", &[("Content-Type", "text/plain")], b"boom"),
+        "/boom" => raw(
+            500,
+            "Internal Server Error",
+            &[("Content-Type", "text/plain")],
+            b"boom",
+        ),
         _ => raw(404, "Not Found", &[("Content-Type", "text/plain")], b"nope"),
     }
 }
@@ -183,7 +185,11 @@ async fn robots_disallow_blocks_without_requesting() {
     let envelope = fetcher.fetch(&server.url("/private/x")).await;
     assert!(!envelope.ok, "应当被 robots 拒绝");
     assert_eq!(envelope.code, ErrorCode::Blocked);
-    assert!(envelope.error.contains("robots"), "错误：{}", envelope.error);
+    assert!(
+        envelope.error.contains("robots"),
+        "错误：{}",
+        envelope.error
+    );
     assert_eq!(server.record.count("/private/x"), 0, "不得发起被禁止的请求");
 }
 

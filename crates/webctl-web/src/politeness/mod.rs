@@ -126,10 +126,9 @@ impl PoliteFetcher {
 
     /// 取回 robots.txt 并解析（按 origin 缓存；`None` 表示不可用）。
     pub async fn robots_rules(&self, url: &Url) -> Option<RobotsRules> {
-        let Some(host) = url.host_str().map(str::to_owned) else {
-            return None;
-        };
-        let origin = format!("{}://{}", url.scheme(), host);
+        let host = url.host_str().map(str::to_owned)?;
+        // 必须带端口：否则非默认端口站点（例如测试用 127.0.0.1:随机端口）会去抓 80 端口。
+        let origin = url.origin().ascii_serialization();
         {
             let cache = self.robots_cache.lock().await;
             if let Some(entry) = cache.get(&origin) {
@@ -140,17 +139,12 @@ impl PoliteFetcher {
         let _permit = self.gate.acquire(&host).await;
         let robots_url = format!("{origin}/robots.txt");
         let rules = match transport::fetch(&robots_url, &self.options).await.data {
-            Some(fetched) if fetched.status < 400 => fetched
-                .content
-                .text
-                .as_deref()
-                .map(RobotsRules::parse),
+            Some(fetched) if fetched.status < 400 => {
+                fetched.content.text.as_deref().map(RobotsRules::parse)
+            }
             _ => None,
         };
-        self.robots_cache
-            .lock()
-            .await
-            .insert(origin, rules.clone());
+        self.robots_cache.lock().await.insert(origin, rules.clone());
         rules
     }
 
@@ -258,12 +252,7 @@ impl PoliteFetcher {
                 retried: attempts > 1,
             };
             return if out.fetched.content.truncated {
-                Envelope::degraded(
-                    out,
-                    "response-body-truncated",
-                    ErrorCode::Limit,
-                    elapsed(),
-                )
+                Envelope::degraded(out, "response-body-truncated", ErrorCode::Limit, elapsed())
             } else {
                 Envelope::ok(out, Trust::UntrustedPageContent, elapsed())
             };

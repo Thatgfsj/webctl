@@ -10,7 +10,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use tokio::sync::{Mutex, OwnedSemaphorePermit, Semaphore};
-use tokio::time::{sleep_until, Instant};
+use tokio::time::{Instant, sleep_until};
 
 /// 限速配置。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -139,7 +139,11 @@ mod tests {
             task.await.expect("task");
         }
 
-        assert!(peak.load(Ordering::SeqCst) <= 2, "峰值并发 {}", peak.load(Ordering::SeqCst));
+        assert!(
+            peak.load(Ordering::SeqCst) <= 2,
+            "峰值并发 {}",
+            peak.load(Ordering::SeqCst)
+        );
 
         let starts = starts.lock().await.clone();
         for pair in starts.windows(2) {

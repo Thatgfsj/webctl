@@ -4,8 +4,8 @@
 //! 硬约束：零外部进程、零浏览器（PLAN v0.4 §3.1）。
 
 pub mod content_type;
-pub mod politeness;
 pub mod encoding;
+pub mod politeness;
 pub mod transport;
 
 pub use content_type::ContentKind;

@@ -72,10 +72,7 @@ mod tests {
     fn retry_after_wins_but_respects_cap() {
         let base = Duration::from_millis(100);
         let cap = Duration::from_secs(5);
-        assert_eq!(
-            delay_for(Some("3"), 0, base, cap),
-            Duration::from_secs(3)
-        );
+        assert_eq!(delay_for(Some("3"), 0, base, cap), Duration::from_secs(3));
         assert_eq!(
             delay_for(Some("60"), 0, base, cap),
             cap,

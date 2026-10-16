@@ -23,7 +23,11 @@ pub struct Interception {
 }
 
 /// 判定一个响应是否是拦截页。`None` 表示"看不出被拦截"。
-pub fn detect(status: u16, headers: &[(String, String)], body: Option<&str>) -> Option<Interception> {
+pub fn detect(
+    status: u16,
+    headers: &[(String, String)],
+    body: Option<&str>,
+) -> Option<Interception> {
     let server = headers
         .iter()
         .find(|(name, _)| name.eq_ignore_ascii_case("server"))
@@ -52,7 +56,10 @@ mod tests {
     use super::*;
 
     fn headers(pairs: &[(&str, &str)]) -> Vec<(String, String)> {
-        pairs.iter().map(|(a, b)| (a.to_string(), b.to_string())).collect()
+        pairs
+            .iter()
+            .map(|(a, b)| (a.to_string(), b.to_string()))
+            .collect()
     }
 
     #[test]
@@ -84,7 +91,8 @@ mod tests {
 
     #[test]
     fn normal_pages_are_not_flagged() {
-        let normal = "<html><body>Hello, this is a normal page about clouds and flare.</body></html>";
+        let normal =
+            "<html><body>Hello, this is a normal page about clouds and flare.</body></html>";
         assert!(detect(200, &headers(&[("server", "nginx")]), Some(normal)).is_none());
         assert!(detect(200, &headers(&[]), None).is_none());
     }
