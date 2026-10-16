@@ -1,6 +1,9 @@
 //! 内容类型路由（PLAN v0.4 §2「取回」域）。
 //!
-//! 把取回的字节明确分成 html / json / xml / pdf / binary 五条分支。
+//! 把取回的字节明确分成 html / json / xml / pdf / text / binary **六条分支**。
+//!
+//! 其中 `text` 是 PR 08 为"可解码的纯文本"补的分支（例如礼貌层要读的 `robots.txt`）：
+//! `text/plain` 嗅探不出 HTML 时归为 `Text`，不再被当成 `Binary`。
 //! 二进制（含 PDF）**永不**当作文本解析：只保留长度与类型元数据，
 //! 正文提取留给 PR 03 / PR 07。
 
@@ -108,7 +111,7 @@ fn sniff(body: &[u8]) -> ContentKind {
 mod tests {
     use super::*;
 
-    /// HTTP-15：五个分支各自命中。
+    /// HTTP-15：五条内容分支各自命中（`text/plain` 的文本分支见 `plain_text_is_decodable_text`）。
     #[test]
     fn five_branches_are_distinct() {
         assert_eq!(
