@@ -1,0 +1,16 @@
+[package]
+name = "webctl-web"
+description = "webctl 内置层：取回、解析、协议级会话、文档与数据处理"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde.workspace = true
+webctl-core.workspace = true
+
+[lints]
+workspace = true
