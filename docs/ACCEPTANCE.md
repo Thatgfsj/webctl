@@ -64,7 +64,6 @@
 
 | 项 | 现状 | 接手 |
 |---|---|---|
-| DOC-09：`doc_text` 的 HTML→文本切到解析层 | 保持显式 `UNSUPPORTED(parse-layer-pending-pr03)` + `#[ignore]` 验收用例；PR 03 已合并，交接条件已满足 | 议题 [#59](https://github.com/Thatgfsj/webctl/issues/59) |
 | `caps` 诚实性（不谎报可用 + 枚举 15 工具） | 当前硬编码 available | 议题 [#68](https://github.com/Thatgfsj/webctl/issues/68)，归 PR 11，PR 14 核验 |
 | 代理 DX：无 `NO_PROXY` 支持、无 `--no-proxy` | PR 10 审阅结论里记录为非阻塞 | 待开议题 |
 | POLITE-06 缺仓库内 e2e 用例 | PR 08 复审建议 | 待开议题 |
@@ -89,3 +88,9 @@
   - **错误码封闭集**：`ErrorCode` 共 **11** 个变体。
   - **静态扫描**：`cargo test --features offline --test offline_lane` → 4 passed / 2 ignored（两个扫描器 0 命中）。
   - 备注：手写 `grep 'http://\|https://'` 会报 30 处"疑似外站"，而正规扫描器 0 命中——差异来自保留域/模板主机/回环规则，说明扫描器的白名单规则是必要的。
+- 2026-10-17（Lead）**DOC-09 收口**（议题 #59，PR #84）：
+  - `doc_text` 的 HTML 分支改为调用 `parse::extract_article`（正文纯文本）；XML 分支调用 `parse::parse_xml` 后**只收文本节点**（跳过 `tag`/`attrs`，不把标记结构混进正文）；
+  - 交接期的 `DOC09_DEFERRED_DEGRADED_FROM`（`parse-layer-pending-pr03`）与过渡期边界用例**已从代码与测试中彻底删除**；
+  - `doc_09_acceptance_after_pr03` 去掉 `#[ignore]` 后**通过**（原过渡用例里的「纯文本直通」断言移入其中，覆盖不减）。
+
+  ⇒ §6 中该条延期登记**已注销**。

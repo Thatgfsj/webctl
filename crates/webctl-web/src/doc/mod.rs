@@ -5,22 +5,13 @@
 //! - pdf::extract_pdf_text：PDF 文本层（替代 pdftotext）；
 //! - json_query::json_query：JSON 查询子集（替代 jq）。
 //!
-//! # DOC-09 交接点（待 PR 03 解析层）
+//! # DOC-09（已达成）
 //!
 //! TESTING §2.9 的 DOC-09 要求「HTML→文本复用解析层，结果与 PARSE-01 一致」。
-//! 解析层属于 PR 03，截至本 PR 尚未合并到 main，因此 DOC-09 的完整验收
-//! **当前无法满足**。本 PR 不做假通过，处置方式是可验收的交接，而不是把缺口藏起来：
-//!
-//! 1. **现在**：doc_text 的 Html/Xml 分支显式返回 UNSUPPORTED，降级标识由
-//!    [`DOC09_DEFERRED_DEGRADED_FROM`] 给出（值 `parse-layer-pending-pr03`），
-//!    诊断文本写明缺口的归属与验收口径；
-//! 2. **PR 03 合并后**：删除 Html/Xml 降级分支，改为调用 parse 层；本 PR 的
-//!    `tests/doc.rs::doc_09_deferred_boundary_is_explicit` 随之删除或改写；
-//! 3. **验收**：去掉 `doc_09_acceptance_after_pr03` 的 `#[ignore]` 后必须通过——
-//!    即 doc_text 对 HTML 返回 `code=OK`、`degraded_from=None`、正文与 PARSE-01 一致；
-//!    同时 `parse-layer-pending-pr03` 必须从代码与测试中彻底消失。
-//!
-//! 这三步让「未达成」可跟踪、可验收，而不是一句模糊的「以后再接」。
+//! PR 03 解析层合并（`5afc240`）后，本模块的 Html/Xml 分支已改为直接调用解析层：
+//! HTML 走 `parse::extract_article`（正文纯文本），XML 走 `parse::parse_xml` 后只收文本节点。
+//! **本模块不重复实现标记语言解析**，也不再用 `UNSUPPORTED` 假装「能力不足」。
+//! 交接期的降级标识（`parse-layer-pending-pr03`）已从代码与测试中彻底删除。
 //!
 //! # 硬约束
 //!
@@ -39,16 +30,11 @@ pub use pdf::extract_pdf_text;
 use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use webctl_core::{Envelope, ErrorCode, Trust};
 
 /// 文档输入上限（8 MiB）：超限只返回 LIMIT，不进入任何解析。
 pub const DEFAULT_MAX_DOC_BYTES: usize = 8 * 1024 * 1024;
-
-/// DOC-09 过渡期的稳定降级标识：HTML/XML→文本由 PR 03 解析层提供。
-///
-/// 只应出现在 PR 03 合并之前。按模块文档「DOC-09 交接点」接入 parse 层后，
-/// 这个常量与 Html/Xml 降级分支必须一并删除（验收条件之一）。
-pub const DOC09_DEFERRED_DEGRADED_FROM: &str = "parse-layer-pending-pr03";
 
 /// doc_text 参数。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -195,7 +181,9 @@ pub fn detect_format(bytes: &[u8]) -> DocFormat {
 /// - 输入超限 -> LIMIT（degraded_from == "input-size-limit"），不解析、不 OOM；
 /// - PDF -> pdf::extract_pdf_text；
 /// - 纯文本 -> OK；
-/// - JSON / HTML / XML / 未知 -> UNSUPPORTED，且各自带可读诊断与 degraded_from。
+/// - HTML / XML -> **交给解析层**（`parse::extract_article` / `parse::parse_xml`）：失败透传其 code/error，降级保留其 degraded_from；
+/// - JSON -> UNSUPPORTED（degraded_from == "use-json-query"），请改用 json_query，本层不重复解析；
+/// - 未知 -> UNSUPPORTED，且带可读诊断与 degraded_from。
 pub fn doc_text(bytes: &[u8], options: &DocOptions) -> Envelope<DocText> {
     let started = Instant::now();
     let elapsed = || started.elapsed().as_millis() as u64;
@@ -248,20 +236,7 @@ pub fn doc_text(bytes: &[u8], options: &DocOptions) -> Envelope<DocText> {
             ErrorCode::Unsupported,
             elapsed(),
         ),
-        DocFormat::Html | DocFormat::Xml => Envelope::degraded(
-            DocText::unsupported(
-                format,
-                None,
-                vec![format!(
-                    "DOC-09 未达成：HTML/XML→文本应由 PR 03 解析层（parse）提供，本层不重复实现；\
-                     交接点：PR 03 合并后改为调用 parse 层，验收口径为「与 PARSE-01 结果一致且无 degraded_from」。\
-                     当前降级标识：{DOC09_DEFERRED_DEGRADED_FROM}"
-                )],
-            ),
-            DOC09_DEFERRED_DEGRADED_FROM,
-            ErrorCode::Unsupported,
-            elapsed(),
-        ),
+        DocFormat::Html | DocFormat::Xml => markup_text(bytes, format, elapsed()),
         DocFormat::Unknown => Envelope::degraded(
             DocText::unsupported(
                 DocFormat::Unknown,
@@ -275,6 +250,100 @@ pub fn doc_text(bytes: &[u8], options: &DocOptions) -> Envelope<DocText> {
             ErrorCode::Unsupported,
             elapsed(),
         ),
+    }
+}
+
+/// DOC-09：把 HTML/XML 交给解析层，再把结果装进 DocText。
+///
+/// 语义：解析层失败 → 原样把它的 code/error 传出去（不吞错、不降级成成功）；
+/// 解析层降级（如 Readability 回退）→ 保留其 degraded_from 与 code（禁止静默降级）。
+fn markup_text(bytes: &[u8], format: DocFormat, elapsed_ms: u64) -> Envelope<DocText> {
+    let text = match std::str::from_utf8(bytes) {
+        Ok(text) => text,
+        Err(error) => {
+            return Envelope::fail(
+                ErrorCode::Parse,
+                format!("{format:?} 输入不是合法 UTF-8：{error}"),
+                elapsed_ms,
+            );
+        }
+    };
+
+    if format == DocFormat::Html {
+        let env = crate::parse::extract_article(text, None);
+        let Some(article) = env.data else {
+            return Envelope::fail(env.code, env.error, elapsed_ms);
+        };
+        return wrap_text(
+            format,
+            article.text,
+            env.code,
+            env.meta.degraded_from,
+            elapsed_ms,
+        );
+    }
+
+    let env = crate::parse::parse_xml(text);
+    let Some(structured) = env.data else {
+        return Envelope::fail(env.code, env.error, elapsed_ms);
+    };
+    let mut parts = Vec::new();
+    collect_xml_text(&structured.value, &mut parts);
+    wrap_text(
+        format,
+        parts.join("\n"),
+        env.code,
+        env.meta.degraded_from,
+        elapsed_ms,
+    )
+}
+
+fn wrap_text(
+    format: DocFormat,
+    text: String,
+    upstream_code: ErrorCode,
+    degraded_from: Option<String>,
+    elapsed_ms: u64,
+) -> Envelope<DocText> {
+    let data = DocText {
+        format,
+        text: Some(text),
+        pages: None,
+        pdf_kind: None,
+        diagnostics: Vec::new(),
+    };
+    match degraded_from {
+        Some(from) => Envelope::degraded(data, from, upstream_code, elapsed_ms),
+        None => Envelope::ok(data, Trust::UntrustedPageContent, elapsed_ms),
+    }
+}
+
+/// 只收 XML 的**文本节点**：跳过 \`tag\`（标签名）与 \`attrs\`（属性值），
+/// 避免把标记结构混进正文。
+fn collect_xml_text(value: &Value, out: &mut Vec<String>) {
+    let Value::Object(map) = value else {
+        return;
+    };
+    for (key, child) in map {
+        match key.as_str() {
+            "tag" | "attrs" => {}
+            "children" => {
+                if let Value::Array(items) = child {
+                    for item in items {
+                        match item {
+                            Value::String(text) => {
+                                let trimmed = text.trim();
+                                if !trimmed.is_empty() {
+                                    out.push(trimmed.to_owned());
+                                }
+                            }
+                            other => collect_xml_text(other, out),
+                        }
+                    }
+                }
+            }
+            _ => collect_xml_text(child, out),
+        }
     }
 }
 
