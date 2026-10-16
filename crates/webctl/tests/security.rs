@@ -18,6 +18,7 @@ const SECRET: &str = "SUPER_SECRET_TOKEN";
 
 /// 临时 state dir，drop 时递归删除。
 struct TempDir {
+    root: PathBuf,
     path: PathBuf,
 }
 
@@ -27,12 +28,15 @@ impl TempDir {
             .duration_since(UNIX_EPOCH)
             .map(|duration| duration.as_nanos())
             .unwrap_or(0);
-        let path = std::env::temp_dir().join(format!(
+        // 唯一外层目录：state dir 在其下，`../escape.json` 这类越界样本也落在
+        // 同一个外层目录里，drop 时一并回收，避免污染系统临时目录。
+        let root = std::env::temp_dir().join(format!(
             "webctl-cli-sec-{tag}-{}-{nanos}",
             std::process::id()
         ));
+        let path = root.join("state");
         std::fs::create_dir_all(&path).expect("create temp state dir");
-        Self { path }
+        Self { root, path }
     }
 
     fn path(&self) -> &Path {
@@ -42,7 +46,7 @@ impl TempDir {
 
 impl Drop for TempDir {
     fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.path);
+        let _ = std::fs::remove_dir_all(&self.root);
     }
 }
 
