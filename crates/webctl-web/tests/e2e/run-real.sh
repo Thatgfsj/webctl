@@ -3,7 +3,8 @@
 #
 # - 默认不跑：必须显式 WEBCTL_REAL=1；
 # - 遵守 robots：先取 robots.txt 判断目标路径是否允许，禁止即跳过；
-# - 只做锚点烟雾，不作回归门禁（真实站点结构会漂移，见 TESTING.md §5）。
+# - 只做锚点烟雾，不作回归门禁（真实站点结构会漂移，见 TESTING.md §5）；
+# - DEGRADE-01/02 与 E2E-01/02 只在这里跑：可跳过、不进 CI 门禁。
 #
 # 用法：
 #   WEBCTL_REAL=1 ./tests/e2e/run-real.sh
@@ -42,15 +43,29 @@ if ! cargo run -q -p webctl -- --help 2>/dev/null | grep -qE '\bfetch\b'; then
   exit 0
 fi
 
-echo "== E2E-01 静态锚点：${STATIC_URL} 应取到 10 条 =="
-cargo run -q -p webctl -- fetch "${STATIC_URL}" >/dev/null
-echo "OK: 静态锚点取回成功"
-
-echo "== E2E-02 降级锚点：${JS_URL} 应为 DEGRADED（不是 0 条成功）=="
-OUT="$(cargo run -q -p webctl -- fetch "${JS_URL}")"
-if grep -q '"code"[[:space:]]*:[[:space:]]*"DEGRADED"' <<<"${OUT}"; then
-  echo "OK: JS 页返回 DEGRADED"
-else
-  echo "FAIL: JS 页未返回 DEGRADED；实际输出：${OUT}" >&2
+echo "== E2E-01 / DEGRADE-02 静态锚点：${STATIC_URL} 应取到 10 条 =="
+STATIC_OUT="$(cargo run -q -p webctl -- fetch "${STATIC_URL}")"
+if ! grep -qE '"code":"OK"' <<<"${STATIC_OUT}"; then
+  echo "FAIL: 静态锚点未返回 OK；实际输出：${STATIC_OUT}" >&2
   exit 1
 fi
+COUNT="$(grep -oF 'class=\"quote\"' <<<"${STATIC_OUT}" | wc -l | tr -d ' ')"
+if [[ "${COUNT}" -ne 10 ]]; then
+  echo "FAIL: 静态锚点应取到 10 条，实际 ${COUNT} 条" >&2
+  exit 1
+fi
+echo "OK: 静态锚点取到 10 条"
+
+echo "== E2E-02 / DEGRADE-01 降级锚点：${JS_URL} 必须是非 OK 的降级 =="
+# 降级码会让 CLI 以非零退出码结束（DEGRADED→7）；这里显式吞掉退出码，
+# 只按信封内容判定，否则 set -e 会在捕获输出时就中止脚本。
+JS_OUT="$(cargo run -q -p webctl -- fetch "${JS_URL}" || true)"
+if ! grep -qE '"code":"(DEGRADED|UNSUPPORTED)"' <<<"${JS_OUT}"; then
+  echo "FAIL: JS 页未返回 DEGRADED/UNSUPPORTED；实际输出：${JS_OUT}" >&2
+  exit 1
+fi
+if ! grep -qE '"degraded_from":"[^"]+"' <<<"${JS_OUT}"; then
+  echo "FAIL: 降级缺少 meta.degraded_from" >&2
+  exit 1
+fi
+echo "OK: JS 页返回降级码且 degraded_from 非空"

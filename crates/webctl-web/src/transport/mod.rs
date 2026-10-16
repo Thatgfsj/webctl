@@ -150,7 +150,7 @@ pub async fn fetch(target: &str, options: &FetchOptions) -> Envelope<Fetched> {
     };
     match run(url, options, true).await {
         Ok(fetched) => {
-            if fetched.content.truncated {
+            let envelope = if fetched.content.truncated {
                 Envelope::degraded(
                     fetched,
                     "response-body-truncated",
@@ -159,13 +159,36 @@ pub async fn fetch(target: &str, options: &FetchOptions) -> Envelope<Fetched> {
                 )
             } else {
                 Envelope::ok(fetched, Trust::UntrustedPageContent, elapsed_ms(started))
-            }
+            };
+            degrade_if_js_dependent(envelope)
         }
         Err(error) => Envelope::fail(
             error.code,
             crate::redact::redact_log_line(&error.message),
             elapsed_ms(started),
         ),
+    }
+}
+
+/// 对成功取回的信封做 JS 依赖判定（PR 09）：只有 HTML 文本才判定，其余原样返回。
+///
+/// 这是 PR 09 在取回层的**唯一**接入点：响应体原样保留，只在页面需要 JS 时把
+/// code / error / meta.degraded_from 写成显式降级（禁止静默降级）。`fetch_raw`
+/// 是礼貌层读错误响应头的逃生口，刻意不接入，保持原样返回。
+fn degrade_if_js_dependent(envelope: Envelope<Fetched>) -> Envelope<Fetched> {
+    let html = envelope
+        .data
+        .as_ref()
+        .filter(|fetched| fetched.content.kind == ContentKind::Html)
+        .and_then(|fetched| fetched.content.text.clone());
+    match html {
+        Some(html) => crate::degrade::guard(
+            &html,
+            envelope,
+            &crate::degrade::DegradeOptions::default(),
+            crate::degrade::Scope::Fetch,
+        ),
+        None => envelope,
     }
 }
 

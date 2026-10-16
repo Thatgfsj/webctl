@@ -11,6 +11,7 @@
 //! 只是离线通道的显式标记；默认门禁 `cargo test` 同样离线（见 `tests/offline_lane.rs`）。
 
 pub mod content_type;
+pub mod degrade;
 pub mod doc;
 pub mod encoding;
 pub mod extract;
@@ -22,6 +23,9 @@ pub mod session;
 pub mod transport;
 
 pub use content_type::ContentKind;
+pub use degrade::{
+    Assessment, DEGRADED_FROM, DegradeOptions, Diagnosis, Scope, Severity, assess, guard,
+};
 pub use doc::json_query::json_query;
 pub use doc::{
     DEFAULT_MAX_DOC_BYTES, DEFAULT_MAX_JSON_BYTES, DOC09_DEFERRED_DEGRADED_FROM, DocFormat,

@@ -272,7 +272,8 @@ pub fn select_matches(
     }
 
     if reasons.is_empty() {
-        result.conclusion = if result.matches.is_empty() {
+        let empty = result.matches.is_empty();
+        result.conclusion = if empty {
             zero_conclusion(selector)
         } else {
             format!(
@@ -280,7 +281,19 @@ pub fn select_matches(
                 result.matches.len()
             )
         };
-        Envelope::ok(result, Trust::UntrustedPageContent, elapsed_ms(started))
+        let envelope = Envelope::ok(result, Trust::UntrustedPageContent, elapsed_ms(started));
+        // PR 09 接入点：零命中且页面被判定为需要 JS 时，绝不返回「成功但 0 条」。
+        // 静态页面的零命中仍是 EXTRACT-06 的 OK（DEGRADE-06 与 DEGRADE-08 的边界）。
+        if empty {
+            crate::degrade::guard(
+                html_text,
+                envelope,
+                &crate::degrade::DegradeOptions::default(),
+                crate::degrade::Scope::EmptyExtract,
+            )
+        } else {
+            envelope
+        }
     } else {
         result.truncated = true;
         result.more_matches = more;
