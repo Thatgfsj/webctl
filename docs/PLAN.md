@@ -6,6 +6,7 @@
 | 前身 | `Thatgfsj-easyRep/playwright-crawler-helper`（Python + Playwright，v4.0） |
 | 形态 | Rust workspace，单个静态二进制；CLI + MCP server；**零外部进程、零浏览器依赖** |
 | 依据 | 历史硬数据见 [SURVEY.md](SURVEY.md)；**但 §0 的方向变更已作废其中的 T2/T3 相关结论** |
+| Spike | [wreq 验证报告](spikes/wreq.md)（HTTP 选型已定点） |
 | 工具面 | **已定稿**：15 个内置工具（§3.7），无截图、无坐标交互、无 JS 执行 |
 | 规范核实 | 「每 1000 行 PR 需审批」在现有仓库中**无成文依据**（SURVEY §1.2）；本计划把它作为**待写入的新项目规则**执行，措辞已落地在 [CONTRIBUTING.md](../CONTRIBUTING.md) §2 |
 
@@ -86,7 +87,8 @@ v0.4 没有"层"了，只有一组**内置能力域**，全部在进程内：
 
 | 用途 | 选择 | 状态 |
 |---|---|---|
-| HTTP | `wreq`（主）/ `reqwest` | 待 spike 验证（§9） |
+| HTTP | `wreq` 0.16.1（主）/ `reqwest` | **已验证**（[spike 报告](spikes/wreq.md)）：Apache-2.0、MSRV 1.98、默认特性即可；构建期需 cmake + C/C++ + libclang |
+| TLS 指纹档 | `wreq-util` 0.2.0 | 提供 `Emulation`（Chrome149 / Firefox149 / Safari26 / OkHttp5…）；JA3/JA4 实测互不相同且不同于 reqwest |
 | HTML 解析 | `scraper` + `html5ever` | 成熟 |
 | 正文提取 | `dom_smoothie` | 成熟 |
 | HTML→文本 | `rust-html2text` | 成熟 |
@@ -271,12 +273,14 @@ v0.3 的锚点（JS 页必须拿到 10 条）**作废**。v0.4 的锚点：
 | 会话/状态泄漏 | 文件锁 + TTL + 权限 700 + 关停路径测试 |
 | MCP 60s 超时 | 工具分片；长任务显式配置；单次调用预算写进 SKILL.md |
 | 文档与实际能力脱节 | 本计划 §0 的代价清单必须随能力变化同步更新 |
+| musl 静态交叉编译 + BoringSSL（C++） | 当前产物动态链接 libstdc++/libgcc；PR 14 必须专门验证静态目标，不许假设可行 |
+| 构建期隐藏依赖（libclang / clang 内建头 / cmake） | 写入 README 构建说明并在 CI 安装；spike 报告 §4 记录了缺它们时的具体报错 |
 
 ---
 
 ## 9. 待验证清单（不得当作已证实）
 
-1. `wreq` 在 Rust 1.98 + rustls 下的编译与特性组合（P0 第一件事）。
+1. ~~`wreq` 在 Rust 1.98 + rustls 下的编译与特性组合~~ **已完成**：默认后端其实是 BoringSSL（不是 rustls），默认特性即可编译，首次全量 release 构建 76s，TLS 指纹仿真实测生效 —— 见 [docs/spikes/wreq.md](spikes/wreq.md)。
 2. 纯 Rust PDF 文本层（`pdf-extract` / `lopdf`）在中文 PDF 上的实际质量。
 3. `json_query` 自研子集 vs `jmespath` crate 的取舍。
 4. 大响应（>50MB）下的内存表现与截断策略。
