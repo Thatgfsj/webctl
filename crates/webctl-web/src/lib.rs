@@ -4,11 +4,17 @@
 //! 硬约束：零外部进程、零浏览器（PLAN v0.4 §3.1）。
 
 pub mod content_type;
+pub mod doc;
 pub mod encoding;
 pub mod politeness;
 pub mod transport;
 
 pub use content_type::ContentKind;
+pub use doc::json_query::json_query;
+pub use doc::{
+    DEFAULT_MAX_DOC_BYTES, DEFAULT_MAX_JSON_BYTES, DOC09_DEFERRED_DEGRADED_FROM, DocFormat,
+    DocOptions, DocText, JsonQueryOptions, JsonQueryOutcome, PdfKind, doc_text, extract_pdf_text,
+};
 pub use encoding::{CharsetSource, DecodedText, decode_body};
 pub use politeness::{PoliteFetched, PoliteFetcher, PolitenessConfig, RobotsOutcome};
 pub use transport::{

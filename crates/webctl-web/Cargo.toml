@@ -10,17 +10,22 @@ authors.workspace = true
 
 [dependencies]
 serde.workspace = true
+serde_json.workspace = true
 webctl-core.workspace = true
 encoding_rs.workspace = true
 futures-util.workspace = true
 url.workspace = true
 wreq.workspace = true
+# PR 07 文档内置：纯 Rust PDF 文本层，零子进程。
+# lopdf 与 pdf-extract 共用 0.42（见模块文档的 cargo tree 结论），不引入重复版本；
+# default-features=false 与 pdf-extract 保持一致，避免多带 chrono/rayon。
+pdf-extract = "0.12.1"
+lopdf = { version = "0.42", default-features = false }
 
 # 礼貌层需要 tokio 的定时器与信号量（workspace 已统一版本）。
 tokio = { workspace = true, features = ["time", "sync"] }
 
 [dev-dependencies]
-serde_json.workspace = true
 tokio.workspace = true
 
 [lints]

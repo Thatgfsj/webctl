@@ -1,0 +1,13 @@
+{
+  "store": {
+    "book": [
+      {"title": "Book A", "price": 8.5, "tags": ["a", "b"]},
+      {"title": "Book B", "price": 12.0, "tags": ["b"]},
+      {"title": "Book C", "price": 5.0, "tags": []}
+    ],
+    "open": true
+  },
+  "count": 3,
+  "empty": [],
+  "note": "json query subset fixture"
+}
