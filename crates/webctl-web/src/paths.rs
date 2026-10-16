@@ -61,7 +61,9 @@ impl DownloadError {
     /// 映射到结果信封错误码。
     pub fn code(&self) -> ErrorCode {
         match self {
-            Self::Unsafe(_) | Self::MissingContentType | Self::TypeNotAllowed(_) => ErrorCode::Blocked,
+            Self::Unsafe(_) | Self::MissingContentType | Self::TypeNotAllowed(_) => {
+                ErrorCode::Blocked
+            }
             Self::TooLarge { .. } => ErrorCode::Limit,
             Self::Io(_) => ErrorCode::Internal,
         }
@@ -74,9 +76,9 @@ impl DownloadError {
             Self::MissingContentType => {
                 "download rejected: response has no Content-Type".to_owned()
             }
-            Self::TypeNotAllowed(content_type) => format!(
-                "download rejected: content type {content_type:?} is not in the allow-list"
-            ),
+            Self::TypeNotAllowed(content_type) => {
+                format!("download rejected: content type {content_type:?} is not in the allow-list")
+            }
             Self::TooLarge {
                 limit,
                 declared,
@@ -217,7 +219,11 @@ mod tests {
     #[test]
     fn whitelist_and_size_limit_are_enforced() {
         let policy = DownloadPolicy::default();
-        assert!(policy.check(Some("text/html; charset=utf-8"), None, 10).is_ok());
+        assert!(
+            policy
+                .check(Some("text/html; charset=utf-8"), None, 10)
+                .is_ok()
+        );
         assert!(matches!(
             policy.check(Some("application/zip"), None, 10),
             Err(DownloadError::TypeNotAllowed(_))
@@ -236,7 +242,10 @@ mod tests {
             Err(DownloadError::TooLarge { .. })
         ));
         assert_eq!(
-            tight.check(Some("text/plain"), Some(9), 9).unwrap_err().code(),
+            tight
+                .check(Some("text/plain"), Some(9), 9)
+                .unwrap_err()
+                .code(),
             ErrorCode::Limit
         );
     }
@@ -246,8 +255,15 @@ mod tests {
         let root_dir = temp_dir("commit");
         let root = SafeRoot::new(root_dir.clone());
         let policy = DownloadPolicy::default();
-        let path = commit_download(&root, "page.html", Some("text/html"), Some(4), b"<h1>", &policy)
-            .expect("allowed download");
+        let path = commit_download(
+            &root,
+            "page.html",
+            Some("text/html"),
+            Some(4),
+            b"<h1>",
+            &policy,
+        )
+        .expect("allowed download");
         assert!(path.starts_with(&root_dir));
         assert_eq!(std::fs::read(&path).expect("read"), b"<h1>");
         #[cfg(unix)]
@@ -265,7 +281,14 @@ mod tests {
         let root = SafeRoot::new(root_dir.clone());
         let policy = DownloadPolicy::default();
         assert!(matches!(
-            commit_download(&root, "../escape.html", Some("text/html"), None, b"x", &policy),
+            commit_download(
+                &root,
+                "../escape.html",
+                Some("text/html"),
+                None,
+                b"x",
+                &policy
+            ),
             Err(DownloadError::Unsafe(_))
         ));
         #[cfg(unix)]

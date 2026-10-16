@@ -22,8 +22,20 @@ const CREDENTIAL_HEADERS: [&str; 4] = [
 
 /// 需要整体脱敏的 query/表单参数名（精确匹配，小写比较）。
 const SENSITIVE_PARAM_EXACT: [&str; 14] = [
-    "key", "pwd", "pw", "pass", "code", "sig", "jwt", "bearer", "csrf", "sid", "secret", "auth",
-    "api-key", "access-key",
+    "key",
+    "pwd",
+    "pw",
+    "pass",
+    "code",
+    "sig",
+    "jwt",
+    "bearer",
+    "csrf",
+    "sid",
+    "secret",
+    "auth",
+    "api-key",
+    "access-key",
 ];
 
 /// 需要脱敏的参数名片段（小写子串匹配）。
@@ -97,7 +109,10 @@ pub fn redact_set_cookie(raw: &str) -> String {
         _ if first.is_empty() => REDACTED.to_owned(),
         _ => REDACTED.to_owned(),
     };
-    let attributes: Vec<&str> = parts.map(str::trim).filter(|part| !part.is_empty()).collect();
+    let attributes: Vec<&str> = parts
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .collect();
     if attributes.is_empty() {
         head
     } else {
@@ -185,13 +200,8 @@ fn redact_urls_in_text(text: &str) -> String {
         let tail = &text[start..];
         let end = start + tail.find(is_url_delimiter).unwrap_or(tail.len());
         out.push_str(&redact_url(&text[start..end]));
-        if end == cursor {
-            // 理论不可达；防御性前进，避免死循环。
-            out.push_str(&text[cursor..].chars().next().map_or("", |c| &text[cursor..cursor + c.len_utf8()]));
-            cursor += 1;
-        } else {
-            cursor = end;
-        }
+        // scheme 至少 7 字节（"http://"），因此 end > cursor，循环必定前进。
+        cursor = end;
     }
     out
 }
@@ -268,7 +278,7 @@ fn is_key_char(ch: char) -> bool {
 }
 
 fn is_value_separator(ch: char) -> bool {
-    ch.is_whitespace() || matches!(ch, '&' | ';' | ',' | '"' | '\'' | '<' | '>' | ')' | ']')
+    ch.is_whitespace() || matches!(ch, '&' | ';' | ',' | '"' | '\'')
 }
 
 #[cfg(test)]

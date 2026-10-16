@@ -140,7 +140,13 @@ pub async fn fetch(target: &str, options: &FetchOptions) -> Envelope<Fetched> {
     let started = Instant::now();
     let url = match parse_target(target) {
         Ok(url) => url,
-        Err(message) => return Envelope::fail(ErrorCode::BadUrl, message, elapsed_ms(started)),
+        Err(message) => {
+            return Envelope::fail(
+                ErrorCode::BadUrl,
+                crate::redact::redact_log_line(&message),
+                elapsed_ms(started),
+            );
+        }
     };
     match run(url, options, true).await {
         Ok(fetched) => {
@@ -155,7 +161,11 @@ pub async fn fetch(target: &str, options: &FetchOptions) -> Envelope<Fetched> {
                 Envelope::ok(fetched, Trust::UntrustedPageContent, elapsed_ms(started))
             }
         }
-        Err(error) => Envelope::fail(error.code, error.message, elapsed_ms(started)),
+        Err(error) => Envelope::fail(
+            error.code,
+            crate::redact::redact_log_line(&error.message),
+            elapsed_ms(started),
+        ),
     }
 }
 
@@ -168,7 +178,13 @@ pub async fn fetch_raw(target: &str, options: &FetchOptions) -> Envelope<Fetched
     let started = Instant::now();
     let url = match parse_target(target) {
         Ok(url) => url,
-        Err(message) => return Envelope::fail(ErrorCode::BadUrl, message, elapsed_ms(started)),
+        Err(message) => {
+            return Envelope::fail(
+                ErrorCode::BadUrl,
+                crate::redact::redact_log_line(&message),
+                elapsed_ms(started),
+            );
+        }
     };
     match run(url, options, false).await {
         Ok(fetched) => {
@@ -183,7 +199,11 @@ pub async fn fetch_raw(target: &str, options: &FetchOptions) -> Envelope<Fetched
                 Envelope::ok(fetched, Trust::UntrustedPageContent, elapsed_ms(started))
             }
         }
-        Err(error) => Envelope::fail(error.code, error.message, elapsed_ms(started)),
+        Err(error) => Envelope::fail(
+            error.code,
+            crate::redact::redact_log_line(&error.message),
+            elapsed_ms(started),
+        ),
     }
 }
 

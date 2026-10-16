@@ -14,8 +14,8 @@ pub mod paths;
 pub mod redact;
 
 pub use paths::{
-    ArgumentError, SafeRoot, SchemeError, ensure_http_scheme, is_http_scheme, resolve_file_argument,
-    scheme_of,
+    ArgumentError, SafeRoot, SchemeError, ensure_http_scheme, is_http_scheme,
+    resolve_file_argument, scheme_of,
 };
 pub use redact::{
     REDACTED, is_password_field, is_sensitive_header, is_sensitive_param, redact_header_pairs,

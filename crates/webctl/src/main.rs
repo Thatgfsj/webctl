@@ -5,6 +5,7 @@
 use std::process::ExitCode;
 
 mod cli;
+mod logs;
 
 fn main() -> ExitCode {
     cli::run()

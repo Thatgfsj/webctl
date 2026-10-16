@@ -253,7 +253,12 @@ mod tests {
     fn scheme_whitelist_rejects_file_and_data() {
         assert!(ensure_http_scheme("http://127.0.0.1/x").is_ok());
         assert!(ensure_http_scheme("HTTPS://example.test/x").is_ok());
-        for bad in ["file:///etc/passwd", "data:text/plain,hi", "ftp://host/x", "not a url"] {
+        for bad in [
+            "file:///etc/passwd",
+            "data:text/plain,hi",
+            "ftp://host/x",
+            "not a url",
+        ] {
             assert!(ensure_http_scheme(bad).is_err(), "{bad} 必须被拒绝");
         }
         assert_eq!(
