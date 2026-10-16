@@ -139,6 +139,29 @@ fn parse_04_gbk_decodes_without_mojibake() {
     assert!(article.markdown.contains(sentence));
 }
 
+/// PARSE-04（日文）：Shift_JIS 页面经 PR 02 解码后正文无乱码。
+#[test]
+fn parse_04b_shift_jis_decodes_without_mojibake() {
+    const SJIS_BYTES: &[u8] = &[
+        0x93, 0xfa, 0x96, 0x7b, 0x8c, 0xea, 0x82, 0xcc, 0x83, 0x65, 0x83, 0x58, 0x83, 0x67, 0x81,
+        0x46, 0x82, 0xb1, 0x82, 0xf1, 0x82, 0xc9, 0x82, 0xbf, 0x82, 0xcd,
+    ];
+    let sentence = "日本語のテスト：こんにちは";
+    let mut html = b"<html><body><article><h1>".to_vec();
+    for _ in 0..2 {
+        html.extend_from_slice(SJIS_BYTES);
+        html.extend_from_slice(b"<br>");
+    }
+    html.extend_from_slice(b"</h1></article></body></html>");
+    let decoded = decode_body(&html, Some("text/html; charset=shift_jis"));
+    assert_eq!(decoded.encoding, "Shift_JIS");
+    let env = extract_article(&decoded.text, None);
+    assert!(env.ok, "{}", env.error);
+    let article = env.data.as_ref().expect("article data");
+    assert!(article.text.contains(sentence), "{}", article.text);
+    assert!(!article.text.contains('�'));
+}
+
 /// PARSE-05：链接数量、绝对化、rel、文本。
 #[test]
 fn parse_05_links_absolute_and_rel() {
@@ -418,6 +441,15 @@ fn parse_15_content_type_routing() {
     assert!(html.ok, "{}", html.error);
     match html.data.as_ref().expect("data") {
         Parsed::Html(article) => assert!(article.text.contains("FIRSTBODYSENTENCE")),
+        other => panic!("unexpected {other:?}"),
+    }
+
+    let xml = parse_body(&text_body(ContentKind::Xml, DATA_XML), None);
+    assert_valid(&xml);
+    assert!(xml.ok, "{}", xml.error);
+    assert_eq!(xml.code, ErrorCode::Ok);
+    match xml.data.as_ref().expect("data") {
+        Parsed::Xml(structured) => assert_eq!(structured.root.as_deref(), Some("catalog")),
         other => panic!("unexpected {other:?}"),
     }
 }
