@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "description": "webctl release 二进制体积与 --version 冷启动基线（TESTING PKG-05 / CLI-12）。bytes 为 release 二进制字节数；null 表示待回填；recorded_at 为记录时的本地日期。",
+  "tolerance_pct": 10,
+  "cold_start_limit_ms": 50,
+  "entries": {
+    "x86_64-unknown-linux-gnu": {
+      "bytes": 7978256,
+      "cold_start_ms_p50": 24,
+      "linkage": "dynamic",
+      "source": "local",
+      "recorded_at": "2026-10-17",
+      "commit": "5f10aa6",
+      "note": "本机实测后由 scripts/size-baseline.sh --record 回填"
+    },
+    "x86_64-unknown-linux-musl": {
+      "bytes": null,
+      "cold_start_ms_p50": null,
+      "linkage": "static",
+      "source": "ci-pending",
+      "recorded_at": null,
+      "commit": null,
+      "note": "待 CI 回填：本机未安装 x86_64-unknown-linux-musl target，首个 release 产物出来后由维护者 --record"
+    }
+  }
+}
