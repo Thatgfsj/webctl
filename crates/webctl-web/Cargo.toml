@@ -27,6 +27,9 @@ tokio = { workspace = true, features = ["time", "sync"] }
 
 # PR 03 解析层：DOM/选择器、正文提取、HTML→文本、XML 建树
 # 关闭默认特性：默认的 "main" 会拉入自带 CLI 的 getopts，解析层用不到。
+# PR 06 抽取引擎：search 的正则（线性时间引擎）与 links 过滤；
+# 已在 lock 里作为传递依赖存在，升级为直接依赖不新增 crate。
+regex = "1"
 scraper = { version = "0.27.0", default-features = false }
 dom_smoothie = "0.18.2"
 html2text = "0.17.3"

@@ -165,7 +165,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 | STATE-09 | 清理命令 | 清理只删自己的会话，不影响其他会话 | L0 | PR 05 |
 | STATE-10 | 无凭据泄漏 | 会话文件权限与内容都不含明文密码（只存 cookie/令牌） | L0+L3 | PR 12 |
 
-### 2.7 EXTRACT — 抽取与选择器（16）
+### 2.7 EXTRACT — 抽取与选择器（17）
 
 前置：结构复杂的 fixture 站（嵌套、重复、动态 class、shadow-free）。
 
@@ -446,6 +446,16 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 | 03 解析（#54） | `tests/parse.rs` 23 条，含 XML 深度预检对抗用例（本轮修 XML 栈溢出后新增） |
 | 10 CLI（#60） | `cargo test` 133 passed，含 cli 集成 13 条（CLI-01…11）；CLI-12 属 PR 14 |
 | 13 测试基建（#55） | **已合并（e899c2f）**：golden 2 / http_fixture 9 / offline_lane 4+2 ignored / resource 11；含三条「扫描器不空转」永久护栏 + 一条「该放行的不误报」护栏（`scanner_does_not_flag_own_binary_or_loopback_userinfo`） |
+
+### 6.7 PR 06 抽取引擎（议题 #35）
+
+\`crates/webctl-web/tests/extract.rs\` **26 条**（离线；只读本地 fixture 与内存字符串）：
+
+- **PARSE-12**：\`parse_12_full_extract_semantics\`
+- **EXTRACT-01…17**：\`extract_01_structured_path\`、\`extract_02_context\`、\`extract_03_document_order\`、\`extract_04_char_budget_truncates_and_marks\`、\`extract_05_max_results_truncates_and_marks\`、\`extract_06_zero_hits_is_ok_empty\`、\`extract_07_invalid_selector_is_parse\`、\`extract_08_search_text_positions_and_context\`、\`extract_09_search_regex_and_invalid_pattern\`、\`extract_10_tables_match_fixture\`、\`extract_11_forms_feed_fill_form\`、\`extract_12_link_filters\`、\`extract_13_stability_semantics\`、\`extract_14_large_page_is_bounded\`、\`extract_15_matches_parse_layer\`、\`extract_16_no_raw_bytes\`、\`extract_17_catastrophic_input_is_bounded\`
+- **FORM-09**：\`form_09_multi_form_selection\`
+- **A6 五码互异（补充）**：\`extract_outcomes_have_distinct_codes\`
+- **EXTRACT-17 / EXTRACT-08 预算兜底（PR #71 修复）**：\`extract_17_zero_hit_large_page_over_budget_times_out\`、\`extract_17_zero_hit_parse_over_budget_times_out\`、\`extract_17_zero_hit_within_budget_stays_ok_empty\`、\`extract_17_search_zero_hit_over_budget_times_out\`、\`extract_17_deep_descendant_scan_is_bounded\`、\`extract_08_search_advance_matches_regex_iter\`
 
 ## 7. 维护规则
 
