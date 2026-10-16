@@ -467,19 +467,21 @@ pub fn external_url_sites(root: &Path) -> Result<Vec<ExternalUrlSite>, ScanError
         let text = std::fs::read_to_string(&file).map_err(|error| ScanError::new(&file, error))?;
         let code = strip_comments(&text);
         for (index, line) in code.lines().enumerate() {
+            // scheme 大小写不敏感：`HTTPS://` 同样要能被检出，不能成为绕过手段。
+            let lowercase = line.to_ascii_lowercase();
             for scheme in schemes {
                 let mut from = 0;
-                while let Some(offset) = line[from..].find(scheme) {
+                while let Some(offset) = lowercase[from..].find(scheme) {
                     let start = from + offset;
                     let url_start = start + scheme.len();
                     let rest = &line[url_start..];
-                    let authority_end = rest.find(is_authority_delimiter).unwrap_or(rest.len());
-                    let authority = &rest[..authority_end];
-                    if !is_allowed_authority(authority) {
+                    let end = authority_end(rest);
+                    let host = strip_userinfo(&rest[..end]);
+                    if !is_allowed_authority(host) {
                         sites.push(ExternalUrlSite {
                             path: file.clone(),
                             line: index + 1,
-                            url: format!("{scheme}{authority}"),
+                            url: format!("{scheme}{host}"),
                             text: line.trim().to_owned(),
                         });
                     }
@@ -489,6 +491,42 @@ pub fn external_url_sites(root: &Path) -> Result<Vec<ExternalUrlSite>, ScanError
         }
     }
     Ok(sites)
+}
+
+/// authority 的结束位置（字节偏移）。
+///
+/// 两处必须处理，否则会把**本地**用法误判成外站：
+/// 1. `user:pass@host` 形式的 userinfo —— 其中的 `:` 不是 authority 分隔符
+///    （否则 `http://user:hunter2@127.0.0.1:1` 会被截成 `user`）；
+/// 2. `[::1]` 这类 IPv6 字面量 —— 要整体取出，不能在内层 `:` 处截断。
+fn authority_end(rest: &str) -> usize {
+    let mut start = 0;
+    if let Some(at) = rest.find('@') {
+        // 只有当 '@' 之前没有路径/引号类分隔符时，才认定它是 userinfo 的结尾。
+        if !rest[..at].contains(is_path_delimiter) {
+            start = at + 1;
+        }
+    }
+    let tail = &rest[start..];
+    let end = if tail.starts_with('[') {
+        tail.find(']').map(|close| close + 1).unwrap_or(tail.len())
+    } else {
+        tail.find(is_authority_delimiter).unwrap_or(tail.len())
+    };
+    start + end
+}
+
+/// 路径/引号类分隔符：出现在 `@` 之前就说明那个 `@` 不是 userinfo 的分隔符。
+fn is_path_delimiter(ch: char) -> bool {
+    matches!(ch, '/' | '"' | '\'' | ')' | ' ' | ',' | ';' | '}' | '>')
+}
+
+/// 去掉 authority 里的 userinfo，只留 host（含端口）。
+fn strip_userinfo(authority: &str) -> &str {
+    authority
+        .rsplit_once('@')
+        .map(|(_, host)| host)
+        .unwrap_or(authority)
 }
 
 /// authority 的结束分隔符。
@@ -556,11 +594,12 @@ pub struct SubprocessCallSite {
 /// 避免文档注释里的字面量自命中。根目录缺失时返回 Err。
 pub fn subprocess_call_sites(root: &Path) -> Result<Vec<SubprocessCallSite>, ScanError> {
     // 把匹配串拆开拼装，避免本文件自身被扫描命中。
-    let needles = [
-        ["process", "Command"].join("::"),
-        ["Command", "new("].join("::"),
-        [".spawn", "("].join(""),
-    ];
+    // 只匹配**真正的调用点**：不再把 `use std::process::Command;` 这类导入当作违规
+    // （导入本身不创建进程；把它算违规会在 CLI 集成测试里产生误报）。
+    let needles = [["Command", "new("].join("::"), [".spawn", "("].join("")];
+    // 集成测试启动**本仓自己的二进制**（Cargo 注入的 CARGO_BIN_EXE_<name>）不是"外部进程"，
+    // 这正是 CLI 端到端测试的标准做法。标记拆开拼装，避免本文件自命中。
+    let own_binary = ["CARGO", "BIN", "EXE_"].join("_");
     let mut sites = Vec::new();
     for file in rust_sources_under(root)? {
         if is_scanner_self(&file) {
@@ -568,14 +607,25 @@ pub fn subprocess_call_sites(root: &Path) -> Result<Vec<SubprocessCallSite>, Sca
         }
         let text = std::fs::read_to_string(&file).map_err(|error| ScanError::new(&file, error))?;
         let code = strip_comments(&text);
-        for (index, line) in code.lines().enumerate() {
-            if needles.iter().any(|needle| line.contains(needle)) {
-                sites.push(SubprocessCallSite {
-                    path: file.clone(),
-                    line: index + 1,
-                    text: line.trim().to_owned(),
-                });
+        let lines: Vec<&str> = code.lines().collect();
+        for (index, line) in lines.iter().enumerate() {
+            if !needles.iter().any(|needle| line.contains(needle)) {
+                continue;
             }
+            // 允许调用点自身或紧邻的前两行出现该标记，
+            // 以覆盖 `let bin = env!("CARGO_BIN_EXE_webctl"); Command::new(bin)` 这种写法。
+            let from = index.saturating_sub(2);
+            if lines[from..=index]
+                .iter()
+                .any(|near| near.contains(&own_binary))
+            {
+                continue;
+            }
+            sites.push(SubprocessCallSite {
+                path: file.clone(),
+                line: index + 1,
+                text: line.trim().to_owned(),
+            });
         }
     }
     Ok(sites)

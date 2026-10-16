@@ -51,6 +51,24 @@
 - 匹配 `process::Command` / `Command::new(` / `.spawn(`，保守起见宁可多报；
 - 扫描器自身文件排除。
 
+### 2026-10-16 修订（修两处真实误报）
+
+`main` 合并 PR 13 后门禁变红，根因是两条规则把**合规代码**判成违规，已修正：
+
+- **外站 URL**：①scheme **大小写不敏感**（`HTTPS://` 同样是外站，不能当绕过手段）；
+  ②authority **先剥 userinfo 再判定**——`http://user:pass@127.0.0.1:1` 是回环而非外站
+  （`user:pass@` 里的 `:` 不是 authority 分隔符）；③IPv6 字面量 `[::1]` 整体取出
+  （此前会被内层 `:` 截断成 `[`）。
+- **子进程调用点**：①只匹配**真正的调用点**（`Command::new(` / `.spawn(`）；
+  `use std::process::Command;` 这类纯导入不再算违规（导入本身不创建进程）；
+  ②**放行"启动本仓自己的二进制"**——调用点自身或紧邻前两行出现 `CARGO_BIN_EXE_` 时跳过。
+  集成测试用 `Command::new(env!("CARGO_BIN_EXE_webctl"))` 跑自己的 CLI 是标准做法，
+  不是"外部进程"；产品源码（`src/`）里的调用点照常报违规。
+- **成对护栏**：`scanners_detect_planted_violations`（该报的必报）与
+  `scanner_does_not_flag_own_binary_or_loopback_userinfo`（该放行的不误报）。
+- 已知残余绕过（当前仓库不出现，记录在案）：`use std::process::{Command as C}; C::new(` 这类
+  别名/分组导入、以及 `::` 之间插入空格，字面匹配抓不到。
+
 ### 目录缺失即失败
 
 两个扫描器在根目录不存在/不可读时返回 `Err`（测试里 `expect`），**绝不**静默返回空集：
