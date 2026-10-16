@@ -2,6 +2,12 @@
 //!
 //! PR 01 只建立 crate 骨架；PR 02 落地取回层（`transport` / `encoding` / `content_type`）。
 //! 硬约束：零外部进程、零浏览器（PLAN v0.4 §3.1）。
+//!
+//! # feature `offline`（议题 #22）
+//!
+//! `cargo test --features offline` 是本 crate 的 L0 离线通道：全部测试只访问
+//! `127.0.0.1` fixture 与本地文件，零外网、零子进程。该 feature **不是**网络放宽开关，
+//! 只是离线通道的显式标记；默认门禁 `cargo test` 同样离线（见 `tests/offline_lane.rs`）。
 
 pub mod content_type;
 pub mod encoding;

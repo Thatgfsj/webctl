@@ -1,0 +1,4 @@
+# gzip("压缩后的正文 gzip ok")
+# 来源：crates/webctl-web/tests/transport.rs 的 GZIP_BYTES（保持字节一致）
+1f 8b 08 00 de 49 d2 6a 02 ff 7b da d7 fd 7c cf ca a7 13 fa 9e cf 6a 79 b6 76
+f1 b3 69 ed 0a e9 55 99 05 0a f9 d9 00 e0 48 7c c5 1a 00 00 00

@@ -1,0 +1,4 @@
+# fixture robots（离线站内使用，仅测试解析/礼貌分支）
+User-agent: *
+Disallow: /private/
+Allow: /
