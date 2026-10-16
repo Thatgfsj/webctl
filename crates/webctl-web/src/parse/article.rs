@@ -55,8 +55,10 @@ pub fn extract_article(html_text: &str, base: Option<&str>) -> Envelope<Article>
         return fallback(html_text, started);
     }
     let absolute_base = base.filter(|value| Url::parse(value).is_ok());
-    let mut config = Config::default();
-    config.text_mode = TextMode::Markdown;
+    let config = Config {
+        text_mode: TextMode::Markdown,
+        ..Config::default()
+    };
     match Readability::new(html_text, absolute_base, Some(config)) {
         Ok(mut readability) => match readability.parse() {
             Ok(article) => {

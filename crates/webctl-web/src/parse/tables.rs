@@ -210,7 +210,7 @@ fn read_span(value: Option<&str>) -> (usize, bool) {
         return (1, false);
     };
     match value.trim().parse::<usize>() {
-        Ok(span) if span >= 1 && span <= MAX_SPAN => (span, false),
+        Ok(span) if (1..=MAX_SPAN).contains(&span) => (span, false),
         Ok(span) if span > MAX_SPAN => (MAX_SPAN, true),
         _ => (1, false),
     }
