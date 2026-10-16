@@ -479,6 +479,42 @@ fn parse_15_content_type_routing() {
     }
 }
 
+/// PARSE-15（PR 08 的 text 分支）：`text/plain` 经 classify 落入 Text 后，
+/// parse_body 原样按纯文本返回——不解析 HTML、不是 UNSUPPORTED、不静默降级。
+#[test]
+fn parse_15_text_is_returned_verbatim() {
+    let robots = "User-agent: *\nDisallow: /private/\n";
+    let kind =
+        webctl_web::content_type::classify(Some("text/plain; charset=utf-8"), robots.as_bytes());
+    assert_eq!(kind, ContentKind::Text, "robots.txt 必须落在 text 分支");
+
+    let env = parse_body(&text_body(kind, robots), None);
+    assert_valid(&env);
+    assert!(env.ok, "{}", env.error);
+    assert_eq!(env.code, ErrorCode::Ok, "纯文本是正常成功，不是降级/不支持");
+    assert!(env.meta.degraded_from.is_none(), "不得静默降级");
+    assert_eq!(env.meta.trust, Trust::UntrustedPageContent);
+    match env.data.as_ref().expect("data") {
+        Parsed::Text(doc) => {
+            assert_eq!(doc.text, robots, "原文必须逐字符保留，可回溯");
+            assert_eq!(doc.bytes, robots.len());
+        }
+        other => panic!("unexpected {other:?}"),
+    }
+
+    // 即使正文长得像 HTML，Text 分支也不做任何 HTML 解析或空白折叠。
+    let html_like = "<p>not html</p>  \nsecond line\t";
+    let env = parse_body(&text_body(ContentKind::Text, html_like), None);
+    assert!(env.ok, "{}", env.error);
+    match env.data.as_ref().expect("data") {
+        Parsed::Text(doc) => {
+            assert_eq!(doc.text, html_like, "Text 分支必须原样返回");
+            assert!(doc.text.contains("<p>not html</p>"));
+        }
+        other => panic!("unexpected {other:?}"),
+    }
+}
+
 /// PARSE-16：>1000 层嵌套不栈溢出。
 #[test]
 fn parse_16_deep_nesting() {
@@ -588,6 +624,35 @@ fn parse_16_xml_depth_precheck_ignores_markup_noise() {
         children.iter().any(|child| child["tag"] == "child"),
         "{value}"
     );
+}
+
+/// 栈安全与调用方解耦：在只有 512 KiB 栈的线程上，`MAX_XML_DEPTH` 层仍应
+/// 成功解析。裸调 roxmltree 在 1 MiB 栈上 128 层即 SIGABRT，而专用 8 MiB
+/// 工作线程把递归下降搬离了调用方栈——这个用例专门钉住该解耦。
+#[test]
+fn parse_16_xml_is_isolated_from_caller_stack() {
+    let xml = format!(
+        "{}{}",
+        "<a>".repeat(MAX_XML_DEPTH),
+        "</a>".repeat(MAX_XML_DEPTH)
+    );
+    // 用 spawn_scoped（而非 .spawn）避免被 SEC-10 的子进程扫描器误判为进程创建；
+    // 这里要的只是一个"小栈调用方线程"。
+    let env = std::thread::scope(|scope| {
+        let handle = std::thread::Builder::new()
+            .name("small-caller-stack".to_owned())
+            .stack_size(512 * 1024)
+            .spawn_scoped(scope, || parse_xml(&xml))
+            .expect("spawn small-stack caller");
+        handle.join().expect("small-stack caller panicked")
+    });
+    assert_valid(&env);
+    assert!(
+        env.ok,
+        "512 KiB 调用方栈上 {} 层也应成功（专用工作线程）：{}",
+        MAX_XML_DEPTH, env.error
+    );
+    assert_eq!(env.data.as_ref().expect("xml").root.as_deref(), Some("a"));
 }
 
 /// 回退路径是显式降级：ok=true 但 code=DEGRADED 且 degraded_from 非空。

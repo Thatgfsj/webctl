@@ -8,7 +8,9 @@
 //!   webctl_core::Trust::UntrustedPageContent。
 //! - 空结果（零命中）与解析失败严格区分：前者 ok=true + 空数组，后者
 //!   ok=false + code=PARSE。
-//! - 非 HTML 输入不硬解析：路由到对应处理器，或显式 UNSUPPORTED。
+//! - 非 HTML 输入不硬解析：路由到对应处理器；`text/*` 原样按纯文本返回
+//!   （`Parsed::Text`，OK 且可回溯，不是 UNSUPPORTED、也不静默降级）；
+//!   真正非文本的 pdf/binary 才显式 UNSUPPORTED。
 //! - 回退路径是**显式降级**：code=DEGRADED 且 meta.degraded_from 非空。
 //! - 零子进程、零 unsafe（workspace 级 unsafe_code = "forbid"）。
 
@@ -27,7 +29,7 @@ pub mod tables;
 pub use article::{Article, extract_article, extract_article_fallback};
 pub use forms::{Form, FormField, FormOption, extract_forms};
 pub use links::{Link, extract_links};
-pub use structured::{Parsed, Structured, parse_body, parse_json, parse_xml};
+pub use structured::{Parsed, PlainText, Structured, parse_body, parse_json, parse_xml};
 pub use tables::{Table, TableCell, extract_tables};
 
 /// CSS 选择器的一次命中。结构化路径与上下文由 PR 06 的 extract 补齐；
