@@ -9,6 +9,7 @@ use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -189,14 +190,20 @@ fn state_03_bounded_lock_wait_and_no_deadlock() {
         .expect("释放后必须成功");
 
     // 4) 后到者确实等待：独立句柄持锁一段时间，写者等到后成功。
+    // 用**信道同步**代替 `sleep(40ms)` 来假定「持锁者已经开始」：
+    // `thread::sleep` 只保证「至少睡这么久」，负载高时会**超睡**，把计时起点往后推、
+    // 从而把可测量的等待压缩到阈值以下（macOS CI 实测 44.9ms < 50ms 即此因，见议题 #85）。
+    // 先等到「已持锁」信号再起表，就把这段不确定性消掉；持有时长也放大到 8× 余量。
     let waited_lock = store.lock_path("waited").expect("lock path");
     let holder_path = waited_lock.clone();
+    let (locked_tx, locked_rx) = mpsc::channel::<()>();
     let holder = thread::spawn(move || {
         let lock = FileLock::acquire(&holder_path, Duration::from_secs(1)).expect("holder");
-        thread::sleep(Duration::from_millis(150));
+        locked_tx.send(()).expect("signal locked");
+        thread::sleep(Duration::from_millis(400));
         lock.release();
     });
-    thread::sleep(Duration::from_millis(40));
+    locked_rx.recv().expect("holder 必须已持锁");
     let waited_state = store.new_state("waited").expect("state");
     let started = Instant::now();
     store
@@ -204,10 +211,10 @@ fn state_03_bounded_lock_wait_and_no_deadlock() {
         .with_lock_wait(Duration::from_secs(3))
         .save(&waited_state)
         .expect("等待者必须成功，而不是被静默丢弃");
+    let waited = started.elapsed();
     assert!(
-        started.elapsed() >= Duration::from_millis(50),
-        "应当真实等待过锁，实际 {:?}",
-        started.elapsed()
+        waited >= Duration::from_millis(50),
+        "应当真实等待过锁，实际 {waited:?}"
     );
     holder.join().expect("holder thread");
 }
