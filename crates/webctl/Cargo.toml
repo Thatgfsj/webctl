@@ -1,0 +1,23 @@
+[package]
+name = "webctl"
+description = "给 AI agent 用的网页控制层：纯 Rust 单二进制，全部内置，零外部进程"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "webctl"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+serde_json.workspace = true
+webctl-core.workspace = true
+webctl-web.workspace = true
+webctl-mcp.workspace = true
+
+[lints]
+workspace = true

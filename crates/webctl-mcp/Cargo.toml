@@ -1,0 +1,16 @@
+[package]
+name = "webctl-mcp"
+description = "webctl 的 MCP server：工具 schema 与 DSH 集成契约"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde.workspace = true
+webctl-core.workspace = true
+
+[lints]
+workspace = true

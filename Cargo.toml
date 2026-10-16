@@ -1,0 +1,28 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/webctl",
+    "crates/webctl-core",
+    "crates/webctl-web",
+    "crates/webctl-mcp",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+license = "MIT"
+repository = "https://github.com/Thatgfsj/webctl"
+authors = ["Thatgfsj"]
+
+[workspace.dependencies]
+clap = { version = "4.6", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+webctl-core = { path = "crates/webctl-core" }
+webctl-web = { path = "crates/webctl-web" }
+webctl-mcp = { path = "crates/webctl-mcp" }
+
+# 运行时零外部进程（PLAN v0.4 §3.1）：workspace 内禁止 unsafe。
+[workspace.lints.rust]
+unsafe_code = "forbid"
