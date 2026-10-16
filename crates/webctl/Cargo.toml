@@ -21,5 +21,9 @@ webctl-core.workspace = true
 webctl-web.workspace = true
 webctl-mcp.workspace = true
 
+[dev-dependencies]
+# PR 12：安全用例用正则做机械断言。
+regex = "1"
+
 [lints]
 workspace = true

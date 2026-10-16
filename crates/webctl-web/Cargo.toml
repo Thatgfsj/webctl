@@ -37,6 +37,8 @@ roxmltree = "0.21.1"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "test-util"] }
+# PR 12：安全用例用正则做机械断言（证明检查不是“看起来像”）。
+regex = "1"
 
 [features]
 # L0 离线 lane（docs/TESTING.md §1）：`cargo test --features offline`。
