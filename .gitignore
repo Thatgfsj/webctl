@@ -1,0 +1,20 @@
+# Rust
+/target
+**/*.rs.bk
+*.pdb
+*.profraw
+
+# 会话状态与浏览器受管 profile（绝不入库）
+/.webctl-state/
+/webctl-state/
+*.session.json
+
+# 本地探针产物
+/probes/**/out/
+*.log
+
+# 编辑器 / 系统
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

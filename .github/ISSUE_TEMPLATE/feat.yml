@@ -1,0 +1,51 @@
+name: 功能 / PR 任务
+description: 按 PR 切片的功能任务；开工前先在此领取
+title: "[PR XX] "
+labels: ["type: feat"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        本项目要求 **feat 前先写 issue、PR 必须关联并先领取**，且 **一个 PR 只做一类变更**。详见 [CONTRIBUTING.md](../CONTRIBUTING.md)。
+  - type: textarea
+    id: goal
+    attributes:
+      label: 目标
+      description: 本 PR 交付什么，为什么现在做
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: 写入范围
+      description: 允许改动的目录/文件前缀（例如 crates/webctl-web/src/transport/）
+      placeholder: |
+        - crates/xxx/src/yyy/
+        - tests/zzz/
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 验收标准
+      description: 可机械核验的清单，含门禁命令
+      value: |
+        - [ ] cargo fmt --check && cargo clippy -- -D warnings && cargo test 全绿
+        - [ ] 
+    validations:
+      required: true
+  - type: input
+    id: lines
+    attributes:
+      label: 预估行数 / 依赖
+      description: 口径见 CONTRIBUTING §2；依赖写成"阻塞于 #N"
+      placeholder: 预估 ~600 行；阻塞于 #
+    validations:
+      required: true
+  - type: checkboxes
+    id: claim
+    attributes:
+      label: 领取
+      options:
+        - label: 我已确认无人认领，并按 CONTRIBUTING 流程领取本议题
+          required: false

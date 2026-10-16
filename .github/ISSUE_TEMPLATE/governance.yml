@@ -1,0 +1,26 @@
+name: 治理 / 决策 / 调查
+description: 规则、ADR、待验证项、迁移类议题
+title: "[治理] "
+labels: ["type: governance"]
+body:
+  - type: textarea
+    id: background
+    attributes:
+      label: 背景与事实依据
+      description: 引用 docs/SURVEY.md 的具体条目；没有成文依据的要明确写"目前无成文依据"
+    validations:
+      required: true
+  - type: textarea
+    id: decision
+    attributes:
+      label: 需要作出的决定 / 产出
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 完成标准
+      value: |
+        - [ ] 
+    validations:
+      required: true

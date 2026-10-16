@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 项目计划（PLAN.md）
+    url: https://github.com/Thatgfsj/webctl/blob/main/docs/PLAN.md
+    about: 设计决策、模块划分、PR 拆分与验收门禁
+  - name: 调查证据（SURVEY.md）
+    url: https://github.com/Thatgfsj/webctl/blob/main/docs/SURVEY.md
+    about: 全部硬数据与出处的实测记录
+  - name: 贡献指南（CONTRIBUTING.md）
+    url: https://github.com/Thatgfsj/webctl/blob/main/CONTRIBUTING.md
+    about: 开工流程、1000 行口径、模块边界、门禁命令
