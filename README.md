@@ -42,15 +42,15 @@
 | **会话** | cookie 持久化、自动填表提交、CSRF、multipart、分页、登录态导入导出 | ✅ 已合并（PR 04 / 05） |
 | **文档/数据** | PDF 文本层、JSON 查询子集、HTML→文本（`pdftotext`/`pandoc`/`jq` 的内置替代） | ✅ 已合并（PR 07） |
 | **CLI** | 配置优先级、代理、输出格式、退出码、`caps`/`fetch`/`config` | ✅ 已合并（PR 10） |
-| **抽取** | 选择器 / `search` / `links` / `tables` / `forms` / `paginate` 的结构化输出 | ⏳ PR 06 |
-| **降级语义** | SPA/JS 页显式 `DEGRADED`/`UNSUPPORTED`，禁止"成功但 0 条" | ⏳ PR 09 |
-| **MCP** | rmcp server + 15 工具 schema + `SKILL.md` | ⏳ PR 11 |
-| **安全** | cookie 导出确认、信封/日志脱敏、路径与协议校验 | ⏳ PR 12 |
+| **抽取** | 选择器 / `search` / `links` / `tables` / `forms` / `paginate` 的结构化输出 | ✅ 已合并（PR 06） |
+| **降级语义** | SPA/JS 页显式 `DEGRADED`/`UNSUPPORTED`，禁止"成功但 0 条" | ✅ 已合并（PR 09） |
+| **MCP** | rmcp server + 15 工具 schema + `SKILL.md`（与 `tools/list` 强制一致） | ✅ 已合并（PR 11） |
+| **安全** | cookie 导出确认、信封/日志脱敏、路径与协议校验 | ✅ 已合并（PR 12） |
 
 工具面定稿为 **15 个内置工具**（[PLAN §3.7](docs/PLAN.md)）：
 `fetch` / `extract` / `search` / `links` / `tables` / `forms` / `fill_form` / `paginate` /
 `session` / `cookies` / `json_query` / `doc_text` / `download` / `robots` / `caps`。
-**当前 CLI 只暴露 `caps` / `fetch` / `config`**；15 个工具由 PR 11 以 MCP 工具面落地。
+**CLI 子命令**：`caps` / `fetch` / `config` / `cookies` / `mcp`；15 个工具由 MCP 工具面同时暴露（`webctl mcp --list-tools`）。
 
 <!-- 待 #68 / PR 11 合并后由 caps --json 回填：以 webctl caps --json 的真实输出（枚举 15 个工具 + 诚实可用性）替换本节的"结构 + 已实现部分"，并与 PLAN §3.7 逐项对照。 -->
 
