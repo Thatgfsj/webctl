@@ -1,7 +1,13 @@
 //! state dir 解析：CLI 与 MCP 的单一入口（PLAN v0.4 §3.3，PR 05）。
 //!
-//! 优先级：显式参数（CLI 参数） > 环境变量 WEBCTL_STATE_DIR > 用户主目录下的
-//! .webctl（HOME，Windows 回退 USERPROFILE） > 当前目录下的 .webctl。
+//! 优先级（高 → 低）：显式参数（CLI --state-dir 语义） > 环境变量
+//! WEBCTL_STATE_DIR > 用户主目录下的 .webctl（HOME，Windows 回退 USERPROFILE） >
+//! 当前目录下的 .webctl。
+//!
+//! 空值语义：显式参数为空（长度 0）、WEBCTL_STATE_DIR=""、HOME/USERPROFILE 为空
+//! 时都视为“本层未给出”，继续向下回退；最终兜底是 `./.webctl`，**任何情况下
+//! 都不会返回空路径**。config::default_state_dir() 只是本函数的薄委托，全仓
+//! 不存在第二份 state dir 拼装。
 //!
 //! 解析逻辑做成纯函数 resolve_state_dir_from，环境值由调用方传入：
 //! edition 2024 下 set_var 属 unsafe，而本 workspace 禁止 unsafe，
@@ -90,9 +96,68 @@ mod tests {
         );
     }
 
-    /// 单一入口必须与既有 Config::default 的解析一致（同一环境快照下）。
+    /// 四层优先级逐层断言：显式 > 环境变量 > HOME/.webctl > ./.webctl。
+    #[test]
+    fn four_level_priority_is_total() {
+        let explicit = Path::new("/tmp/explicit-state");
+        let env_dir = OsStr::new("/tmp/env-state");
+        let home = OsStr::new("/home/u");
+        assert_eq!(
+            resolve_state_dir_from(Some(explicit), Some(env_dir), Some(home)),
+            PathBuf::from("/tmp/explicit-state"),
+            "第 1 层：显式参数压过环境变量与 HOME"
+        );
+        assert_eq!(
+            resolve_state_dir_from(None, Some(env_dir), Some(home)),
+            PathBuf::from("/tmp/env-state"),
+            "第 2 层：环境变量压过 HOME"
+        );
+        assert_eq!(
+            resolve_state_dir_from(None, None, Some(home)),
+            PathBuf::from("/home/u").join(STATE_DIR_NAME),
+            "第 3 层：HOME/.webctl"
+        );
+        assert_eq!(
+            resolve_state_dir_from(None, None, None),
+            PathBuf::from(STATE_DIR_NAME),
+            "第 4 层：./.webctl 兜底"
+        );
+    }
+
+    /// 空串语义：WEBCTL_STATE_DIR="" 与“缺省”同解，绝不返回空路径。
+    #[test]
+    fn empty_env_is_equivalent_to_absent_and_never_empty() {
+        let home = OsStr::new("/home/u");
+        let empty = OsStr::new("");
+        assert_eq!(
+            resolve_state_dir_from(None, Some(empty), Some(home)),
+            resolve_state_dir_from(None, None, Some(home)),
+            "空的环境变量必须与未设置同解"
+        );
+        assert_eq!(
+            resolve_state_dir_from(None, Some(empty), Some(home)),
+            PathBuf::from(home).join(STATE_DIR_NAME)
+        );
+        // 显式参数为空也视为缺省。
+        assert_eq!(
+            resolve_state_dir_from(Some(Path::new("")), Some(empty), Some(home)),
+            PathBuf::from(home).join(STATE_DIR_NAME)
+        );
+        // 全部为空时兜底 ./.webctl，而不是空路径。
+        let fallback = resolve_state_dir_from(None, Some(empty), Some(empty));
+        assert_eq!(fallback, PathBuf::from(STATE_DIR_NAME));
+        assert!(!fallback.as_os_str().is_empty(), "绝不能返回空路径");
+    }
+
+    /// 单一入口必须与既有 Config::default 的解析一致（同一环境快照下），且非空。
     #[test]
     fn real_resolution_matches_config_default() {
-        assert_eq!(resolve_state_dir(None), crate::config::default_state_dir());
+        let resolved = resolve_state_dir(None);
+        assert_eq!(resolved, crate::config::default_state_dir());
+        assert_eq!(crate::config::Config::default().state_dir, resolved);
+        assert!(
+            !resolved.as_os_str().is_empty(),
+            "真实解析也绝不能返回空路径"
+        );
     }
 }
