@@ -14,7 +14,6 @@ use webctl_web::transport::FetchOptions;
 
 #[derive(Default)]
 struct Record {
-    started: Mutex<Vec<(String, Instant)>>,
     counts: Mutex<HashMap<String, usize>>,
     in_flight: AtomicUsize,
     peak_in_flight: AtomicUsize,
@@ -23,15 +22,6 @@ struct Record {
 impl Record {
     fn count(&self, path: &str) -> usize {
         *self.counts.lock().unwrap().get(path).unwrap_or(&0)
-    }
-    fn timestamps(&self, path: &str) -> Vec<Instant> {
-        self.started
-            .lock()
-            .unwrap()
-            .iter()
-            .filter(|(p, _)| p == path)
-            .map(|(_, t)| *t)
-            .collect()
     }
 }
 
@@ -91,11 +81,6 @@ fn handle(mut stream: TcpStream, record: Arc<Record>) -> std::io::Result<()> {
         *counts.entry(path.clone()).or_insert(0) += 1;
     }
     let attempt = record.count(&path);
-    record
-        .started
-        .lock()
-        .unwrap()
-        .push((path.clone(), Instant::now()));
     let now = record.in_flight.fetch_add(1, Ordering::SeqCst) + 1;
     record.peak_in_flight.fetch_max(now, Ordering::SeqCst);
 
@@ -218,14 +203,22 @@ async fn min_interval_is_enforced() {
         };
     });
 
+    // 用**客户端整体耗时**断言，而不是服务器端时间戳之差：
+    // 服务器记录的是"到达时刻"，若第一条请求的到达记录被负载推迟，间隔会被压缩
+    // （macOS CI 实测 86.48ms < 150ms 就是这种假红）。
+    // 而"从第一次调用开始到第二次调用结束"的墙钟只会变大（定时器只可能晚醒），
+    // 因此 ≥ interval 这条下界是稳的；原 bug（先预约再排队）会让第二次几乎立刻返回，
+    // 整体耗时骤降到毫秒级，照样会被抓住。
+    let started = Instant::now();
     fetcher.fetch(&server.url("/ok")).await;
     fetcher.fetch(&server.url("/ok")).await;
+    let elapsed = started.elapsed();
 
-    let stamps = server.record.timestamps("/ok");
-    assert_eq!(stamps.len(), 2);
-    let gap = stamps[1].duration_since(stamps[0]);
-    // 负载下单点余量给 25%；原 bug（先预约再排队）会造成微秒级间隔，仍会被抓住。
-    assert!(gap >= Duration::from_millis(150), "间隔只有 {gap:?}");
+    assert_eq!(server.record.count("/ok"), 2);
+    assert!(
+        elapsed >= Duration::from_millis(180),
+        "两次请求整体耗时只有 {elapsed:?}（min_interval=200ms）"
+    );
 }
 
 /// POLITE-01：每主机并发不超过上限。

@@ -33,7 +33,7 @@ html2text = "0.17.3"
 roxmltree = "0.21.1"
 
 [dev-dependencies]
-tokio.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "test-util"] }
 
 [features]
 # L0 离线 lane（docs/TESTING.md §1）：`cargo test --features offline`。
