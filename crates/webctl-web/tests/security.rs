@@ -310,8 +310,10 @@ fn sec_11_file_arguments_are_canonicalized() {
         resolve_file_argument(&root, Path::new("../escape.json")),
         Err(ArgumentError::Unsafe(_))
     ));
+    // 平台绝对路径（Windows 的 "/etc/passwd" 没有盘符、不算绝对）。
+    let absolute = root.join("absolute.json");
     assert!(matches!(
-        resolve_file_argument(&root, Path::new("/etc/passwd")),
+        resolve_file_argument(&root, &absolute),
         Err(ArgumentError::Absolute { .. })
     ));
 

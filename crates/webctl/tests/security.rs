@@ -169,16 +169,21 @@ fn sec_03_export_file_is_mode_600() {
     );
     assert_eq!(out.code, 0, "{}{}", out.stdout, out.stderr);
     let value = parse_json(&out);
-    assert_eq!(value["data"]["mode"], serde_json::json!(0o600), "{value}");
+    // 非 Unix 没有 POSIX mode：必须显式 null，绝不能伪装成“已收紧 0600”。
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
+        assert_eq!(value["data"]["mode"], serde_json::json!(0o600), "{value}");
         let mode = std::fs::metadata(state.path().join("cookies.json"))
             .expect("exported file")
             .permissions()
             .mode()
             & 0o777;
         assert_eq!(mode, 0o600);
+    }
+    #[cfg(not(unix))]
+    {
+        assert!(value["data"]["mode"].is_null(), "{value}");
     }
 }
 

@@ -202,8 +202,10 @@ mod tests {
             resolve_file_argument(&root, Path::new("../escape.json")),
             Err(ArgumentError::Unsafe(_))
         ));
+        // 用平台绝对路径（Windows 的 "/etc/passwd" 没有盘符、不算绝对）。
+        let absolute = root.join("absolute.json");
         assert!(matches!(
-            resolve_file_argument(&root, Path::new("/etc/passwd")),
+            resolve_file_argument(&root, &absolute),
             Err(ArgumentError::Absolute { .. })
         ));
         std::fs::remove_dir_all(&root).ok();
