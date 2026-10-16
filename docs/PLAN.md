@@ -206,10 +206,10 @@ webctl/
 |---|---|---|---|---|
 | 01 | workspace 骨架、envelope/错误码、`caps`（内置能力自检）、CI | 450 | — | `webctl caps --json` 报告内置能力；三平台 `cargo build` 绿 |
 | 02 | 内置取回：wreq 封装、重定向链、cookie jar、编码、内容类型路由 | 700 | 01 | 多编码/压缩/重定向 golden 全绿 |
-| 03 | 解析：正文、链接、表格、表单、markdown | 800 | 02 | 离线 fixture golden 全绿 |
+| 03 | [#3](https://github.com/Thatgfsj/webctl/issues/3) | [#54](https://github.com/Thatgfsj/webctl/pull/54) | 已合并 | `5afc240` | 解析层；两轮否决（XML 深嵌套栈溢出 → 8MiB 专用栈线程；冲突致 CI 不触发 + `ContentKind::Text` 未覆盖）后通过 |
 | 04 | 协议级会话引擎：cookie 持久化、表单提交、CSRF、multipart | 700 | 02 | 本地表单站「登录→翻页→提交」端到端断言 |
-| 05 | 会话与状态：state dir、文件锁、TTL、CLI/MCP 共享 | 500 | 04 | 并发/过期/损坏三类用例全绿 |
-| 06 | 抽取引擎：`extract`/`search`/`links`/`tables`/`forms` 结构化输出与截断上限 | 700 | 03 | 结构化路径与上下文断言；超限带截断标记 |
+| 05 | [#34](https://github.com/Thatgfsj/webctl/issues/34) | [#63](https://github.com/Thatgfsj/webctl/pull/63) | **修复中** | — | state dir/锁/TTL；审阅否决：`sessions` 子目录 symlink 可越界（`purge_expired` 删到 state dir 外）+ state dir 未真正单一入口 |
+| 06 | [#35](https://github.com/Thatgfsj/webctl/issues/35) | — | **实现中** | — | 抽取引擎；依赖 PR 03 已清空 |
 | 07 | 文档与数据内置：PDF 文本层、`json_query`、格式转换 | 600 | 03 | PDF 文本层用例；扫描件 `UNSUPPORTED` |
 | 08 | 礼貌与限速：robots、并发/间隔上限、退避、`BLOCKED` 识别 | 500 | 02 | 限速生效；拦截页归类为 `BLOCKED` |
 | 09 | SPA/JS 降级语义：检测与 `DEGRADED` + `UNSUPPORTED` 传播 | 400 | 06 | JS 页必须 `DEGRADED`，不得返回"0 条成功" |
@@ -222,7 +222,7 @@ webctl/
 ### 5.2.1 交付记录（滚动更新）
 
 > 依据：`gh pr list --state merged` 的真实 merge sha（squash 提交）+ 各 PR 的**独立审阅**结论。
-> 最后更新：2026-10-16（合并 PR 13 后）。**"已合并"的含义是：门禁三平台 CI 绿 + 独立审阅者复核通过并合并。**
+> 最后更新：2026-10-16（合并 PR 03 解析层后）
 
 | PR | 议题 | PR | 状态 | merge sha | 备注 |
 |---|---|---|---|---|---|
@@ -248,10 +248,11 @@ webctl/
 | [#53](https://github.com/Thatgfsj/webctl/pull/53) | `.gitattributes`：测试 fixture 逐字节保真（修 Windows CRLF 改写 PDF） | `6184419` |
 | [#57](https://github.com/Thatgfsj/webctl/pull/57) | 旧仓迁移映射表（`docs/MIGRATION.md`） | `7f9f76a` |
 | [#58](https://github.com/Thatgfsj/webctl/pull/58) / [#61](https://github.com/Thatgfsj/webctl/pull/61) | 内容类型分支文档同步 / TESTING §6 用例登记表回填 | `f115201` / `4c958ea` |
-| [#64](https://github.com/Thatgfsj/webctl/pull/64) | 修扫描器两处误报（恢复 main 绿） | 审阅中 |
+| [#64](https://github.com/Thatgfsj/webctl/pull/64) | 修扫描器两处误报（恢复 main 绿） | `a826b9c` |
+| [#67](https://github.com/Thatgfsj/webctl/pull/67) | 回环判定改为真地址 + 放宽总跨度断言余量（`127.0.0.1.evil.com` 不再被放行） | `849580f` |
 
 **合并后 main 的本地复核**（Lead 每次合并后执行，因为"各 PR 分支绿 ≠ 合并后绿"）：
-`cargo fmt --check` 通过、`clippy -D warnings` 0 问题、16 个测试套件 / 216 用例全绿、
+`cargo fmt --check` 通过、`clippy -D warnings` 0 问题、**241 用例全绿**（含 PR 03 的 parse 25 条）、
 `cargo test --features offline` 全绿。CI 三平台（ubuntu/macos/windows）绿。
 
 ### 5.3 验收锚点（v0.4 重定）
