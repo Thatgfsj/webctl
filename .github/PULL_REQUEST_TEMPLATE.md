@@ -5,41 +5,48 @@
 
 ## 变更类别（本 PR 只做哪一类）
 
-- [ ] 协议类型（`webctl-cdp-types`）
-- [ ] CDP 底座（传输/分发/事件/target）
-- [ ] T3 语义层（快照/交互/截图/网络）
-- [ ] T0/T1（HTTP/解析/会话引擎）
-- [ ] T2 文档桥
-- [ ] MCP 工具面
+- [ ] 取回（HTTP / 重定向链 / cookie / 编码 / 内容类型路由）
+- [ ] 解析（DOM / 正文 / 链接 / 表格 / 表单 / markdown）
+- [ ] 会话（填表提交 / CSRF / multipart / 分页 / 会话状态）
+- [ ] 文档与数据（PDF 文本层 / json_query / 格式转换）
+- [ ] 抽取与接口（extract / search / CLI / MCP 工具面）
+- [ ] 安全与凭据（脱敏 / 文件权限 / 路径与协议校验）
 - [ ] 测试基建 / CI
 - [ ] 文档与治理
 
 ## 行数口径（CONTRIBUTING §2）
 
-```
+```text
 $ git diff --shortstat <base>...HEAD
-# additions + deletions = 
+# additions + deletions =
 ```
 
 不计入口径的文件实际行数（必须列明，无则写"无"）：
 
 | 文件/目录 | 实际行数 | 类别 |
 |---|---|---|
-| | | 协议类型 / 纯文档 / fixture |
+| | | 纯文档 / 测试 fixture |
 
-- [ ] 计入行数 ≤1000，或已在关联 issue 中取得显式批准（附批准链接）
+- [ ] 数字已如实申报（启动期 P0 该门禁不阻塞合并，见 #41；超出 1000 行请附说明）
 
 ## 门禁命令执行结果
 
 - [ ] `cargo fmt --check`
-- [ ] `cargo clippy -- -D warnings`
+- [ ] `cargo clippy --all-targets -- -D warnings`
 - [ ] `cargo test`
-- [ ] 无浏览器 lane（如涉及）
-- [ ] mock-cdp lane（如涉及）
-- [ ] 真机 E2E（如涉及）
+- [ ] 真站 smoke（`./tests/e2e/run-real.sh`，如涉及；需遵守目标站 robots）
+- [ ] 体积基线（如涉及）
 未执行项与原因：
+
+> 测试必须**离线**：只连 `127.0.0.1` 上的本地 fixture/服务，不得访问外网。L0 离线 lane（`--features offline`）由 PR 13 落地，此前由各测试自身保证。
+
+## 硬约束自查
+
+- [ ] 零子进程（代码中无 `std::process` / `Command`）
+- [ ] 无 `unsafe`
+- [ ] 页面内容一律 `trust: untrusted_page_content`
 
 ## 降级与信任语义（如涉及）
 
-- `meta.tier` / `code` / `meta.degraded_from` 的表现：
+- `meta.engine` / `code` / `meta.degraded_from` 的表现：
 - 是否引入静默降级：否（本项目禁止静默降级）
