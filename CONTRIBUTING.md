@@ -19,7 +19,7 @@
 机械口径：
 
 - **计入** = `git diff --shortstat <base>...HEAD` 的 `additions + deletions`。
-- **不计入**：`crates/webctl-cdp-types/` 下生成或批量录入的协议类型文件、`docs/` 纯文档、测试 fixture 数据文件。
+- **不计入**：`docs/` 纯文档、测试 fixture 数据文件。（生成产物如 `Cargo.lock` 的归属见议题 #41，尚未定案。）
 - **不计入 ≠ 不申报**：PR 描述必须写明这些文件的实际行数，避免其成为后门。
 - 越线需在关联 issue 中显式批准；批准记录随 PR 保留。
 
@@ -48,7 +48,7 @@ crates/
 | 阶段 | 命令 | 通过标准 |
 |---|---|---|
 | 每 PR | `cargo fmt --check && cargo clippy -- -D warnings && cargo test` | 全绿 |
-| L0 离线 lane | `cargo test --features offline` | 取回/解析/会话/文档用例全绿（不依赖外网） |
+| L0 离线 lane | `cargo test --features offline`（该 feature 由议题 #22 落地；此前离线性由各测试自身的 `127.0.0.1` fixture 保证） | 取回/解析/会话/文档用例全绿（不依赖外网） |
 | 真站 smoke | `./tests/e2e/run-real.sh` | 静态锚点取到 10 条；JS 页返回 `DEGRADED` |
 | 体积基线 | `cargo build --release --target x86_64-unknown-linux-musl` | 不超 P0 基线，防回归 |
 | PR 行数 | `git diff --shortstat` 对照 §2 | ≤1000 或已获批准 |
@@ -64,6 +64,6 @@ crates/
 2. `git diff --shortstat` 结果，以及不计入口径文件的实际行数。
 3. 变更类别（本 PR 只做哪一类）。
 4. 已跑的门禁命令与结果；未跑的要写明原因。
-5. 涉及降级语义时，说明 `meta.tier` / `code` / `degraded_from` 的表现。
+5. 涉及降级语义时，说明 `meta.engine` / `code` / `meta.degraded_from` 的表现。
 
 模板见 [.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md)。
