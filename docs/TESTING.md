@@ -3,7 +3,7 @@
 | 项 | 值 |
 |---|---|
 | 版本 | **v2（2026-10-16）**，对应 [PLAN v0.4](PLAN.md) |
-| 状态 | 草案：用例先冻结，结果随实现回填 |
+| 状态 | **回填中**：用例先冻结，结果随实现回填。已回填 PR 01/02/04/07/08（见 §7）；PR 03/10/13 待其 PR 合并后回填 |
 | 依据 | [PLAN §2/§5/§7](PLAN.md)、[SURVEY §1.4/§2.4/§2.5](SURVEY.md)、[议题 #30](https://github.com/Thatgfsj/webctl/issues/30) |
 | 用例总数 | **201**（17 个域，编号唯一，见 §2） |
 | v1 → v2 | v1 是 v0.3 时代（含 T2/T3）的草稿，**随方向变更整体重写**：删除 CDP / 浏览器 / 外部 CLI 全部用例，新增会话状态、抽取引擎、文档内置、礼貌限速、降级语义、资源并发等域 |
@@ -370,7 +370,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 | 01 骨架 + 信封 + caps + CI | ENV-01…11、CAPS-01…05,07 | ENV-04 禁止静默降级、ENV-05 封闭集、CAPS-02 无外部依赖 |
 | 02 取回 | HTTP-01…18,20、RES-02,04,09 | HTTP-02 GBK、HTTP-09 重定向环、HTTP-17 大响应 |
 | 03 解析 | PARSE-01…11,13…16 | PARSE-03 畸形 HTML、PARSE-09 表单、PARSE-14 预算 |
-| 04 会话引擎 | SESS-01…09,11,13,14、FORM-01…08,10…12 | SESS-04 CSRF、SESS-08 分页、FORM-02 批量填表 |
+| 04 会话引擎 | SESS-01…09,11,13,14、FORM-01…08,10…12；**额外交付 SESS-15、FORM-13…19**（见 §7.3） | SESS-04 CSRF、SESS-08 分页、FORM-02 批量填表 |
 | 05 会话与状态 | SESS-12、STATE-01…05,07…09 | STATE-02 文件锁、STATE-05 损坏文件、STATE-01 权限 |
 | 06 抽取引擎 | PARSE-12、EXTRACT-01…17、FORM-09 | EXTRACT-04 截断、EXTRACT-10 表格、EXTRACT-13 稳定性语义 |
 | 07 文档与数据 | DOC-01…12 | DOC-03 扫描件 UNSUPPORTED、DOC-06 json 路径、DOC-10 上限 |
@@ -408,10 +408,50 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 | 极端大文件/OOM | CI 资源有限 | 用阈值断言模拟，真实极限留手工验证 |
 | 人类可读性/文案质量 | 无法机械判定 | 由评审把关，不进本清单 |
 
-## 6. 维护规则
+## 6. 实现回填（真实用例登记表）
+
+> 本节兑现表头"结果随实现回填"的承诺。**测试名取自 main 上的真实函数名**，供审阅者机械核对；
+> 新增用例必须同时在此登记（见 §6 维护规则）。
+
+### 6.1 PR 01 骨架（议题 #40）
+
+`crates/webctl-core/` 单元测试 **13 条**：`ok_envelope_shape_and_trust`、`failure_envelope_shape`、`degradation_must_be_explicit`、`unknown_fields_are_tolerated`、`unknown_engine_is_rejected`、`reports_all_domains_in_order`、`report_never_mentions_external_tools`、`offline_disables_fetch_only`、`defaults_are_conservative`、`output_format_strings_are_stable`、`code_set_and_strings_are_frozen`、`unknown_code_is_rejected`、`ok_and_degradation_are_disjoint`。服务 ENV-01…11、CAPS-01…05,07。
+
+### 6.2 PR 02 取回（议题 #1）
+
+`crates/webctl-web/tests/transport.rs` **21 条**：`http_01_utf8_body_matches_fixture`、`http_02_gbk_decodes`、`http_03_shift_jis_decodes`、`http_04_missing_charset_falls_back_deterministically`、`http_05_gzip_is_decompressed`、`http_06_brotli_is_decompressed`、`http_07_three_hop_redirect_chain_is_visible`、`http_08_relative_location_is_resolved`、`http_09_redirect_loop_terminates_with_error`、`http_10_cookie_jar_replays_cookie`、`http_11_cookie_constraints_are_enforced`、`http_12_timeout_maps_to_timeout_and_releases`、`http_13_connection_failure_is_network`、`http_14_http_error_statuses_are_blocked`、`http_15_content_type_routing_hits_five_branches`、`http_16_invalid_url_never_connects`、`http_17_large_response_is_truncated_with_limit`、`http_18_binary_is_not_parsed_as_text`，外加 `cookie_snapshot_roundtrips_through_json`、`envelope_shape_and_trust_hold`、`elapsed_ms_tracks_wall_clock`。服务 HTTP-01…18,20、RES-02,04,09。
+
+### 6.3 PR 04 会话引擎（议题 #4）
+
+`crates/webctl-web/tests/session.rs` **33 条** = 15 SESS + 17 FORM + 1 fixture 自检：
+
+- **SESS**：`sess_01_login_success`、`sess_02_not_logged_in_is_session_lost`、`sess_03_cookie_persists_across_engines`、`sess_04_csrf_is_extracted_and_refilled`、`sess_05_csrf_rotation_is_refetched`、`sess_06_hidden_fields_are_preserved`、`sess_07_form_10_multipart_upload`、`sess_08_pagination_sums_items`、`sess_09_loop_pagination_stops_with_limit`、`sess_10_spa_degrades`、`sess_11_export_import_session_state`、`sess_12_invalid_session_name_is_rejected`、`sess_13_redirect_login_keeps_session`、`sess_14_concurrent_requests_share_session`、**`sess_15_paginate_spa_stays_degraded`**（首轮审阅否决后补：分页必须传播 DEGRADED，不得吞成 OK+0 条）。
+- **FORM**：`form_01_single_field`、`form_02_multiple_fields_at_once`、`form_03_unicode_value`、`form_04_select_value`、`form_05_checkbox_and_radio_semantics`、`form_06_hidden_field_default`、`form_07_unknown_field_is_error`、`form_08_missing_required`、`form_11_landing_url_and_status`、`form_12_duplicate_submission_refused`，**新增** `form_13_duplicate_checkbox_first_checked_only`、`form_14_duplicate_checkbox_second_checked_only`、`form_15_duplicate_text_inputs_keep_order`、`form_16_select_multiple_submits_all_selected`、`form_17_307_preserves_post_body`、`form_18_308_preserves_post_body`、`form_19_303_switches_to_get_without_body`（首轮审阅否决后补：同名多值与 307/308 丢 body）。
+- 自检：`fixture_multipart_parser_sanity`。
+
+### 6.4 PR 07 文档与数据（议题 #36）
+
+`crates/webctl-web/tests/doc.rs` **13 条通过 + 1 条 ignored**：`doc_01_text_pdf_extracts_keywords`、`doc_02_chinese_pdf_is_not_mojibake`、`doc_03_scanned_pdf_is_unsupported`、`doc_04_encrypted_pdf_is_explicit_error`、`doc_05_corrupt_pdf_is_parse_error`、`doc_06_json_path_selection`、`doc_07_json_filter_and_projection`、`doc_08_invalid_expression_errors`、`doc_09_deferred_boundary_is_explicit`、`doc_10_oversized_input_is_limit`、`doc_11_unknown_format_is_unsupported_with_diagnostic`、`doc_pdf_extract_panic_is_isolated_as_parse`（补：pdf-extract panic 必须隔离为 PARSE）、`four_outcomes_have_distinct_codes`。
+**ignored**：`doc_09_acceptance_after_pr03` —— DOC-09（HTML→文本）依赖 PR 03，故意保持失败状态作为"未达成"的机器证据；PR 03 合并后去 ignore 即成为验收（交接见议题 #59）。
+
+### 6.5 PR 08 礼貌与限速（议题 #37）
+
+- `crates/webctl-web/tests/politeness.rs` **8 条**：`robots_disallow_blocks_without_requesting`、`robots_can_be_disabled_and_is_recorded`、`min_interval_is_enforced`、`concurrency_is_capped`、`retry_after_is_respected`、`interception_is_blocked_without_retry_storm`、`server_error_is_blocked`、`network_errors_retry_within_budget`。
+- `crates/webctl-web/src/politeness/**` 单元 **17 条**，含首轮审阅否决后补的三条回归：`queued_requests_still_keep_min_interval`（排队场景最小间隔）、`consecutive_user_agent_lines_share_one_group`、`longest_matching_agent_token_wins`。
+
+### 6.6 待回填（PR 已开未合并）
+
+| PR | 已交付用例（实现者报告，合并后回填测试名） |
+|---|---|
+| 03 解析（#54） | `tests/parse.rs` 23 条，含 XML 深度预检对抗用例（本轮修 XML 栈溢出后新增） |
+| 10 CLI（#60） | `cargo test` 133 passed，含 cli 集成 13 条（CLI-01…11）；CLI-12 属 PR 14 |
+| 13 测试基建（#55） | golden 2 / http_fixture 9 / offline_lane 4+2 ignored / resource 10；含三条"扫描器不空转"永久护栏 |
+
+## 7. 维护规则
 
 1. 新增用例必须同时写 **通道** 与 **归属 PR**，否则不合并。
 2. 删除用例或放宽期望，必须单独开议题并说明理由（不允许在实现 PR 里顺手改）。
 3. 用例编号**不复用**：删除后编号作废，新用例取下一个序号。
 4. 每条实现的用例在 PR 描述里勾选并贴命令输出；未落地的一律标 ⬜ 未落地。
 5. 本清单与 [PLAN §5.2](PLAN.md) 的 PR 清单同步演进：PLAN 增删 PR 时，本清单的 §3 表必须同步。
+6. **每次新增用例，必须同时在 §6「实现回填」登记测试名**（含它服务哪条编号）。审阅者会拿 §3+§6 当验收依据：只写在代码里、不登记到这里的用例，等于没交付。
