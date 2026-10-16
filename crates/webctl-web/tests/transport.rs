@@ -503,3 +503,21 @@ async fn elapsed_ms_tracks_wall_clock() {
         "elapsed_ms={measured} wall={wall_ms}"
     );
 }
+
+/// CLI-03 的传输层：显式 proxy 生效；None 时走既有直连路径。
+#[tokio::test]
+async fn explicit_proxy_routes_request_through_proxy() {
+    let target = "http://proxy-target.invalid/hello";
+    let proxy = Server::start(vec![(target, Route::html("via proxy"))]).await;
+    let options = FetchOptions {
+        proxy: Some(proxy.base()),
+        ..FetchOptions::default()
+    };
+    let env = fetch(target, &options).await;
+    assert!(env.ok, "{}", env.error);
+    assert_eq!(proxy.count(target), 1, "显式代理必须收到绝对形式的请求");
+    assert_eq!(
+        env.data.expect("data").content.text.as_deref(),
+        Some("via proxy")
+    );
+}
