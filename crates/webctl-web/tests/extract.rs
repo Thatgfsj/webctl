@@ -406,7 +406,9 @@ fn extract_14_large_page_is_bounded() {
     let result = env.data.expect("extract data");
     assert_eq!(result.matches.len(), 10);
     assert!(result.matches.len() <= opts.max_results);
-    assert!(wall < 5_000, "1MB extract took {wall} ms");
+    // 挂死守卫（非性能门禁）：复审在重载下实测 1MB 抽取 555–1322ms，原 5000ms 界
+    // 只有 ~3.8–9× 余量，属同类假红风险；精确性能归发布物基线/bench（TESTING §1 L2）。
+    assert!(wall < 30_000, "1MB extract took {wall} ms（挂死级）");
 }
 
 /// EXTRACT-15：extract 结果与 PARSE-* 层断言一致。
@@ -602,7 +604,8 @@ fn extract_17_deep_descendant_scan_is_bounded() {
     assert_valid(&env);
     assert!(!env.ok, "{}", env.error);
     assert_eq!(env.code, ErrorCode::Timeout);
-    assert!(wall < 5_000, "scan must be cut at the budget: {wall} ms");
+    // 同上：本条证明「扫描在预算处被截断」，用宽松守卫避免负载假红。
+    assert!(wall < 30_000, "scan must be cut at the budget: {wall} ms");
 }
 
 /// EXTRACT-08（补）：为在推进中检查预算，search 用 find_at 手动展开 find_iter；
