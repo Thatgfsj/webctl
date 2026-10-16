@@ -22,6 +22,13 @@ serde_json = "1.0"
 webctl-core = { path = "crates/webctl-core" }
 webctl-web = { path = "crates/webctl-web" }
 webctl-mcp = { path = "crates/webctl-mcp" }
+# PR 02 取回层：HTTP 客户端、字符解码、URL 解析与流式读取
+encoding_rs = "0.8"
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "net", "io-util", "time", "sync"] }
+url = "2.5"
+# wreq 0.16.1：默认 BoringSSL 后端；gzip/brotli/deflate 负责内容编码解压，stream 允许带上限的分块读取
+wreq = { version = "0.16.1", features = ["gzip", "brotli", "deflate", "stream"] }
 
 # 运行时零外部进程（PLAN v0.4 §3.1）：workspace 内禁止 unsafe。
 [workspace.lints.rust]
