@@ -98,6 +98,11 @@ fn state_01_directory_0700_and_files_0600() {
 
 /// STATE-02：两个独立写者并发写同一会话不损坏；后到者明确等待，绝不静默丢弃。
 #[test]
+/// 不变量：**并发写不得损坏**（最终文件完整可解析、只含一次完整写入、无 .tmp 残留）。
+///
+/// **不**断言「每一次写都成功」：锁等待是有界的，争抢激烈时 `LockTimeout` 是**设计内结果**
+/// （STATE-03 单独锁定该行为）。原写法把「不损坏」与「每次都赢」混在一起断言，
+/// 在慢 runner 上随机假红（见议题 #85）。这里只容忍 `LockTimeout`，其它错误一律 panic。
 fn state_02_concurrent_writers_do_not_corrupt() {
     let tmp = temp_state("state02");
     let store = tmp.store();
@@ -111,16 +116,34 @@ fn state_02_concurrent_writers_do_not_corrupt() {
     for index in 0..writers {
         let store = store.clone();
         handles.push(thread::spawn(move || {
+            let mut saved = 0usize;
+            let mut lock_timeouts = 0usize;
             for round in 0..rounds {
                 let mut session = store.new_state("contested").expect("state");
                 session.note_origin(&format!("http://127.0.0.1/{index}/{round}"));
-                store.save(&session).expect("并发写不得失败");
+                match store.save(&session) {
+                    Ok(_) => saved += 1,
+                    // 有界锁等待超时是**设计内的结果**（争抢激烈时等待者放弃，见 STATE-03），
+                    // 不是损坏 —— 本用例要证明的是「不得损坏」，不是「每次都赢」。
+                    Err(SessionError::LockTimeout(_)) => lock_timeouts += 1,
+                    // 其它任何错误都是真问题，绝不放过。
+                    Err(other) => panic!("并发写出现非锁错误：{other:?}"),
+                }
             }
+            (saved, lock_timeouts)
         }));
     }
+    let (mut saved, mut lock_timeouts) = (0usize, 0usize);
     for handle in handles {
-        handle.join().expect("writer thread");
+        let (saved_here, timeouts_here) = handle.join().expect("writer thread");
+        saved += saved_here;
+        lock_timeouts += timeouts_here;
     }
+    eprintln!("并发写结果：saved={saved} lock_timeouts={lock_timeouts}");
+    assert!(
+        saved > 0,
+        "至少要成功写入一次，否则本用例没有验证到任何东西"
+    );
 
     let loaded = store.load("contested").expect("最终文件必须可解析");
     assert_eq!(loaded.name, "contested");
