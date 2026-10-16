@@ -1,0 +1,4 @@
+# brotli("压缩后的正文 brotli ok")
+# 来源：crates/webctl-web/tests/transport.rs 的 BROTLI_BYTES（保持字节一致）
+8b 0d 80 e5 8e 8b e7 bc a9 e5 90 8e e7 9a 84 e6 ad a3 e6 96 87 20 62 72 6f
+74 6c 69 20 6f 6b 03

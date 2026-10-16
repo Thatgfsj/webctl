@@ -28,5 +28,12 @@ tokio = { workspace = true, features = ["time", "sync"] }
 [dev-dependencies]
 tokio.workspace = true
 
+[features]
+# L0 离线 lane（docs/TESTING.md §1）：`cargo test --features offline`。
+# 打开后测试仍然只访问 127.0.0.1 fixture 与本地文件；该 feature 不是一个"放行网络"
+# 开关，而是离线通道的显式标记，让 CI 与本地都能用同一条命令区分 L0 与默认门禁。
+# 禁止静默降级：feature 关闭时也不得访问外网（见 tests/offline_lane.rs）。
+offline = []
+
 [lints]
 workspace = true
