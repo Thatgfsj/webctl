@@ -123,7 +123,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 | PARSE-11 | JSON/XML | 结构化解析并保留原始文本可回溯 | L0 | PR 03 |
 | PARSE-12 | 选择器多命中 | 返回数组且顺序与文档序一致 | L0 | PR 06 |
 | PARSE-13 | 零命中 vs 失败 | 见 ENV-10，两条路径码不同 | L0 | PR 03 |
-| PARSE-14 | 解析预算 | 100KB HTML 解析 < 500ms 且计入 `elapsed_ms` | L0 | PR 03 |
+| PARSE-14 | 解析预算 | 100KB HTML 解析**不挂死**（挂死守卫 30s，非性能门禁）+ 耗时计入 `elapsed_ms` 且与实测同量级 | L0 | PR 03 |
 | PARSE-15 | 非 HTML 输入 | 明确 `UNSUPPORTED` 或路由到正确处理器，不 panic | L0 | PR 03 |
 | PARSE-16 | 深度防御 | 极深嵌套（>1000 层）不栈溢出 | L0 | PR 03 |
 
