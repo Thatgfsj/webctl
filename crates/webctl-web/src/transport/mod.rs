@@ -35,8 +35,8 @@ pub const DEFAULT_MAX_BODY_BYTES: usize = 8 * 1024 * 1024;
 
 /// 取回参数。
 ///
-/// `proxy` 有意不暴露：代理是 PR 10 的配置面，本 PR 固定 `no_proxy`，
-/// 保证离线测试不被环境代理劫持。
+/// `proxy` 为显式代理 URL；`None` 时固定 `no_proxy`（直连），
+/// 保证离线测试不被宿主环境代理劫持。代理值来自 PR 10 的配置层。
 #[derive(Debug, Clone)]
 pub struct FetchOptions {
     /// 单次请求超时（含连接与读取）。
@@ -53,6 +53,8 @@ pub struct FetchOptions {
     pub follow_redirects: bool,
     /// 跨请求共享的 cookie jar。
     pub cookie_jar: Option<Arc<CookieJar>>,
+    /// 显式代理 URL；`None` 表示不使用代理（直连）。
+    pub proxy: Option<String>,
 }
 
 impl Default for FetchOptions {
@@ -65,6 +67,7 @@ impl Default for FetchOptions {
             user_agent: None,
             follow_redirects: true,
             cookie_jar: None,
+            proxy: None,
         }
     }
 }
@@ -386,8 +389,17 @@ fn build_body(
 fn build_client(options: &FetchOptions) -> Result<wreq::Client, TransportError> {
     let mut builder = wreq::Client::builder()
         .redirect(Policy::none())
-        .no_proxy()
         .timeout(options.timeout);
+    builder = match &options.proxy {
+        Some(proxy) => {
+            let proxy = wreq::Proxy::all(proxy.as_str()).map_err(|error| {
+                TransportError::new(ErrorCode::BadUrl, format!("invalid proxy url: {error}"))
+            })?;
+            builder.proxy(proxy)
+        }
+        // 无显式代理时固定直连，避免被宿主环境代理劫持（离线测试要求）。
+        None => builder.no_proxy(),
+    };
     if let Some(user_agent) = &options.user_agent {
         builder = builder.user_agent(user_agent.as_str());
     }

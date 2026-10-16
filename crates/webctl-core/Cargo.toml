@@ -10,6 +10,8 @@ authors.workspace = true
 
 [dependencies]
 serde.workspace = true
+# PR 10：配置文件（TOML）解析
+toml = "0.8"
 
 [dev-dependencies]
 serde_json.workspace = true

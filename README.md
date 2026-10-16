@@ -81,6 +81,18 @@ cargo run -- caps --json
 
 GitHub Actions 的 ubuntu / macOS / Windows 镜像**自带**上述依赖，无需额外步骤（main 上三平台 CI 全绿）。
 
+## 配置与 CLI
+
+CLI 配置按 **CLI 参数 > 环境变量 > 配置文件 > 内置默认** 合并。代理只认 `WEBCTL_PROXY` / 配置文件 `proxy`；宿主 `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` 一律忽略，未配置即直连。JSON 输出恒为单行，错误码 → 退出码为稳定映射。
+
+```bash
+webctl caps --json
+webctl --config ./webctl.toml fetch https://example.com/
+webctl --offline caps
+```
+
+环境变量清单、配置文件格式与完整退出码表见 [docs/CONFIGURATION.md](docs/CONFIGURATION.md)。
+
 ## 建设路线
 
 路线图按 PR 切片，每个 PR 一个 issue（先领 issue 再动手）：
