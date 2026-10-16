@@ -27,7 +27,8 @@ use super::form::{self, Form, FormFill};
 use super::html;
 use super::pagination::{self, NextLink};
 use super::spa::{self, SpaSignal};
-use super::state::{SessionError, SessionState, SessionStore};
+use super::state::{SessionError, SessionState};
+use super::store::SessionStore;
 
 /// 默认分页上限。
 pub const DEFAULT_MAX_PAGES: usize = 20;
@@ -122,7 +123,8 @@ impl std::fmt::Debug for SessionEngine {
 impl SessionEngine {
     /// 用默认 state dir 新建会话引擎。
     pub fn new(name: &str) -> Result<Self, SessionError> {
-        let store = SessionStore::new(webctl_core::config::default_state_dir());
+        // state dir 走核心层单一入口（CLI/MCP 共用同一条解析路径）。
+        let store = SessionStore::from_state_dir(None);
         Self::with_store(name, store)
     }
 

@@ -77,7 +77,11 @@ mod tests {
     #[test]
     fn empty_values_fall_through_to_cwd() {
         assert_eq!(
-            resolve_state_dir_from(Some(Path::new("")), Some(OsStr::new("")), Some(OsStr::new(""))),
+            resolve_state_dir_from(
+                Some(Path::new("")),
+                Some(OsStr::new("")),
+                Some(OsStr::new(""))
+            ),
             PathBuf::from(STATE_DIR_NAME)
         );
         assert_eq!(

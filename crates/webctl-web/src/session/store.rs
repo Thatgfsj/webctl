@@ -1,0 +1,296 @@
+//! 会话落盘存储：state dir + advisory 文件锁 + TTL + 权限 0600（PR 05 / #34）。
+//!
+//! 序列化、导入导出与名字校验复用 session::state 的 SessionState 与
+//! validate_session_name；本模块只负责“怎么安全地落盘/读回”。
+//!
+//! 并发模型：每个会话一个 <sessions>/.<name>.lock，使用 webctl_core::state 的
+//! flock 语义 advisory 锁。锁属于 open file description，因此同一进程内的两个
+//! 独立 open（两个线程、两把句柄）也真实互斥；跨进程由同一内核锁语义保证。
+//! 本实现与测试都不创建子进程（零子进程硬约束）：真正多进程场景由同一把锁
+//! 的语义覆盖，进程被杀时内核在 fd 关闭时自动释放锁，不会留下死锁。
+//!
+//! 原子写：先写同目录临时文件并 fsync，再 rename 覆盖目标；临时文件与目标文件
+//! 权限均为 0600。写入被中断只会留下临时文件，绝不会被当成会话读取。
+
+use std::fs;
+use std::io::Write as _;
+use std::path::{Path, PathBuf};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+use webctl_core::state as core_state;
+use webctl_core::state::{DEFAULT_LOCK_WAIT, FileLock, LockError, PathError};
+
+use super::state::{
+    DEFAULT_TTL, SESSION_FILE_VERSION, SessionError, SessionState, validate_session_name,
+};
+
+/// 会话存储：所有文件都落在 root/sessions 下。
+#[derive(Debug, Clone)]
+pub struct SessionStore {
+    root: PathBuf,
+    ttl: Duration,
+    lock_wait: Duration,
+}
+
+impl SessionStore {
+    /// 以默认 TTL 创建存储。
+    pub fn new(root: impl Into<PathBuf>) -> Self {
+        Self::with_ttl(root, DEFAULT_TTL)
+    }
+
+    /// 指定 TTL。
+    pub fn with_ttl(root: impl Into<PathBuf>, ttl: Duration) -> Self {
+        Self {
+            root: root.into(),
+            ttl,
+            lock_wait: DEFAULT_LOCK_WAIT,
+        }
+    }
+
+    /// 用核心层的单一入口解析 state dir（CLI 与 MCP 共用同一条路径）。
+    pub fn from_state_dir(explicit: Option<&Path>) -> Self {
+        Self::new(core_state::resolve_state_dir(explicit))
+    }
+
+    /// 调整锁等待上限。
+    pub fn with_lock_wait(mut self, wait: Duration) -> Self {
+        self.lock_wait = wait;
+        self
+    }
+
+    /// state 根目录。
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
+
+    /// 会话目录（root/sessions）。
+    pub fn sessions_dir(&self) -> PathBuf {
+        self.root.join("sessions")
+    }
+
+    /// 默认 TTL。
+    pub fn ttl(&self) -> Duration {
+        self.ttl
+    }
+
+    /// 锁等待上限。
+    pub fn lock_wait(&self) -> Duration {
+        self.lock_wait
+    }
+
+    /// 会话文件路径；非法名字或越界 symlink 直接报错。
+    pub fn path_for(&self, name: &str) -> Result<PathBuf, SessionError> {
+        validate_session_name(name)?;
+        core_state::safe_join(&self.sessions_dir(), &format!("{name}.json")).map_err(path_error)
+    }
+
+    /// 会话锁文件路径。
+    pub fn lock_path(&self, name: &str) -> Result<PathBuf, SessionError> {
+        validate_session_name(name)?;
+        core_state::safe_join(&self.sessions_dir(), &format!(".{name}.lock")).map_err(path_error)
+    }
+
+    /// 新建一个（尚未落盘的）会话状态。
+    pub fn new_state(&self, name: &str) -> Result<SessionState, SessionError> {
+        validate_session_name(name)?;
+        Ok(SessionState::new(name, self.ttl))
+    }
+
+    /// 原子写入会话文件（锁内 + 临时文件 + rename），权限 0600。
+    pub fn save(&self, state: &SessionState) -> Result<PathBuf, SessionError> {
+        let path = self.path_for(&state.name)?;
+        self.ensure_dirs()?;
+        let _lock = self.acquire(&state.name)?;
+        self.cleanup_stale_temps(&state.name);
+        let mut state = state.clone();
+        state.version = SESSION_FILE_VERSION;
+        state.updated_at = now_secs();
+        let json = state.export_json()?;
+        let tmp = self.temp_path(&state.name);
+        if let Err(error) = write_temp(&tmp, json.as_bytes()) {
+            let _ = fs::remove_file(&tmp);
+            return Err(error);
+        }
+        if let Err(error) = fs::rename(&tmp, &path) {
+            let _ = fs::remove_file(&tmp);
+            return Err(SessionError::Io(format!(
+                "rename into {}: {error}",
+                path.display()
+            )));
+        }
+        let _ = core_state::restrict_file(&path);
+        Ok(path)
+    }
+
+    /// 读取会话；不存在/过期/损坏各自给出可读错误，绝不静默重建。
+    pub fn load(&self, name: &str) -> Result<SessionState, SessionError> {
+        let path = self.path_for(name)?;
+        let _lock = self.acquire(name)?;
+        let raw = match fs::read_to_string(&path) {
+            Ok(raw) => raw,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Err(SessionError::NotFound(name.to_owned()));
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::InvalidData => {
+                return Err(SessionError::Corrupt(format!(
+                    "invalid session file encoding: {error}"
+                )));
+            }
+            Err(error) => {
+                return Err(SessionError::Io(format!(
+                    "read {}: {error}",
+                    path.display()
+                )));
+            }
+        };
+        let state = SessionState::import_json(&raw)?;
+        if state.is_expired(now_secs()) {
+            return Err(SessionError::Expired(name.to_owned()));
+        }
+        Ok(state)
+    }
+
+    /// 会话是否存在且未过期。
+    pub fn exists(&self, name: &str) -> bool {
+        self.load(name).is_ok()
+    }
+
+    /// 删除会话文件（只删自己的会话）。
+    pub fn remove(&self, name: &str) -> Result<bool, SessionError> {
+        let path = self.path_for(name)?;
+        let _lock = self.acquire(name)?;
+        match fs::remove_file(&path) {
+            Ok(()) => Ok(true),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+            Err(error) => Err(SessionError::Io(format!(
+                "remove {}: {error}",
+                path.display()
+            ))),
+        }
+    }
+
+    /// 当前目录下的会话名（排序；不含临时文件与锁文件）。
+    pub fn list(&self) -> Result<Vec<String>, SessionError> {
+        let dir = self.sessions_dir();
+        let entries = match fs::read_dir(&dir) {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(error) => {
+                return Err(SessionError::Io(format!("read {}: {error}", dir.display())));
+            }
+        };
+        let mut names = Vec::new();
+        for entry in entries {
+            let entry = entry.map_err(|error| SessionError::Io(error.to_string()))?;
+            let file_name = entry.file_name();
+            let Some(file_name) = file_name.to_str() else {
+                continue;
+            };
+            let Some(stem) = file_name.strip_suffix(".json") else {
+                continue;
+            };
+            if stem.starts_with('.') || validate_session_name(stem).is_err() {
+                continue;
+            }
+            if entry.path().is_file() {
+                names.push(stem.to_owned());
+            }
+        }
+        names.sort();
+        Ok(names)
+    }
+
+    /// 回收已过期会话，返回回收数量；不触碰未过期会话与损坏文件。
+    pub fn purge_expired(&self) -> Result<usize, SessionError> {
+        let mut purged = 0;
+        for name in self.list()? {
+            let path = self.path_for(&name)?;
+            let still_expired = || {
+                fs::read_to_string(&path)
+                    .ok()
+                    .and_then(|raw| SessionState::import_json(&raw).ok())
+                    .is_some_and(|state| state.is_expired(now_secs()))
+            };
+            if !still_expired() {
+                continue;
+            }
+            match self.acquire(&name) {
+                Ok(_lock) => {
+                    // 锁内复查，避免删掉刚被写者刷新的会话。
+                    if still_expired() && fs::remove_file(&path).is_ok() {
+                        purged += 1;
+                    }
+                }
+                Err(SessionError::LockTimeout(_)) => continue,
+                Err(error) => return Err(error),
+            }
+        }
+        Ok(purged)
+    }
+
+    fn ensure_dirs(&self) -> Result<(), SessionError> {
+        let sessions = self.sessions_dir();
+        core_state::ensure_contained(&self.root, &sessions).map_err(path_error)?;
+        fs::create_dir_all(&sessions)
+            .map_err(|error| SessionError::Io(format!("create {}: {error}", sessions.display())))?;
+        let _ = core_state::restrict_dir(&self.root);
+        let _ = core_state::restrict_dir(&sessions);
+        Ok(())
+    }
+
+    fn acquire(&self, name: &str) -> Result<FileLock, SessionError> {
+        let path = self.lock_path(name)?;
+        FileLock::acquire(&path, self.lock_wait).map_err(|error| match error {
+            LockError::Timeout { .. } => SessionError::LockTimeout(name.to_owned()),
+            LockError::Io { message, .. } => {
+                SessionError::Io(format!("lock {}: {message}", path.display()))
+            }
+        })
+    }
+
+    fn temp_path(&self, name: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or(0);
+        self.sessions_dir().join(format!(".{name}.tmp{nanos:032x}"))
+    }
+
+    fn cleanup_stale_temps(&self, name: &str) {
+        let prefix = format!(".{name}.tmp");
+        let Ok(entries) = fs::read_dir(self.sessions_dir()) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let file_name = entry.file_name();
+            if file_name.to_string_lossy().starts_with(&prefix) {
+                let _ = fs::remove_file(entry.path());
+            }
+        }
+    }
+}
+
+fn path_error(error: PathError) -> SessionError {
+    SessionError::UnsafePath(error.message())
+}
+
+fn write_temp(path: &Path, bytes: &[u8]) -> Result<(), SessionError> {
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+        .map_err(|error| SessionError::Io(format!("create {}: {error}", path.display())))?;
+    let _ = core_state::restrict_file(path);
+    file.write_all(bytes)
+        .map_err(|error| SessionError::Io(format!("write {}: {error}", path.display())))?;
+    file.sync_all()
+        .map_err(|error| SessionError::Io(format!("sync {}: {error}", path.display())))?;
+    Ok(())
+}
+
+fn now_secs() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or(0)
+}

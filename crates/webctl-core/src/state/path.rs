@@ -193,10 +193,19 @@ mod tests {
     #[test]
     fn lexical_check_rejects_parent_and_absolute() {
         let root = Path::new("/state");
-        assert!(is_within_lexically(root, Path::new("/state/sessions/a.json")));
-        assert!(!is_within_lexically(root, Path::new("/state/../etc/passwd")));
+        assert!(is_within_lexically(
+            root,
+            Path::new("/state/sessions/a.json")
+        ));
+        assert!(!is_within_lexically(
+            root,
+            Path::new("/state/../etc/passwd")
+        ));
         assert!(!is_within_lexically(root, Path::new("/etc/passwd")));
-        assert!(!is_within_lexically(Path::new("state"), Path::new("/state")));
+        assert!(!is_within_lexically(
+            Path::new("state"),
+            Path::new("/state")
+        ));
     }
 
     #[test]

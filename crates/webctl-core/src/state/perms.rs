@@ -71,7 +71,11 @@ mod tests {
         #[cfg(unix)]
         assert_eq!(file_mode(&file), Some(FILE_MODE));
         #[cfg(not(unix))]
-        assert_eq!(file_mode(&file), None, "非 Unix 必须显式 None，而不是假通过");
+        assert_eq!(
+            file_mode(&file),
+            None,
+            "非 Unix 必须显式 None，而不是假通过"
+        );
         testutil::cleanup(&dir);
     }
 
