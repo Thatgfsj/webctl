@@ -252,16 +252,34 @@ fn doc_09_acceptance_after_pr03() {
         // 与 PARSE-01 一致：只要正文，标签不应出现。
         assert!(!text.contains('<'), "{format:?} 应已剥离标签：{text:?}");
     }
+}
 
-    // 纯文本仍走直通分支（不解析、不降级）：证明本模块没有重复造解析层。
-    // 这条断言原先在过渡期用例里，删掉那条用例时移到这里，覆盖不减。
+/// 过渡期用例（PR 03 合并前用于锁边界）里除「HTML/XML 不再假装 UNSUPPORTED」之外，
+/// 还有两条断言。DOC-09 收口时它们**不能随风丢掉**，因此在这里逐条保留：
+///
+/// 1. 纯文本走**直通**分支（不解析、不降级）——**内容级**断言，不只看 `text.is_some()`；
+/// 2. JSON 明确**路由到 `json_query`** 而不是在 `doc_text` 里重复解析（`use-json-query` 降级码）。
+#[test]
+fn doc_plain_text_and_json_routing_are_explicit() {
     let text = doc_text(SAMPLE_TXT, &doc());
     assert!(text.ok);
     assert_eq!(text.code, ErrorCode::Ok);
     assert!(text.meta.degraded_from.is_none());
-    assert!(text.data.as_ref().expect("data").text.is_some());
-}
+    let plain = text
+        .data
+        .as_ref()
+        .expect("data")
+        .text
+        .as_deref()
+        .expect("text");
+    assert!(plain.contains("plain text layer"), "{plain:?}");
+    assert!(plain.contains("second line"), "{plain:?}");
 
+    let json = doc_text(SAMPLE_JSON, &doc());
+    assert!(json.ok);
+    assert_eq!(json.code, ErrorCode::Unsupported);
+    assert_eq!(json.meta.degraded_from.as_deref(), Some("use-json-query"));
+}
 /// DOC-10：大输入命中上限返回 LIMIT，不解析、不 OOM。
 #[test]
 fn doc_10_oversized_input_is_limit() {

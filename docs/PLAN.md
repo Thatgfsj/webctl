@@ -232,7 +232,7 @@ webctl/
 | 04 | [#4](https://github.com/Thatgfsj/webctl/issues/4) | [#50](https://github.com/Thatgfsj/webctl/pull/50) | 已合并 | `7e0480f` | 会话引擎（33 用例）；首轮被否后补 SESS-15/FORM-13…19 |
 | 05 | [#34](https://github.com/Thatgfsj/webctl/issues/34) | [#63](https://github.com/Thatgfsj/webctl/pull/63) | 审阅中 | — | state dir 单一入口 / 0700·0600 / flock / TTL / 路径越界防护 |
 | 06 | [#35](https://github.com/Thatgfsj/webctl/issues/35) | — | 未开工 | — | 依赖 03 |
-| 07 | [#36](https://github.com/Thatgfsj/webctl/issues/36) | [#49](https://github.com/Thatgfsj/webctl/pull/49) | 已合并 | `121d423` | PDF 文本层 + `json_query`；DOC-09 交接见 [#59](https://github.com/Thatgfsj/webctl/issues/59) |
+| 07 | [#36](https://github.com/Thatgfsj/webctl/issues/36) | [#49](https://github.com/Thatgfsj/webctl/pull/49) | 已合并 | `121d423` | PDF 文本层 + `json_query`；DOC-09 已收口（HTML/XML→文本改走解析层，见 [#84](https://github.com/Thatgfsj/webctl/pull/84)） |
 | 08 | [#37](https://github.com/Thatgfsj/webctl/issues/37) | [#51](https://github.com/Thatgfsj/webctl/pull/51) | 已合并 | `2a211d4` | 礼貌层；首轮被否（HostGate 排队失效 + robots 两处）后修复 |
 | 09 | [#38](https://github.com/Thatgfsj/webctl/issues/38) | — | 未开工 | — | 依赖 06 |
 | 10 | [#39](https://github.com/Thatgfsj/webctl/issues/39) | [#60](https://github.com/Thatgfsj/webctl/pull/60) | 已合并 | `39cf08f` | CLI 与配置；审阅者 38/38 独立探针 |

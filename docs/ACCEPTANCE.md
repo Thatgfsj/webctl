@@ -82,15 +82,15 @@
 - 2026-10-16（Lead）main `1f45dcd` 本地复核：`fmt` OK、`clippy` 0、**241 用例全绿**、`--features offline` 全绿。
 
 - 2026-10-16（Lead）main `820df36` **硬约束全仓审计**（一手证据）：
-- 2026-10-17（Lead）**DOC-09 收口**（议题 #59，PR #84）：
-  - `doc_text` 的 HTML 分支改为调用 `parse::extract_article`（正文纯文本）；XML 分支调用 `parse::parse_xml` 后**只收文本节点**（跳过 `tag`/`attrs`，不把标记结构混进正文）；
-  - 交接期的 `DOC09_DEFERRED_DEGRADED_FROM`（`parse-layer-pending-pr03`）与过渡期边界用例**已从代码与测试中彻底删除**；
-  - `doc_09_acceptance_after_pr03` 去掉 `#[ignore]` 后**通过**（原过渡用例里的「纯文本直通」断言移入其中，覆盖不减）。
-
-  ⇒ §6 中该条延期登记**已注销**。
   - **零外部进程**：`crates/*/src/` 内无 `Command::new`/`.spawn(`；仅 `std::process::id()`（`config.rs`，用于临时路径唯一性）与 `use std::process::ExitCode`（bin ×2），均不创建进程。
   - **无 unsafe**：`crates/*/src/` 命中 3 处，全在注释/错误文案里；workspace `unsafe_code = "forbid"` 生效。
   - **零浏览器**：`Cargo.toml`/`crates/*/Cargo.toml` 无 playwright/chromium/cdp/selenium；`Cargo.lock` 无 v8/quickjs/boa_engine。
   - **错误码封闭集**：`ErrorCode` 共 **11** 个变体。
   - **静态扫描**：`cargo test --features offline --test offline_lane` → 4 passed / 2 ignored（两个扫描器 0 命中）。
   - 备注：手写 `grep 'http://\|https://'` 会报 30 处"疑似外站"，而正规扫描器 0 命中——差异来自保留域/模板主机/回环规则，说明扫描器的白名单规则是必要的。
+- 2026-10-17（Lead）**DOC-09 收口**（议题 #59，PR #84）：
+  - `doc_text` 的 HTML 分支改为调用 `parse::extract_article`（正文纯文本）；XML 分支调用 `parse::parse_xml` 后**只收文本节点**（跳过 `tag`/`attrs`，不把标记结构混进正文）；
+  - 交接期的 `DOC09_DEFERRED_DEGRADED_FROM`（`parse-layer-pending-pr03`）与过渡期边界用例**已从代码与测试中彻底删除**；
+  - `doc_09_acceptance_after_pr03` 去掉 `#[ignore]` 后**通过**（原过渡用例里的「纯文本直通」断言移入其中，覆盖不减）。
+
+  ⇒ §6 中该条延期登记**已注销**。

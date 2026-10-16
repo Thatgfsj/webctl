@@ -431,7 +431,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 
 ### 6.4 PR 07 文档与数据（议题 #36）
 
-`crates/webctl-web/tests/doc.rs` **13 条通过 + 0 ignored**（DOC-09 于 2026-10-17 收口，见 ACCEPTANCE §7）：`doc_01_text_pdf_extracts_keywords`、`doc_02_chinese_pdf_is_not_mojibake`、`doc_03_scanned_pdf_is_unsupported`、`doc_04_encrypted_pdf_is_explicit_error`、`doc_05_corrupt_pdf_is_parse_error`、`doc_06_json_path_selection`、`doc_07_json_filter_and_projection`、`doc_08_invalid_expression_errors`、`doc_10_oversized_input_is_limit`、`doc_11_unknown_format_is_unsupported_with_diagnostic`、`doc_pdf_extract_panic_is_isolated_as_parse`（补：pdf-extract panic 必须隔离为 PARSE）、`four_outcomes_have_distinct_codes`。
+`crates/webctl-web/tests/doc.rs` **14 条通过 + 0 ignored**（DOC-09 于 2026-10-17 收口，见 ACCEPTANCE §7）：`doc_01_text_pdf_extracts_keywords`、`doc_02_chinese_pdf_is_not_mojibake`、`doc_03_scanned_pdf_is_unsupported`、`doc_04_encrypted_pdf_is_explicit_error`、`doc_05_corrupt_pdf_is_parse_error`、`doc_06_json_path_selection`、`doc_07_json_filter_and_projection`、`doc_08_invalid_expression_errors`、`doc_09_acceptance_after_pr03`（DOC-09 转正）、`doc_10_oversized_input_is_limit`、`doc_11_unknown_format_is_unsupported_with_diagnostic`、`doc_pdf_extract_panic_is_isolated_as_parse`（补：pdf-extract panic 必须隔离为 PARSE）、`four_outcomes_have_distinct_codes`、`doc_plain_text_and_json_routing_are_explicit`（补：纯文本直通的内容级断言 + JSON 路由到 `json_query`，原属过渡期用例）。
 
 ### 6.5 PR 08 礼貌与限速（议题 #37）
 
