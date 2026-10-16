@@ -6,11 +6,14 @@
 //! - chinese.pdf：Type0 / Identity-H + ToUnicode CMap（合成样本，非真实世界 PDF）；
 //! - scanned.pdf：只有图片 XObject、无任何文本算子；
 //! - encrypted.pdf：用 lopdf 对 text.pdf 做 RC4 40-bit 标准加密生成的真实加密文件；
-//! - corrupt.pdf：声明 %PDF- 但结构损坏。
+//! - corrupt.pdf：声明 %PDF- 但结构损坏；
+//! - panic_tj.pdf：正文算子是 `123 Tj`（Tj 的操作数不是字符串），
+//!   触发 pdf-extract 0.12.1 内部 panic，用来覆盖 catch_unwind 隔离分支。
 
 use webctl_core::{ErrorCode, Trust};
 use webctl_web::{
-    DocFormat, DocOptions, JsonQueryOptions, PdfKind, doc_text, extract_pdf_text, json_query,
+    DOC09_DEFERRED_DEGRADED_FROM, DocFormat, DocOptions, JsonQueryOptions, PdfKind, doc_text,
+    extract_pdf_text, json_query,
 };
 
 const TEXT_PDF: &[u8] = include_bytes!("fixtures/doc/text.pdf");
@@ -18,6 +21,8 @@ const CHINESE_PDF: &[u8] = include_bytes!("fixtures/doc/chinese.pdf");
 const SCANNED_PDF: &[u8] = include_bytes!("fixtures/doc/scanned.pdf");
 const ENCRYPTED_PDF: &[u8] = include_bytes!("fixtures/doc/encrypted.pdf");
 const CORRUPT_PDF: &[u8] = include_bytes!("fixtures/doc/corrupt.pdf");
+/// 触发 pdf-extract 内部 panic 的最小 PDF（`123 Tj`：Tj 操作数不是字符串）。
+const PANIC_PDF: &[u8] = include_bytes!("fixtures/doc/panic_tj.pdf");
 const SAMPLE_JSON: &[u8] = include_bytes!("fixtures/doc/sample.json");
 const SAMPLE_HTML: &[u8] = include_bytes!("fixtures/doc/sample.html");
 const SAMPLE_XML: &[u8] = include_bytes!("fixtures/doc/sample.xml");
@@ -114,6 +119,35 @@ fn doc_05_corrupt_pdf_is_parse_error() {
     assert_eq!(env.validate(), Ok(()));
 }
 
+/// catch_unwind 覆盖：pdf-extract 内部 panic 必须归为 PARSE，不得崩溃或伪装成功。
+///
+/// 触发点（实测 pdf-extract 0.12.1 `src/lib.rs`）：正文流 `123 Tj` 的操作数不是
+/// 字符串，其 `"Tj"` 分支直接 `panic!("unexpected Tj operand")`。doc_text 内部的
+/// catch_unwind 必须把它隔离为 PARSE。这里在测试外再包一层 catch_unwind，确保
+/// 隔离一旦回退，本用例以明确信息失败而不是直接炸掉测试进程；同时临时静音
+/// panic hook，避免预期内的 panic 噪声污染 `cargo test` 日志。
+#[test]
+fn doc_pdf_extract_panic_is_isolated_as_parse() {
+    let hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+    let outcome = std::panic::catch_unwind(|| doc_text(PANIC_PDF, &doc()));
+    std::panic::set_hook(hook);
+
+    let env = outcome.expect("catch_unwind 必须隔离 pdf-extract 的 panic");
+    assert!(!env.ok, "panic 不得伪装成成功");
+    assert_eq!(env.code, ErrorCode::Parse);
+    assert!(env.data.is_none(), "PARSE 不得返回 data");
+    assert!(!env.error.is_empty(), "PARSE 必须带可读错误");
+    // 必须是 catch_unwind 的隔离分支，而不是 lopdf 载入失败/其它 PARSE：
+    // 若将来 pdf-extract 不再 panic，本断言会失败，提醒更新触发样本而不是静默退化。
+    assert!(
+        env.error.contains("已隔离"),
+        "应命中 catch_unwind 隔离分支，实际错误：{}",
+        env.error
+    );
+    assert_eq!(env.validate(), Ok(()));
+}
+
 /// DOC-06：json_query 路径取值。
 #[test]
 fn doc_06_json_path_selection() {
@@ -193,19 +227,22 @@ fn doc_08_invalid_expression_errors() {
     }
 }
 
-/// DOC-09（部分）：HTML/XML 到文本属 PR 03；本 PR 显式 UNSUPPORTED，不重复实现。
+/// DOC-09 过渡期边界锁（**不是** DOC-09 验收）：HTML/XML 到文本属 PR 03，
+/// 本 PR 显式 UNSUPPORTED、不重复实现。
 ///
-/// 这条用例锁定当前边界：等 PR 03 解析层合并后，本模块改为调用它，
-/// 届时该用例应更新为与 PARSE-01 一致的结果。
+/// 真正的 DOC-09 验收是下面的 `doc_09_acceptance_after_pr03`（PR 03 合并前
+/// `#[ignore]`）。这条用例只锁「当前边界是显式降级而非静默空结果或伪成功」，
+/// PR 03 合并后应连同生产代码的降级分支一起删除。
+/// 交接步骤见 crates/webctl-web/src/doc/mod.rs 模块文档「DOC-09 交接点」。
 #[test]
-fn doc_09_html_and_xml_are_explicitly_deferred_to_pr03() {
+fn doc_09_deferred_boundary_is_explicit() {
     for (bytes, format) in [(SAMPLE_HTML, DocFormat::Html), (SAMPLE_XML, DocFormat::Xml)] {
         let env = doc_text(bytes, &doc());
         assert!(env.ok);
         assert_eq!(env.code, ErrorCode::Unsupported);
         assert_eq!(
             env.meta.degraded_from.as_deref(),
-            Some("parse-layer-pending-pr03")
+            Some(DOC09_DEFERRED_DEGRADED_FROM)
         );
         assert_eq!(env.validate(), Ok(()));
         let data = env.data.as_ref().expect("data");
@@ -218,15 +255,56 @@ fn doc_09_html_and_xml_are_explicitly_deferred_to_pr03() {
     let text = doc_text(SAMPLE_TXT, &doc());
     assert!(text.ok);
     assert_eq!(text.code, ErrorCode::Ok);
+    let plain = text
+        .data
+        .as_ref()
+        .expect("data")
+        .text
+        .as_deref()
+        .expect("text");
+    // 行尾无关断言：fixture 已由 .gitattributes（fixtures/** -text）保证逐字节
+    // 保真，这里再归一一次，作为 Windows core.autocrlf 回归的双保险。
     assert_eq!(
-        text.data.as_ref().expect("data").text.as_deref(),
-        Some("plain text layer\nsecond line\n")
+        plain.lines().collect::<Vec<_>>(),
+        vec!["plain text layer", "second line"]
     );
 
     // JSON 交给 json_query，不在 doc_text 里重复解析。
     let json = doc_text(SAMPLE_JSON, &doc());
     assert_eq!(json.code, ErrorCode::Unsupported);
     assert_eq!(json.meta.degraded_from.as_deref(), Some("use-json-query"));
+}
+
+/// DOC-09 验收（PR 03 合并后启用；现在 `#[ignore]`）：HTML/XML→文本与 PARSE-01
+/// 一致，且不再有任何降级标识。
+///
+/// 这不是「假装通过」：`origin/main` 尚无 parse 模块，本用例今天必然失败，
+/// 所以显式 `#[ignore]`。启用步骤见 crates/webctl-web/src/doc/mod.rs 模块文档
+/// 「DOC-09 交接点」：接入 parse 层、删除 Html/Xml 降级分支、去掉本 ignore，
+/// 并删除 `doc_09_deferred_boundary_is_explicit`。
+#[test]
+#[ignore = "DOC-09 验收待 PR 03 解析层合并；启用步骤见 doc 模块文档『DOC-09 交接点』"]
+fn doc_09_acceptance_after_pr03() {
+    for (bytes, format) in [(SAMPLE_HTML, DocFormat::Html), (SAMPLE_XML, DocFormat::Xml)] {
+        let env = doc_text(bytes, &doc());
+        assert!(env.ok);
+        assert_eq!(
+            env.code,
+            ErrorCode::Ok,
+            "{format:?} PR 03 合并后应成功，而非降级"
+        );
+        assert_eq!(
+            env.meta.degraded_from, None,
+            "{format:?} PR 03 合并后不应再有降级标识"
+        );
+        assert_eq!(env.validate(), Ok(()));
+        let data = env.data.as_ref().expect("data");
+        assert_eq!(data.format, format);
+        let text = data.text.as_deref().expect("text");
+        assert!(!text.is_empty(), "{format:?} 正文不应为空");
+        // 与 PARSE-01 一致：只要正文，标签不应出现。
+        assert!(!text.contains('<'), "{format:?} 应已剥离标签：{text:?}");
+    }
 }
 
 /// DOC-10：大输入命中上限返回 LIMIT，不解析、不 OOM。
