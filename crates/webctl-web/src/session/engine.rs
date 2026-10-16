@@ -387,6 +387,11 @@ impl SessionEngine {
     }
 
     /// 从 start_url 起遍历 next 链接，最多 max_pages 页（None 用引擎默认）。
+    ///
+    /// 降级传播（禁止静默降级）：只要任意一页的 fetch_page 返回了降级
+    /// （SPA/js-render、响应体截断等），整个分页结果也必须 DEGRADED 并带上
+    /// 非空的 `meta.degraded_from`——即使只取到一页。命页数上限/循环时同样
+    /// 以 LIMIT 降级返回。绝不把空壳页当成 OK+0 条。
     pub async fn paginate(&self, start_url: &str, max_pages: Option<usize>) -> Envelope<Paginated> {
         let started = Instant::now();
         let max = max_pages.unwrap_or(self.max_pages).max(1);
@@ -394,6 +399,8 @@ impl SessionEngine {
         let mut pages: Vec<Page> = Vec::new();
         let mut limit: Option<&str> = None;
         let mut cursor = Some(start_url.to_owned());
+        // 第一处被观测到的页面级降级：(degraded_from, code)。
+        let mut degraded: Option<(String, ErrorCode)> = None;
 
         while let Some(url) = cursor.clone() {
             if visited.iter().any(|seen| seen == &url) {
@@ -406,9 +413,11 @@ impl SessionEngine {
             }
             visited.push(url.clone());
             let env = self.fetch_page(&url).await;
+            let code = env.code;
+            let degraded_from = env.meta.degraded_from.clone();
             let Some(page) = env.data else {
                 if pages.is_empty() {
-                    return Envelope::fail(env.code, env.error, elapsed_ms(started));
+                    return Envelope::fail(code, env.error, elapsed_ms(started));
                 }
                 return Envelope::degraded(
                     assemble(pages, cursor, Some("pagination-fetch-failed")),
@@ -417,16 +426,37 @@ impl SessionEngine {
                     elapsed_ms(started),
                 );
             };
+            if degraded.is_none() {
+                match (degraded_from, code.is_degradation()) {
+                    (Some(from), _) => degraded = Some((from, code)),
+                    // 兜底：不进降级码却缺 degraded_from 的信封不可能是正常页。
+                    (None, true) => {
+                        degraded = Some(("pagination-degraded-page".to_owned(), code));
+                    }
+                    (None, false) => {}
+                }
+            }
             cursor = page.next.as_ref().map(|next| next.url.clone());
             pages.push(page);
         }
 
         let paginated = assemble(pages, cursor, limit);
-        match limit {
-            Some(reason) => {
+        match (limit, degraded) {
+            (Some(reason), Some((from, code))) => Envelope::degraded(
+                paginated,
+                format!("{from}+{reason}"),
+                code,
+                elapsed_ms(started),
+            ),
+            (Some(reason), None) => {
                 Envelope::degraded(paginated, reason, ErrorCode::Limit, elapsed_ms(started))
             }
-            None => Envelope::ok(paginated, Trust::UntrustedPageContent, elapsed_ms(started)),
+            (None, Some((from, code))) => {
+                Envelope::degraded(paginated, from, code, elapsed_ms(started))
+            }
+            (None, None) => {
+                Envelope::ok(paginated, Trust::UntrustedPageContent, elapsed_ms(started))
+            }
         }
     }
 
@@ -504,10 +534,12 @@ impl SessionEngine {
             for (name, value) in &self.options.headers {
                 request = request.header(name.as_str(), value.as_str());
             }
-            if let Some((content_type, bytes)) = current_body.take() {
+            // 重定向可能重发同一请求体（307/308），因此这里只能借用而不能 take()；
+            // 303（以及 POST 的 301/302）会在下面把 current_body 清空，转成无体 GET。
+            if let Some((content_type, bytes)) = &current_body {
                 request = request
-                    .header(wreq::header::CONTENT_TYPE, content_type)
-                    .body(bytes);
+                    .header(wreq::header::CONTENT_TYPE, *content_type)
+                    .body(bytes.clone());
             }
             let response = request.send().await.map_err(map_wreq_error)?;
             let set_cookies: Vec<String> = response
