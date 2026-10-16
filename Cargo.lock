@@ -2212,6 +2212,7 @@ dependencies = [
  "html2text",
  "lopdf",
  "pdf-extract",
+ "regex",
  "roxmltree",
  "scraper",
  "serde",

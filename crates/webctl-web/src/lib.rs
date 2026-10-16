@@ -13,6 +13,7 @@
 pub mod content_type;
 pub mod doc;
 pub mod encoding;
+pub mod extract;
 pub mod parse;
 pub mod politeness;
 pub mod session;
