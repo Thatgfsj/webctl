@@ -142,6 +142,56 @@ fn scanners_detect_planted_violations() {
     std::fs::remove_dir_all(&dir).expect("清理临时目录");
 }
 
+/// 扫描器自检 4：**不该报的不能报**（否则门禁会把合规代码判成违规）。
+///
+/// 两条真实发生过误报的形态：
+/// 1. CLI 集成测试用 `Command::new(env!("CARGO_BIN_EXE_webctl"))` 启动**本仓自己的二进制**
+///    —— 这是端到端测 CLI 的标准做法，不是"外部进程"；
+/// 2. `http://user:hunter2@127.0.0.1:1` —— authority 里带 userinfo 的**回环**地址。
+///
+/// 同时确认大写 scheme（`HTTPS://`）不能成为绕过手段。
+#[test]
+fn scanner_does_not_flag_own_binary_or_loopback_userinfo() {
+    let dir = std::env::temp_dir().join(format!("webctl-scan-allow-{}", std::process::id()));
+    let tests_dir = dir.join("tests");
+    std::fs::create_dir_all(&tests_dir).expect("创建临时 tests 目录");
+    let sample = tests_dir.join("sample.rs");
+
+    // 片段拆开拼装：避免本测试自身被 offline lane 扫描命中。
+    let marker = ["CARGO", "BIN", "EXE_"].join("_");
+    let call = ["Command", "new("].join("::");
+    let scheme = ["ht", "tp://"].join("");
+    let loopback = format!("{scheme}user:hunter2@127.0.0.1:1");
+    let loopback_masked = format!("{scheme}***@127.0.0.1:1");
+    let v6 = format!("{scheme}[::1]:8080/");
+    let uppercase_external = ["HTT", "PS://evil.external-host", ".net/x"].join("");
+    let source = format!(
+        "fn t() {{\n  let bin = env!(\"{marker}webctl\");\n  let _ = {call}bin);\n  let _ = \"{loopback}\";\n  let _ = \"{loopback_masked}\";\n  let _ = \"{v6}\";\n  let _ = \"{uppercase_external}\";\n}}\n"
+    );
+    std::fs::write(&sample, &source).expect("写入样本");
+
+    let calls = resources::subprocess_call_sites(&dir).expect("子进程扫描必须成功");
+    assert!(
+        calls.is_empty(),
+        "启动本仓自己的二进制不应被判为外部进程：{calls:#?}"
+    );
+
+    let urls = resources::external_url_sites(&dir).expect("URL 扫描必须成功");
+    assert_eq!(
+        urls.len(),
+        1,
+        "只有大写 scheme 的真外站应被检出（回环+userinfo 必须放行）：{urls:#?}"
+    );
+    assert!(
+        urls[0].url.contains("evil.external-host.net"),
+        "检出的应当是真外站：{:#?}",
+        urls[0]
+    );
+    assert_eq!(urls[0].line, 7, "外站位于样本第 7 行：{urls:#?}");
+
+    std::fs::remove_dir_all(&dir).expect("清理临时目录");
+}
+
 /// 扫描器自检 3：路径写错（目录不存在）必须返回 Err，绝不静默空集。
 #[test]
 fn scanners_error_on_missing_root() {

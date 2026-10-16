@@ -445,7 +445,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 |---|---|
 | 03 解析（#54） | `tests/parse.rs` 23 条，含 XML 深度预检对抗用例（本轮修 XML 栈溢出后新增） |
 | 10 CLI（#60） | `cargo test` 133 passed，含 cli 集成 13 条（CLI-01…11）；CLI-12 属 PR 14 |
-| 13 测试基建（#55） | golden 2 / http_fixture 9 / offline_lane 4+2 ignored / resource 10；含三条"扫描器不空转"永久护栏 |
+| 13 测试基建（#55） | **已合并（e899c2f）**：golden 2 / http_fixture 9 / offline_lane 4+2 ignored / resource 11；含三条「扫描器不空转」永久护栏 + 一条「该放行的不误报」护栏（`scanner_does_not_flag_own_binary_or_loopback_userinfo`） |
 
 ## 7. 维护规则
 
