@@ -29,5 +29,9 @@ jobs:
         run: cargo clippy --all-targets -- -D warnings
       - name: test
         run: cargo test
+      - name: clippy (offline lane)
+        run: cargo clippy --all-targets --features offline -- -D warnings
+      - name: test (offline lane)
+        run: cargo test --features offline
       - name: build (release)
         run: cargo build --release
