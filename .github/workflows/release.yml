@@ -127,6 +127,21 @@ jobs:
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
             echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           fi
+      - name: "Install extra build toolchain (BoringSSL / btls-sys)"
+        run: |
+          set -eux
+          if [ "${RUNNER_OS}" = "Windows" ]; then
+            choco install nasm -y
+            echo "C:/Program Files/NASM" >> "$GITHUB_PATH"
+          elif [ "${RUNNER_OS}" = "Linux" ]; then
+            sudo apt-get update
+            sudo apt-get install -y musl-tools
+            # 交叉编译器别名：CMake 按三元组查找 x86_64-linux-musl-{gcc,g++}
+            sudo ln -sf "$(command -v musl-gcc)" /usr/local/bin/x86_64-linux-musl-gcc
+            printf '#!/bin/sh\nexec g++ -static "$@"\n' | sudo tee /usr/local/bin/x86_64-linux-musl-g++ >/dev/null
+            sudo chmod +x /usr/local/bin/x86_64-linux-musl-g++
+          fi
+        shell: "bash"
       - name: Install dist
         run: ${{ matrix.install_dist.run }}
       # Get the dist-manifest
