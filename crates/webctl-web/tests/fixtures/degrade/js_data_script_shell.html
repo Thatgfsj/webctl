@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
+  <meta charset="UTF-8">
   <title>Quotes to Scrape</title>
+  <link rel="stylesheet" href="/static/main.css">
 </head>
 <body>
   <div class="container">
@@ -13,16 +14,23 @@
     <script src="/static/jquery.js"></script>
     <script>
       var data = [
-        {"text": "The world as we have created it is a process of our thinking."},
-        {"text": "It is our choices that show what we truly are."},
-        {"text": "There are only two ways to live your life."},
-        {"text": "The person who has not pleasure in a good novel is stupid."}
+        {"text": "Quote number 1 rendered only by the inline script in this page."},
+        {"text": "Quote number 2 rendered only by the inline script in this page."},
+        {"text": "Quote number 3 rendered only by the inline script in this page."},
+        {"text": "Quote number 4 rendered only by the inline script in this page."},
+        {"text": "Quote number 5 rendered only by the inline script in this page."},
+        {"text": "Quote number 6 rendered only by the inline script in this page."},
+        {"text": "Quote number 7 rendered only by the inline script in this page."},
+        {"text": "Quote number 8 rendered only by the inline script in this page."},
+        {"text": "Quote number 9 rendered only by the inline script in this page."},
+        {"text": "Quote number 10 rendered only by the inline script in this page."}
       ];
       for (var i in data) {
         document.write("<div class='quote'><span class='text'>" + data[i].text + "</span></div>");
       }
     </script>
     <nav><ul class="pager"><li class="next"><a href="/js/page/2/">Next</a></li></ul></nav>
+    <footer class="footer"><p>Quotes by: GoodReads.com</p><p>Made with by Zyte</p></footer>
   </div>
 </body>
 </html>

@@ -33,6 +33,8 @@ const SHELL_TEXT_MAX: usize = 40;
 const SCRIPT_TAG_MIN: usize = 2;
 /// 「脚本多」的最小脚本正文字节数。
 const SCRIPT_BYTES_MIN: usize = 256;
+/// 脚本占文档字节比达到该百分比即视为「脚本主导」（真站 /js 页形态）。
+const SCRIPT_DOMINANCE_PERCENT: usize = 40;
 
 /// 常见 SPA 挂载点 id。
 const ROOT_IDS: [&str; 7] = [
@@ -159,6 +161,11 @@ fn diagnose(signals: &Signals) -> Assessment {
     let shell_text = signals.visible_text <= SHELL_TEXT_MAX;
     let script_dense =
         signals.script_tags >= SCRIPT_TAG_MIN || signals.script_bytes >= SCRIPT_BYTES_MIN;
+    let script_percent = signals
+        .script_bytes
+        .saturating_mul(100)
+        .checked_div(signals.html_bytes)
+        .unwrap_or(0);
     let mut strong = false;
     let mut evidence: Vec<String> = Vec::new();
 
@@ -185,19 +192,26 @@ fn diagnose(signals: &Signals) -> Assessment {
             signals.visible_text, signals.script_tags, signals.script_bytes
         ));
     }
+    // 脚本占文档大头：正文只有页头/页脚等 chrome，内容由内联脚本注入
+    // （真站 /js 页即此形态）。静态正文足够的页面已在上方提前放行。
+    if !signals.has_content_elements
+        && signals.script_bytes >= SCRIPT_BYTES_MIN
+        && script_percent >= SCRIPT_DOMINANCE_PERCENT
+    {
+        strong = true;
+        evidence.push(format!(
+            "script-dominated document: {} script bytes is {script_percent}% of the response",
+            signals.script_bytes
+        ));
+    }
     if !strong {
         return Assessment::Rendered;
     }
 
     // 诊断始终补齐四类量化依据，便于 DEGRADE-03 复核。
     if signals.script_tags > 0 {
-        let ratio = signals
-            .script_bytes
-            .saturating_mul(100)
-            .checked_div(signals.html_bytes)
-            .unwrap_or(0);
         evidence.push(format!(
-            "script density: {} tag(s) / {} bytes ({ratio}% of {} bytes)",
+            "script density: {} tag(s) / {} bytes ({script_percent}% of {} bytes)",
             signals.script_tags, signals.script_bytes, signals.html_bytes
         ));
     }
@@ -404,6 +418,25 @@ mod tests {
             panic!("expected needs-js");
         };
         assert_eq!(severity, Severity::Total);
+    }
+
+    #[test]
+    fn script_dominated_page_with_chrome_text_is_partial() {
+        let data = "x".repeat(2_000);
+        let html = format!(
+            "<html><body><header>Quotes to Scrape Login</header>\
+             <script>var data = '{data}'; document.write(data);</script>\
+             <footer>Quotes by GoodReads.com Made with by Zyte</footer></body></html>"
+        );
+        let Assessment::NeedsJs {
+            severity,
+            diagnosis,
+        } = assess(&html)
+        else {
+            panic!("expected needs-js");
+        };
+        assert_eq!(severity, Severity::Partial);
+        assert!(diagnosis.reason.contains("script-dominated"));
     }
 
     #[test]

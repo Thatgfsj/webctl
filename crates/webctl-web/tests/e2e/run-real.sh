@@ -57,7 +57,9 @@ fi
 echo "OK: 静态锚点取到 10 条"
 
 echo "== E2E-02 / DEGRADE-01 降级锚点：${JS_URL} 必须是非 OK 的降级 =="
-JS_OUT="$(cargo run -q -p webctl -- fetch "${JS_URL}")"
+# 降级码会让 CLI 以非零退出码结束（DEGRADED→7）；这里显式吞掉退出码，
+# 只按信封内容判定，否则 set -e 会在捕获输出时就中止脚本。
+JS_OUT="$(cargo run -q -p webctl -- fetch "${JS_URL}" || true)"
 if ! grep -qE '"code":"(DEGRADED|UNSUPPORTED)"' <<<"${JS_OUT}"; then
   echo "FAIL: JS 页未返回 DEGRADED/UNSUPPORTED；实际输出：${JS_OUT}" >&2
   exit 1

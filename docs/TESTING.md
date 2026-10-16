@@ -462,7 +462,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 本 PR 叠在 PR 06（#35）之上：新增 `crates/webctl-web/src/degrade/**`（判定 + 诊断 + 信封守卫层），
 只在 `extract::select_matches` 与 `transport::fetch` 各加一个接入点，不改 PR 06 的既有语义。
 
-- `crates/webctl-web/src/degrade/detect.rs` 单元 **4 条**：`static_text_short_circuits_even_with_scripts`、`empty_root_with_scripts_is_partial`、`blank_shell_without_placeholder_is_total`、`image_only_static_page_is_not_shell`；服务 DEGRADE-04/05/06/09 的判定侧。
+- `crates/webctl-web/src/degrade/detect.rs` 单元 **5 条**：`static_text_short_circuits_even_with_scripts`、`empty_root_with_scripts_is_partial`、`blank_shell_without_placeholder_is_total`、`script_dominated_page_with_chrome_text_is_partial`、`image_only_static_page_is_not_shell`；服务 DEGRADE-01/04/05/06/09 的判定侧。
 - `crates/webctl-web/tests/degrade.rs` 集成 **11 条**（离线；本地 fixture + 127.0.0.1）：
   - DEGRADE-01 的 L0 等价物：`degrade_01_l0_js_data_shell_is_degraded`
   - DEGRADE-02 的 L0 等价物：`degrade_02_l0_static_anchor_yields_ten_quotes`
