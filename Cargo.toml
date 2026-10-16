@@ -36,3 +36,8 @@ wreq = { version = "0.16.1", features = ["gzip", "brotli", "deflate", "stream"] 
 # 运行时零外部进程（PLAN v0.4 §3.1）：workspace 内禁止 unsafe。
 [workspace.lints.rust]
 unsafe_code = "forbid"
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
