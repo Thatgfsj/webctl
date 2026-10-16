@@ -7,6 +7,7 @@
 | 形态 | Rust workspace，单个静态二进制；CLI + MCP server；**零外部进程、零浏览器依赖** |
 | 依据 | 历史硬数据见 [SURVEY.md](SURVEY.md)；**但 §0 的方向变更已作废其中的 T2/T3 相关结论** |
 | Spike | [wreq 验证报告](spikes/wreq.md)（HTTP 选型已定点） |
+| 决策记录 | [docs/adr/](adr/README.md)：ADR-0001 单层内置 · ADR-0002 不做 JS 引擎 · ADR-0003 选择器取代 ref · ADR-0004 礼貌与限速 |
 | 工具面 | **已定稿**：15 个内置工具（§3.7），无截图、无坐标交互、无 JS 执行 |
 | 规范核实 | 「每 1000 行 PR 需审批」在现有仓库中**无成文依据**（SURVEY §1.2）；本计划把它作为**待写入的新项目规则**执行，措辞已落地在 [CONTRIBUTING.md](../CONTRIBUTING.md) §2 |
 
