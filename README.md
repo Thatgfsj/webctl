@@ -10,7 +10,7 @@
 
 [项目状态](#项目状态) · [计划](docs/PLAN.md) · [调查证据](docs/SURVEY.md) · [贡献指南](CONTRIBUTING.md) · [议题](https://github.com/Thatgfsj/webctl/issues)
 
-> **最新版：尚无可用构建。** 本仓库处于 P0 之前的**设计阶段**（计划 v0.4）：计划与调查证据已就绪，代码骨架待 PR 01 落地。
+> **尚无可用发布版。** 计划 v0.4、骨架（PR 01）与取回层（PR 02）已合并；解析 / 会话 / 文档 / MCP 等按 [PLAN §5.2](docs/PLAN.md) 推进。
 
 ---
 
@@ -18,7 +18,7 @@
 
 | 项 | 值 |
 |---|---|
-| 阶段 | 设计阶段（P0 未开工） |
+| 阶段 | P0 进行中：骨架 + 取回层已合并，其余按 PLAN §5.2 推进 |
 | 计划文档 | [docs/PLAN.md](docs/PLAN.md)（**草案 v0.4**，含 2026-10-16 的方向变更） |
 | 事实依据 | [docs/SURVEY.md](docs/SURVEY.md)（本机实测 + 公开仓库核对；其中 CDP 部分已成历史记录） |
 | 形态 | Rust workspace，4 个 crate，单个静态二进制 |
@@ -61,6 +61,25 @@ crates/
 ```
 
 拆分纪律：**只有变更来源/节奏不同、且依赖方向单向无环时才拆 crate**；其余同一 crate 内用目录分隔。
+
+## 构建
+
+```bash
+cargo build --release   # Rust 1.98.1（固定于 rust-toolchain.toml）
+cargo test              # 全部离线：只连 127.0.0.1，不访问外网
+cargo run -- caps --json
+```
+
+**运行时零依赖**（单二进制、零外部进程、零浏览器）；下面这些**只在编译期**需要：
+
+| 构建期需求 | 为什么 | 怎么办 |
+|---|---|---|
+| `cmake` + C/C++ 编译器 | 取回层用 `wreq`，默认 TLS 后端是 BoringSSL（`btls-sys`） | 发行版装 `cmake` + `build-essential` |
+| **libclang** + clang 内建头 | BoringSSL 绑定由 bindgen 生成 | 装 `libclang-dev` / `clang`；最小环境可设 `LIBCLANG_PATH` 与 `BINDGEN_EXTRA_CLANG_ARGS` |
+
+缺 libclang 的典型报错是 `Unable to find libclang`；只给到 `.so` 而缺头文件时报 `'stddef.h' file not found`。完整报错、修复命令与本机实测（首次全量构建 76s）见 [docs/spikes/wreq.md](docs/spikes/wreq.md) §4。
+
+GitHub Actions 的 ubuntu / macOS / Windows 镜像**自带**上述依赖，无需额外步骤（main 上三平台 CI 全绿）。
 
 ## 建设路线
 

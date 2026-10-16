@@ -275,7 +275,7 @@ v0.3 的锚点（JS 页必须拿到 10 条）**作废**。v0.4 的锚点：
 | MCP 60s 超时 | 工具分片；长任务显式配置；单次调用预算写进 SKILL.md |
 | 文档与实际能力脱节 | 本计划 §0 的代价清单必须随能力变化同步更新 |
 | musl 静态交叉编译 + BoringSSL（C++） | 当前产物动态链接 libstdc++/libgcc；PR 14 必须专门验证静态目标，不许假设可行 |
-| 构建期隐藏依赖（libclang / clang 内建头 / cmake） | 写入 README 构建说明并在 CI 安装；spike 报告 §4 记录了缺它们时的具体报错 |
+| 构建期隐藏依赖（libclang / clang 内建头 / cmake） | **已落地文档**（README「构建」+ CONTRIBUTING §4）；实测三平台 CI 镜像自带、无需额外安装；spike 报告 §4 记录缺它们时的报错与修复 |
 
 ---
 
