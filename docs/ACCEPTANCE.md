@@ -73,6 +73,8 @@
 | `sessions_dir()` 仍是未校验的 public path getter | PR 05 复审：当前生产代码不可达（落盘/读盘均走 checked 入口），但属 API 隐患 | 建议改为返回 `Result` 或 `pub(crate)` |
 | `PathError::Io` 被映射成 `UnsafePath(Blocked)` | PR 05 复审：`sessions` 为普通文件时 `load`=Blocked 而 `list`=Internal，分类不一致（均 fail-closed） | 待开议题，低优先 |
 | 路径校验与 IO 之间的 TOCTOU 窗口（无 `openat`/`O_NOFOLLOW`） | PR 05 复审：需同 UID 且在 0700 目录下并发篡改才可利用，非实际边界破坏 | 记录在案，不承诺修复 |
+| extract 的 `links`/`tables`/`forms`/`form_by_index` 未纳入 `max_elapsed_ms` 兜底 | PR #71 复审登记：`links` 只在过滤循环查预算（解析耗时不计入、零链接时循环体不执行）；`tables`/`forms`/`form_by_index` 完全不读取预算 | 建议随 #73（PR 09 会重写 `links`/`structured`）或后续议题一并收口 |
+| `parse_14_budget_on_100kb` 负载敏感（高负载下偶发超时） | PR 09 实现者报告；单跑/复跑均绿 | 按 #74/#75 的做法改为**不依赖绝对墙钟**的断言（或明确其 lane） |
 
 ## 7. 验收记录
 
