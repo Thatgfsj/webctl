@@ -27,7 +27,8 @@ $ git diff --shortstat <base>...HEAD
 |---|---|---|
 | | | 纯文档 / 测试 fixture |
 
-- [ ] 数字已如实申报（启动期 P0 该门禁不阻塞合并，见 #41；超出 1000 行请附说明）
+- [ ] 数字已如实申报（用 `bash scripts/pr-size.sh origin/main` 生成，勿手填估算）
+- [ ] 计入行数 ≤1000；若越线，已在关联 issue 获得维护者批准并在本 PR 打 `lines: exempt` 标签（CI 的 `pr-size` 作业会机械校验）
 
 ## 门禁命令执行结果
 
