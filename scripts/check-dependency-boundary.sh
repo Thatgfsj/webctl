@@ -29,6 +29,23 @@ else
   echo "未引入 boa_engine（也可以：默认关闭的渲染能力尚未接线）"
 fi
 
+# 2b) 归属校验：boa_engine **只允许**被 webctl-js 依赖（ADR-0005 / 议题 #127）。
+#     否则渲染能力会散落各处，安全边界无法审查。
+if grep -qx "name = \"boa_engine\"" "$lock"; then
+  offenders=""
+  for manifest in "$root"/crates/*/Cargo.toml; do
+    [ -f "$manifest" ] || continue
+    crate="$(basename "$(dirname "$manifest")")"
+    if grep -q "^boa_engine" "$manifest" && [ "$crate" != "webctl-js" ]; then
+      offenders="$offenders $crate"
+    fi
+  done
+  if [ -n "$offenders" ]; then
+    echo "::error file=Cargo.toml,title=依赖边界::只有 webctl-js 可以依赖 boa_engine，违规：$offenders"
+    fail=1
+  fi
+fi
+
 # 3) 顺带核对：不得出现面向浏览器的依赖（名字里带 playwright/puppeteer 等）
 if grep -qiE "^name = \".*(playwright|puppeteer|headless_chrome).*\"" "$lock"; then
   echo "::error file=Cargo.lock,title=依赖边界::出现了浏览器自动化依赖"

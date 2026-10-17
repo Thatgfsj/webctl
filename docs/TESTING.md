@@ -514,6 +514,21 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 样本在 `crates/webctl-web/tests/fixtures/spa/`（nextjs / nuxt / 纯 CSR 空壳 / 静态文章+JSON-LD / 静态博客+RSS）。
 数字与口径见 [docs/SPA-BASELINE.md](SPA-BASELINE.md)；**改行为必须同时更新该文件与本节基线**。
 
+### 6.8d #127 沙箱核心 `crates/webctl-js`（ADR-0005 第 1 片）
+
+`crates/webctl-js` **8 条**（离线，纯内存；**不联网、不执行外部进程**）：
+
+- 同一上下文共享全局：两段脚本依次求值，`acc*21` → `42`；
+- **限值可中断**：`while(true){}` → `Limit`（实测默认限值下 **609 ms** 被中断）；深递归 → `Limit`（实测 **3.4 ms**）；
+- **输入预算**：单段超尺寸、脚本段数超限 → `Rejected`（**不进入引擎**）；
+- **零宿主能力**：`typeof` 逐项断言 `fetch` / `XMLHttpRequest` / `require` / `process` / `Deno` / `WebSocket` / `setTimeout` / `setInterval` / `Buffer` **全部 `undefined`**；
+- **确定性**：同输入两次求值结果一致；
+- 语法错误归类为 `Syntax`。
+
+> 诚实边界：`boa_engine` 无抢占式中断，故**不承诺**"任意脚本 X 毫秒内结束"；死循环/深递归靠 loop/recursion 限值中断，直线型长脚本只受字节上限约束。
+
+依赖边界守卫新增归属校验：`boa_engine` **只允许**被 `webctl-js` 依赖（`scripts/check-dependency-boundary.sh`）。
+
 ### 6.9 PR 11 MCP server（议题 #19）
 
 `crates/webctl-mcp/src/` 单元 **13 条**（含本版新增的 MCP 侧脱敏隔离用例）：`registry_is_exactly_the_plan_list`、`definitions_match_the_static_specs`、`qualified_names_follow_the_dsh_contract`、`all_plan_tools_are_registered_and_available`、`capabilities_mirror_the_dispatch_table`、`instructions_stay_under_limit`、`dsh_snippet_has_no_tool_order_and_no_tool_names`、`bound_session_accepts_only_itself`、`cross_session_error_is_readable_and_mentions_both`、`unbound_defaults_to_default_and_validates`、`small_result_stays_inline`、`large_result_is_spilled_and_keeps_degradation`、`sec_09_mcp_dispatcher_is_the_one_that_redacts`（[#82](https://github.com/Thatgfsj/webctl/issues/82) 补的隔离用例，详见本节末尾）。

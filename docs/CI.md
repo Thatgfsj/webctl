@@ -82,7 +82,7 @@ cargo build --release --locked
 # 与 guards 作业等价（含依赖边界守卫）
 cargo metadata --locked --format-version 1 > /dev/null
 cargo build --locked -p webctl && scripts/check-skill-tools.sh
-scripts/check-dependency-boundary.sh   # ADR-0005：只允许 boa_engine
+scripts/check-dependency-boundary.sh   # ADR-0005：只允许 boa_engine，且只允许 webctl-js 依赖它
 python3 scripts/check-tool-face.py      # 工具面数字/清单一致（#114）
 ~~~
 
