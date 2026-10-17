@@ -48,7 +48,7 @@
 - [x] MCP `tools/list` 恰好 15 个且与 §3.7 逐字同序（MCP-02）；`check-skill-tools.sh` 校验 SKILL.md 一致（MCP-12）
 - [x] 服务器指令 2222 字节 ≤ 32768（MCP-05）；配置不写 `toolOrder`（MCP-08）
 - [x] Release 资产在**干净环境**可下载即用（PKG-06）：v0.1.0 资产下载 + `sha256sum -c` 校验通过 + `scripts/release-e2e.sh` PASS（见 §7）
-- [x] README 双语；安装命令已改为 **v0.1.0 真实资产**的 URL（不再声明「尚无发布版」）；无虚构徽章（PKG-07）
+- [x] README 双语；安装命令已改为 **v0.1.1 真实资产**的 URL（不再声明「尚无发布版」）；无虚构徽章（PKG-07）
 - [x] 体积基线已从**v0.1.1 真实发布资产**回填（PKG-05）：glibc **22,867,752** 字节 / p50 6ms；musl 静态 **22,612,520** 字节 / p50 4ms（见 `docs/size-baseline.json`）
 
 ## 5. 硬约束（全仓审计，收尾时各跑一次）
@@ -119,7 +119,7 @@
 
 - 2026-10-17（Lead）**v0.1.1 发布 E2E（musl 静态资产首次产出）**：
   - 打 tag `v0.1.1`（annotated，含发布说明）→ Release 流水线 run `39025412524` **全绿**：plan / build-local-artifacts ×**5**（gnu、**musl**、aarch64-apple、x86_64-apple、windows-msvc）/ build-global-artifacts / host / **announce** 均 success；
-  - Release 已创建：[https://github.com/Thatgfsj/webctl/releases/tag/v0.1.1](https://github.com/Thatgfsj/webctl/releases/tag/v0.1.1)，**26 个资产**（5 个目标 × `webctl`/`webctl-mcp` + 各自 `.sha256`、shell/PowerShell 安装器、源码包与 `sha256.sum`）；
+  - Release 已创建：[https://github.com/Thatgfsj/webctl/releases/tag/v0.1.1](https://github.com/Thatgfsj/webctl/releases/tag/v0.1.1)，****28 个资产****（5 个目标 × `webctl`/`webctl-mcp` + 各自 `.sha256`、shell/PowerShell 安装器、源码包与 `sha256.sum`）；
   - **musl 静态验证（#90 的验收核心）**：下载 `webctl-x86_64-unknown-linux-musl.tar.xz` → `sha256sum -c` **成功** → `file`/`ldd` 报 **statically linked** → `scripts/release-e2e.sh --static` **PASS**（PKG-04 版本 == tag；PKG-06 干净环境 `caps --json`；**PKG-08 静态链接**）；
   - **体积/冷启动基线回填（真实资产）**：musl **22,612,520** 字节 / p50 **4ms**（static）；glibc **22,867,752** 字节 / p50 6ms（dynamic）——两条 `source` 均为 `release-asset`；
   - **未做（如实登记）**：**Alpine / 容器干净环境 E2E** —— 构建机无 Docker/podman；静态性的等价证据为 `ldd` + `readelf -d` 无 NEEDED + `env -i` 冒烟。

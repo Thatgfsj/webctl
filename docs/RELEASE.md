@@ -82,13 +82,13 @@ git tag -d v0.1.1                    # 删本地 tag
 
 ## 4. 发布 E2E（PKG-04 / PKG-06 / PKG-07 / PKG-08）
 
-**当前状态：已于 2026-10-17 执行**（tag `v0.1.1` 与 26 个资产已存在；musl 静态资产经 `sha256sum -c` + `ldd` + `release-e2e.sh --static` 验证通过，实测结果见 ACCEPTANCE §7）。收尾清单：
+**当前状态：已于 2026-10-17 执行**（tag `v0.1.1` 与 **28 个资产**已存在；musl 静态资产经 `sha256sum -c` + `ldd` + `release-e2e.sh --static` 验证通过，实测结果见 ACCEPTANCE §7）。收尾清单：
 
 | 用例 | 命令 | 期望 |
 |---|---|---|
 | PKG-04 版本 | `./webctl --version` | 与 tag 一致（如 `webctl 0.1.0`） |
 | PKG-06 干净环境 | 无 Rust、无浏览器的容器/新用户里跑 `./webctl caps --json` | `ok=true`、退出码 0 |
-| PKG-08 无动态依赖 | `ldd ./webctl` | **构建侧已达成（CI）**：`musl-static` 作业断言 `file`/`ldd`/`readelf` 无动态依赖；release 资产待下一次 tag（[#90](https://github.com/Thatgfsj/webctl/issues/90)） |
+| PKG-08 无动态依赖 | `ldd ./webctl`（**musl 资产**） | **已达成（v0.1.1）**：`webctl-x86_64-unknown-linux-musl.tar.xz` 下载后 `ldd` 报 `statically linked`、`release-e2e.sh --static` PASS |
 | PKG-05 体积 | `scripts/size-baseline.sh --binary ./webctl --target x86_64-unknown-linux-gnu --record` | 回填 glibc 基线 |
 | PKG-07 文档一致 | 对照 README 安装段与本文件 §2 | README 不出现尚不存在的资产或命令 |
 
@@ -96,14 +96,14 @@ git tag -d v0.1.1                    # 删本地 tag
 
 ~~~bash
 scripts/release-e2e.sh ./webctl 0.1.0          # glibc 资产
-# musl 静态资产（下一次 tag 起）：scripts/release-e2e.sh ./webctl 0.1.0 --static
+# musl 静态资产（v0.1.1 起已产出）：scripts/release-e2e.sh ./webctl 0.1.1 --static
 ~~~
 
 干净环境示例（本机无 Docker 时可用新用户 / `env -i` 模拟；脚本本身不依赖 Rust）：
 
 ~~~bash
 docker run --rm -v "$PWD:/w" -w /w debian:stable-slim ./webctl --version
-#（musl 静态资产发布后（下一次 tag）可用 alpine 验证干净环境，见 [#90](https://github.com/Thatgfsj/webctl/issues/90)）
+#（musl 静态资产已随 v0.1.1 发布；alpine 验证需容器运行时——本机无 Docker，见 [#105](https://github.com/Thatgfsj/webctl/issues/105)）
 ~~~
 
 ## 5. Release note 模板
@@ -167,9 +167,9 @@ scripts/size-baseline.sh --binary ./webctl --target x86_64-unknown-linux-gnu --r
 
 | 项 | 状态 | 接手 |
 |---|---|---|
-| musl 静态构建 | **CI 已达成**：`musl-static` 作业每次 PR 构建 `webctl`/`webctl-mcp` 并断言静态；发布矩阵已恢复。剩余：待下一次 tag 产出 release 资产 | [#90](https://github.com/Thatgfsj/webctl/issues/90) |
+| musl 静态构建 | **已达成（v0.1.1）**：发布资产经 `sha256sum -c` + `ldd`（statically linked）+ `release-e2e.sh --static` PASS；CI 的 `musl-static` 作业每次 PR 同样断言 | 完成 |
 | 发布 E2E（PKG-04/06/08） | **已执行（2026-10-17）**：下载 + `sha256sum -c` 校验 + `release-e2e.sh` **PASS**，见 ACCEPTANCE §7 | 完成 |
-| PKG-05 musl 体积数字 | 待真实 release 资产回填（CI 构建值不写入基线） | [#90](https://github.com/Thatgfsj/webctl/issues/90) |
+| PKG-05 musl 体积数字 | **已回填（v0.1.1 真实资产）**：22,612,520 字节 / 冷启动 p50 4ms（`docs/size-baseline.json` 的 `source=release-asset`） | 完成 |
 | PKG-07 文档-资产一致 | **已完成**：README 安装命令与资产名已按 **v0.1.1** 真实资产逐项核对 | 完成 |
 | `caps --json` 枚举 15 工具 | 由 PR 11 / 议题 #68 落地；README 已留回填标记 | PR 11 |
 | 代码签名 / macOS 公证 | 未配置（需 Apple Developer 凭据与 Windows 证书） | 后续议题 |
