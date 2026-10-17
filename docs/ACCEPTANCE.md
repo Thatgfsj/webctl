@@ -55,7 +55,8 @@
 
 - [ ] **零外部进程**：`crates/**/src/**` 无 `std::process`/`Command`（仅 `ExitCode`）；offline lane 的静态扫描 0 命中
 - [ ] **无 unsafe**：workspace `unsafe_code = "forbid"` 生效，`git grep -n "unsafe " -- crates/` 无实质命中
-- [ ] **零浏览器**：无 playwright/CDP/Edge/Chrome 依赖与调用（ADR-0001）
+- [ ] **零外部浏览器**：无 playwright/CDP/Edge/Chrome/selenium 依赖与调用（ADR-0001）
+- [ ] **JS 引擎白名单**：`Cargo.lock` 只允许 `boa_engine`（纯 Rust、受限运行，[ADR-0005](adr/0005-embedded-js-engine.md)）；禁止 `v8`/`deno_core`/`quickjs`/`rquickjs`/`mozjs` 等。由 `scripts/check-dependency-boundary.sh` 在 CI `guards` 里机械校验
 - [ ] **禁止静默降级**：任何 `degraded_from` 非空的信封，其 `code != OK`（`Envelope::validate`）
 - [ ] **信封封闭集**：`code` 只出现在 11 个错误码内
 - [ ] **信任标记**：页面内容一律 `meta.trust == untrusted_page_content`
@@ -85,7 +86,7 @@
 - 2026-10-16（Lead）main `820df36` **硬约束全仓审计**（一手证据）：
   - **零外部进程**：`crates/*/src/` 内无 `Command::new`/`.spawn(`；仅 `std::process::id()`（`config.rs`，用于临时路径唯一性）与 `use std::process::ExitCode`（bin ×2），均不创建进程。
   - **无 unsafe**：`crates/*/src/` 命中 3 处，全在注释/错误文案里；workspace `unsafe_code = "forbid"` 生效。
-  - **零浏览器**：`Cargo.toml`/`crates/*/Cargo.toml` 无 playwright/chromium/cdp/selenium；`Cargo.lock` 无 v8/quickjs/boa_engine。
+  - **零外部浏览器**：`Cargo.toml`/`crates/*/Cargo.toml` 无 playwright/chromium/cdp/selenium。**（2026-10-17 起该行的"`Cargo.lock` 无 boa_engine"部分已由 [ADR-0005](adr/0005-embedded-js-engine.md) 取代**：现在允许且仅允许 `boa_engine`，由 `scripts/check-dependency-boundary.sh` 校验。）
   - **错误码封闭集**：`ErrorCode` 共 **11** 个变体。
   - **静态扫描**：`cargo test --features offline --test offline_lane` → 4 passed / 2 ignored（两个扫描器 0 命中）。
   - 备注：手写 `grep 'http://\|https://'` 会报 30 处"疑似外站"，而正规扫描器 0 命中——差异来自保留域/模板主机/回环规则，说明扫描器的白名单规则是必要的。

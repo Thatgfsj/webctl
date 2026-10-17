@@ -1,5 +1,7 @@
 # ADR-0002：本期不做 JS 引擎，JS 页面显式降级
 
+> **被 [ADR-0005](0005-embedded-js-engine.md) 取代（2026-10-17）**：0.1.2 起引入受限内置引擎 `boa_engine`（默认关闭）。本文件作为历史记录保留，正文不改写。
+
 - 状态：已采纳（2026-10-16）
 - 关联：[ADR-0001](0001-single-layer-builtin.md)、[PLAN §10 开放决策 #2](https://github.com/Thatgfsj/webctl/blob/main/docs/PLAN.md)
 

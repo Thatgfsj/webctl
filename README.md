@@ -2,7 +2,7 @@
 
 # webctl
 
-**给 AI agent 用的网页控制层：纯 Rust、自包含的二进制（Linux / macOS / Windows），零外部进程、零浏览器，内置取回/解析/会话/文档能力，提供 CLI 与 MCP server。**
+**给 AI agent 用的网页控制层：纯 Rust、自包含的二进制（Linux / macOS / Windows），零外部进程、零外部浏览器，内置取回/解析/会话/文档能力，提供 CLI 与 MCP server；**可选**受限内置 JS 引擎（默认关闭，见 [ADR-0005](docs/adr/0005-embedded-js-engine.md)）。**
 
 [![CI](https://img.shields.io/github/actions/workflow/status/Thatgfsj/webctl/ci.yml?label=CI&style=flat-square)](https://github.com/Thatgfsj/webctl/actions/workflows/ci.yml)
 [![状态](https://img.shields.io/badge/status-v0.1.1%20released-blue?style=flat-square)](#项目状态)
@@ -25,7 +25,7 @@
 | 事实依据 | [docs/SURVEY.md](docs/SURVEY.md)（本机实测 + 公开仓库核对；其中 CDP 部分已成历史记录） |
 | 形态 | Rust workspace，4 个 crate；发布 **2 个二进制**：`webctl`（主 CLI，含 `mcp` 子命令）与 `webctl-mcp`（独立 MCP server 入口）。三平台；v0.1.1 起 Linux 同时提供 glibc 与 **musl 静态**两种资产；musl 静态由 CI 每次 PR 验证（[#90](https://github.com/Thatgfsj/webctl/issues/90)） |
 | 接口 | CLI（`caps` / `fetch` / `config` / `cookies` / `mcp`）+ MCP server（`mcp__webctl__*`，15 个工具） |
-| 外部依赖 | **运行时零外部进程、零浏览器**；不调用 `curl`/`jq`/`pdftotext` 等系统命令 |
+| 外部依赖 | **运行时零外部进程、零外部浏览器**；不调用 `curl`/`jq`/`pdftotext` 等系统命令；JS 引擎（boa）是**进程内库**且默认关闭 |
 | 发布物 | cargo-dist 生成的三平台压缩包（`webctl` 与 `webctl-mcp` 各一；Linux 含 glibc 与 **musl 静态**两种）+ shell/PowerShell 安装器（[清单](docs/RELEASE.md)）；**v0.1.1 已发布** |
 | 前身 | [playwright-crawler-helper](https://github.com/Thatgfsj-easyRep/playwright-crawler-helper)（Python + Playwright，不再兼容维护） |
 | 许可证 | [MIT](LICENSE) |
@@ -96,7 +96,7 @@ cargo test              # 全部离线：只连 127.0.0.1，不访问外网
 cargo run -- caps --json
 ~~~
 
-**运行时零依赖**（单二进制、零外部进程、零浏览器）；下面这些**只在编译期**需要：
+**运行时零外部依赖**（单二进制、零外部进程、零外部浏览器；内置 JS 引擎默认关闭）；下面这些**只在编译期**需要：
 
 | 构建期需求 | 为什么 | 怎么办 |
 |---|---|---|

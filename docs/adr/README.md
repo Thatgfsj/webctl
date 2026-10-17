@@ -5,7 +5,7 @@
 | 编号 | 决策 | 状态 |
 |---|---|---|
 | [ADR-0001](0001-single-layer-builtin.md) | 单层内置：不引入外部进程与外部浏览器 | 已采纳（2026-10-16） |
-| [ADR-0002](0002-no-js-engine-in-v01.md) | 本期不做 JS 引擎，JS 页面显式降级 | 已采纳（2026-10-16） |
+| [ADR-0002](0002-no-js-engine-in-v01.md) | 本期不做 JS 引擎，JS 页面显式降级 | **被 [ADR-0005](0005-embedded-js-engine.md) 取代（2026-10-17）** |
 | [ADR-0003](0003-selectors-instead-of-element-refs.md) | 用选择器与结构化路径取代元素引用（ref） | 已采纳（2026-10-16） |
 | [ADR-0004](0004-politeness-by-default.md) | 礼貌与限速是默认姿态，不承诺绕过反爬 | 已采纳（2026-10-16） |
 
