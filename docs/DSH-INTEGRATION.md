@@ -13,7 +13,7 @@
 
 | # | DSH 约束 | 代码位置 | 验证方式 | 结论 |
 |---|---|---|---|---|
-| 1 | `toolCallTimeoutMs` 默认 **60,000ms** | 默认请求预算 `timeout_ms = 30_000`（[`crates/webctl-core/src/config.rs`](../crates/webctl-core/src/config.rs)）；`paginate` 分片 | 默认预算 30s < 60s；长任务用 `paginate` 分片而非单次长跑 | **通过**（默认在预算内；分片策略见 §3） |
+| 1 | `toolCallTimeoutMs` 默认 **60,000ms** | **工具调用预算**：`DEFAULT_CALL_BUDGET_MS = 60_000`（[`crates/webctl-mcp/src/server.rs`](../crates/webctl-mcp/src/server.rs)，生产 `run_stdio → WebctlMcp::new()` 采用，MCP-09 断言 60s）；**网络请求预算**：`timeout_ms = 30_000`（[`crates/webctl-core/src/config.rs`](../crates/webctl-core/src/config.rs)，可配置，只影响单次取回） | 代码核对 + MCP-09 用例（§2.3） | **通过，但有边界**：调用预算与 DSH 默认工具超时**相等**（都是 60s），极端情况下可能被 harness 先截断；长任务仍应分片（§3） |
 | 2 | `maxInstructionBytes` 默认 **32,768** | [`crates/webctl-mcp/src/instructions.rs`](../crates/webctl-mcp/src/instructions.rs)：`MAX_INSTRUCTIONS_BYTES = 32 * 1024` | 实测 `initialize` 响应 `instructions` = **2222 字节**（**v0.1.0 资产**，见 §2.1；文本改动后数字随之变化，余量仍 >14×） | **通过** |
 | 3 | stdio 协商：**先起探测进程，再起服务进程** | 无全局锁/单实例限制；状态只在 state dir（cookie 会话） | 实测"探测→服务"与"两个并发服务"四种启动全部正常应答（见 §2.2） | **通过** |
 | 4 | 连接失败：harness 仍启动但**工具不出现** | — | 排查法见 §4 | **已记录**（属 DSH 侧行为） |
@@ -47,7 +47,14 @@ $ 两个并发 webctl mcp
 
 ## 3. 长任务与 60s 预算
 
-- 默认请求预算 `timeout_ms = 30_000`（可在配置/环境变量里调），**低于** DSH 的 60s 工具调用超时；
+**两个预算要分清**（两个都写进代码，别混用）：
+
+| 预算 | 值 | 位置 | 含义 |
+|---|---|---|---|
+| **工具调用预算** | **60,000ms**（硬编码，无 config 接线） | `crates/webctl-mcp/src/server.rs` 的 `DEFAULT_CALL_BUDGET_MS` | 一次 MCP 工具调用的总预算；MCP-09 断言默认 60s |
+| **网络请求预算** | **30,000ms**（`timeout_ms`，可配置） | `crates/webctl-core/src/config.rs` → `FetchOptions.timeout` | 单次 HTTP 取回的超时 |
+
+- ⚠️ **边界**：调用预算（60s）与 DSH 的默认工具超时（60s）**相等**，所以贴着上限跑的长任务可能被 harness 先截断，而不是由 webctl 返回 `TIMEOUT` 信封；
 - 需要更多内容的场景按**分片**处理：`paginate`（页数上限）、`extract` 的结果/字节预算 + 截断标记 + `LIMIT` 码；
 - 原则：工具**不**靠"跑很久直到超时"完成任务，超预算时返回带 `LIMIT`/`TIMEOUT` 码的信封而不是静默截断（见 PLAN §3 信封规则）。
 
