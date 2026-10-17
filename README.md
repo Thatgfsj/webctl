@@ -24,7 +24,7 @@
 | 发布 | **无**：尚无 tag / release；发布流水线已就位（[docs/RELEASE.md](docs/RELEASE.md)），资产一致性待首个 release 核验（PKG-06/07） |
 | 计划文档 | [docs/PLAN.md](docs/PLAN.md)（**v0.4**，含 2026-10-16 的方向变更） |
 | 事实依据 | [docs/SURVEY.md](docs/SURVEY.md)（本机实测 + 公开仓库核对；其中 CDP 部分已成历史记录） |
-| 形态 | Rust workspace，4 个 crate，单个二进制（三平台；Linux 为 glibc 动态链接） |
+| 形态 | Rust workspace，4 个 crate；发布 **2 个二进制**：`webctl`（主 CLI，含 `mcp` 子命令）与 `webctl-mcp`（独立 MCP server 入口）。三平台；Linux 为 glibc 动态链接 |
 | 接口 | CLI（`caps` / `fetch` / `config` / `cookies` / `mcp`）+ MCP server（`mcp__webctl__*`，15 个工具） |
 | 外部依赖 | **运行时零外部进程、零浏览器**；不调用 `curl`/`jq`/`pdftotext` 等系统命令 |
 | 发布物 | cargo-dist 生成的三平台压缩包 + shell/PowerShell 安装器（[清单](docs/RELEASE.md)）；**当前尚未发布** |

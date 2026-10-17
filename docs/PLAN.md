@@ -4,7 +4,7 @@
 |---|---|
 | 版本 | **草案 v0.4（2026-10-16）** |
 | 前身 | `Thatgfsj-easyRep/playwright-crawler-helper`（Python + Playwright，v4.0） |
-| 形态 | Rust workspace，**单个二进制**（三平台；Linux 为 glibc 动态链接——musl 静态暂缓，见 [#90](https://github.com/Thatgfsj/webctl/issues/90)）；CLI + MCP server；**零外部进程、零浏览器依赖** |
+| 形态 | Rust workspace；发布 **2 个二进制**（`webctl` 主 CLI 含 `mcp` 子命令、`webctl-mcp` 独立 MCP 入口）；三平台（Linux 为 glibc 动态链接——musl 静态暂缓，见 [#90](https://github.com/Thatgfsj/webctl/issues/90)）；**零外部进程、零浏览器依赖** |
 | 依据 | 历史硬数据见 [SURVEY.md](SURVEY.md)；**但 §0 的方向变更已作废其中的 T2/T3 相关结论** |
 | Spike | [wreq 验证报告](spikes/wreq.md)（HTTP 选型已定点） |
 | 决策记录 | [docs/adr/](adr/README.md)：ADR-0001 单层内置 · ADR-0002 不做 JS 引擎 · ADR-0003 选择器取代 ref · ADR-0004 礼貌与限速 |

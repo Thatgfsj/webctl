@@ -40,6 +40,8 @@
 | `webctl-x86_64-pc-windows-msvc.zip` (+ `.sha256`) | 压缩包 | `webctl.exe` + `LICENSE` + `README.md` |
 | `webctl-installer.sh` / `webctl-installer.ps1` | 安装器 | Linux/macOS shell · Windows PowerShell |
 | `source.tar.gz` (+ `.sha256`)、`sha256.sum` | 源码 | 对应 tag 的源码与统一校验和 |
+| `webctl-mcp-<target>.tar.xz` / `.zip` (+ `.sha256`) | 压缩包 | **第二个二进制**：`webctl-mcp`（独立 MCP server 入口；与 `webctl mcp` 子命令等价）。`dist plan` 对 workspace 内该包同样产出资产 |
+| `webctl-mcp-installer.sh` / `.ps1` | 安装器 | 同上（对应 `webctl-mcp`） |
 
 首个 release 之后的安装命令（取自 `dist plan` 的 `install_hint`；**当前这些 URL 尚不存在**）：
 

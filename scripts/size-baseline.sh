@@ -12,7 +12,7 @@
 #   scripts/size-baseline.sh --record                           # 把本次实测写回基线文件
 #   scripts/size-baseline.sh --json                             # 机器可读输出
 #
-# 基线文件：docs/size-baseline.json；bytes=null 表示「待 CI 回填」。
+# 基线文件：docs/size-baseline.json；bytes=null 表示待回填；source=deferred 表示该目标暂缓（见 [#90](https://github.com/Thatgfsj/webctl/issues/90)）。
 # 体积容差 10%，冷启动（--version）上限 50 ms（CLI-12）。
 
 set -euo pipefail
