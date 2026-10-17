@@ -204,6 +204,23 @@ pub struct DocTextParams {
     pub url: Option<String>,
 }
 
+/// embedded_data：抽取页面内嵌的结构化数据（零 JS 执行）。
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+pub struct EmbeddedDataParams {
+    /// 目标 URL；与 html / path 三选一。
+    pub url: Option<String>,
+    /// 内存中的 HTML；与 url / path 三选一（离线用例用）。
+    pub html: Option<String>,
+    /// 本地文件路径；与 url / html 三选一。
+    pub path: Option<String>,
+    /// 最多返回的内嵌载荷条数。
+    pub max_entries: Option<usize>,
+    /// 单条载荷的字节上限（超过则标记 truncated 且不解析）。
+    pub max_entry_bytes: Option<usize>,
+    /// 是否抽取内联状态赋值（window.__NUXT__ 这类）；默认 true。
+    pub include_inline_state: Option<bool>,
+}
+
 /// download：文件下载到指定目录。
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
 pub struct DownloadParams {

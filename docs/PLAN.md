@@ -8,7 +8,7 @@
 | 依据 | 历史硬数据见 [SURVEY.md](SURVEY.md)；**但 §0 的方向变更已作废其中的 T2/T3 相关结论** |
 | Spike | [wreq 验证报告](spikes/wreq.md)（HTTP 选型已定点） |
 | 决策记录 | [docs/adr/](adr/README.md)：ADR-0001 单层内置 · ADR-0002 不做 JS 引擎（**被 ADR-0005 取代**）· ADR-0003 选择器取代 ref · ADR-0004 礼貌与限速 · **ADR-0005 引入受限内置 JS 引擎（0.1.2 起，默认关闭）** |
-| 工具面 | **已定稿**：15 个内置工具（§3.7），无截图、无坐标交互、无 JS 执行 |
+| 工具面 | **已定稿**：16 个内置工具（§3.7），无截图、无坐标交互；**默认不执行页面 JS**（可选受限内置引擎见 [ADR-0005](adr/0005-embedded-js-engine.md)） |
 | 规范核实 | 「每 1000 行 PR 需审批」在现有仓库中**无成文依据**（SURVEY §1.2）；本计划把它作为**待写入的新项目规则**执行，措辞已落地在 [CONTRIBUTING.md](../CONTRIBUTING.md) §2 |
 
 ---
@@ -31,7 +31,7 @@
 
 **代价（必须诚实记录，不许悄悄消失）**
 
-1. **JS 渲染页面拿不到。** 无 JS 引擎 ⇒ `quotes.toscrape.com/js/` 仍为 **0 条**（SURVEY §2.4）。v0.3 的验收锚点「必须拿到 10 条」**作废**。异步 XHR 注入的内容、SPA 首屏同样拿不到。
+1. **JS 渲染页面拿不到。** 无 JS 引擎 ⇒ `quotes.toscrape.com/js/` 仍为 **0 条**（SURVEY §2.4）。（**0.1.2 起**：可选受限内置引擎，**默认关闭**，见 [ADR-0005](adr/0005-embedded-js-engine.md)；默认行为不变。）v0.3 的验收锚点「必须拿到 10 条」**作废**。异步 XHR 注入的内容、SPA 首屏同样拿不到。
 2. **没有渲染器就没有像素与布局。** `screenshot`、`print to PDF`、按坐标点击、真实几何元素匹配从工具面移除；`fill_form` 退化为按表单字段名填值并提交，而不是"点按钮"。
 3. **OCR 不再支持。** 纯 Rust 无成熟 OCR（SURVEY §2.1 显示本机 `tesseract` 缺失）。PDF 只做文本层，扫描件明确 `UNSUPPORTED`。
 4. **SURVEY 的 CDP 证据退化为历史记录。** §2.2 / §2.3 / §3 / §8 不再指导实现，保留以备将来复查。
@@ -52,7 +52,7 @@
 
 **非目标（本期不做）**
 
-- JS 执行与渲染、DOM 事件模拟、SPA 水合。
+- ~~JS 执行与渲染~~ → **0.1.2 起改为"可选、受限、默认关闭"的内置引擎**（[ADR-0005](adr/0005-embedded-js-engine.md)）；DOM 事件模拟、SPA 水合仍是非目标。
 - 截图、页面 PDF 打印、真实布局几何、移动仿真。
 - OCR、视频流、分布式调度、移动端手势、PWA/扩展/WebMCP。
 - 绕过 Cloudflare/验证码（只提供请求头/限速/重试等合规手段与明确失败）。
@@ -81,7 +81,7 @@ v0.4 没有"层"了，只有一组**内置能力域**，全部在进程内：
 ### 3.1 无外部进程 ⇒ 安全面收敛
 
 - 不执行任何子进程：v0.3 的白名单/canonicalize/注入防护**整类风险消失**（约束仍在：代码里不得出现 `Command` 调用）。
-- 无 JS 引擎 ⇒ 无 `eval` 通路，**RCE-equivalent 风险为零**。
+- **默认不启动 JS 引擎 ⇒ 默认无 `eval` 通路**。开启受限引擎（ADR-0005）后该通路存在，安全边界随之改为"引擎沙箱 + 硬限：无网络、无文件、指令/时间/内存上限，超限返回 `TIMEOUT`/`LIMIT`"；因此引擎接线必须经**独立安全审阅**。
 - 仍然保留的红线：凭据显式开关 + 脱敏、页面内容 `trust: untrusted_page_content`、日志脱敏。
 
 ### 3.2 依赖选型
@@ -138,7 +138,7 @@ v0.3 的 aria ref 依赖"最近一次快照"的 live 页面，**在无浏览器�
 - 服务器指令 **≤ 32KB**；工具名 `mcp__webctl__<rawName>`，满足 function-name 契约。
 - 会话归属：单 provider、绑定确切 live Agent+Session、跨 Session 调用拒绝；**不写入 `toolOrder`**。
 
-### 3.7 工具面（15 个，定稿）
+### 3.7 工具面（16 个，定稿）
 
 | # | 工具 | 说明 |
 |---|---|---|
@@ -154,9 +154,10 @@ v0.3 的 aria ref 依赖"最近一次快照"的 live 页面，**在无浏览器�
 | 10 | `cookies` | 查看/导出 cookie（导出需 `--yes`、权限 600、值脱敏） |
 | 11 | `json_query` | 内置 JSON 查询子集（替代 `jq`） |
 | 12 | `doc_text` | PDF / HTML / XML 文本层提取（替代 `pdftotext`/`pandoc`） |
-| 13 | `download` | 文件下载到指定目录（尺寸上限、类型白名单、落盘路径） |
-| 14 | `robots` | robots.txt 与站点策略查询（礼貌爬取依据） |
-| 15 | `caps` | 内置能力与版本自检 |
+| 13 | `embedded_data` | 页面**内嵌**结构化数据抽取（JSON-LD / `script[type=json]` / 框架状态容器 / `data-page`），**零 JS 执行**（0.1.2，[#114](https://github.com/Thatgfsj/webctl/issues/114)） |
+| 14 | `download` | 文件下载到指定目录（尺寸上限、类型白名单、落盘路径） |
+| 15 | `robots` | robots.txt 与站点策略查询（礼貌爬取依据） |
+| 16 | `caps` | 内置能力与版本自检 |
 
 **明确不做**：screenshot / pdf 打印 / click / hover / drag / press_key / upload_file / handle_dialog / wait_for / evaluate / console_messages / network_requests（这些都是浏览器语义）。
 
@@ -338,7 +339,7 @@ v0.3 的锚点（JS 页必须拿到 10 条）**作废**。v0.4 的锚点：
 | # | 决策 | 默认值 |
 |---|---|---|
 | 1 | 项目名与仓库 | `webctl`，`Thatgfsj/webctl`（已建） |
-| 2 | JS 渲染 | **本期不做**；JS 页显式 `DEGRADED`，将来可作为可选内置引擎（Boa/rquickjs + 自建 DOM）加入 |
+| 2 | JS 渲染 | **已决定引入（2026-10-17）**：可选、受限、**默认关闭**的内置引擎（boa，[ADR-0005](adr/0005-embedded-js-engine.md)）；默认行为仍是 JS 页显式 `DEGRADED` |
 | 3 | OCR | 不支持；扫描件 `UNSUPPORTED` |
 | 4 | 旧 Python 版 | 归档不兼容，只出迁移映射表 |
 | 5 | 1000 行规则 | 按 §6.2 执行（已写入 CONTRIBUTING） |

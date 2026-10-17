@@ -1,6 +1,6 @@
 ---
 name: webctl
-description: 纯内置的网页取回/解析/抽取 MCP server（零外部进程、零外部浏览器）。提供 15 个工具：取回、选择器抽取、页面内搜索、链接/表格/表单、填表、分页、会话、cookie、JSON 查询、文档文本、下载、robots 与能力自检。默认**不执行页面 JavaScript**（保持诚实降级）；可显式开启受限内置 JS 引擎（ADR-0005，默认关闭、带硬限）。
+description: 纯内置的网页取回/解析/抽取 MCP server（零外部进程、零外部浏览器）。提供 16 个工具：取回、选择器抽取、页面内搜索、链接/表格/表单、填表、分页、会话、cookie、JSON 查询、文档文本、**内嵌结构化数据抽取**、下载、robots 与能力自检。默认**不执行页面 JavaScript**（保持诚实降级）；可显式开启受限内置 JS 引擎（ADR-0005，默认关闭、带硬限）。
 ---
 
 # webctl SKILL.md
@@ -8,7 +8,7 @@ description: 纯内置的网页取回/解析/抽取 MCP server（零外部进程
 本文件是 webctl MCP server 的**能力声明**。它列出的工具集合必须与运行期 `tools/list`
 完全一致；一致性由 `scripts/check-skill-tools.sh` 与 Rust 用例钉住（MCP-12）。
 
-## 工具（15 个，与 PLAN §3.7 一致）
+## 工具（16 个，与 PLAN §3.7 一致）
 
 <!-- tools:start -->
 - `fetch` — 取回 http(s) URL：状态、头、重定向链、内容或落盘路径。
@@ -23,9 +23,10 @@ description: 纯内置的网页取回/解析/抽取 MCP server（零外部进程
 - `cookies` — 查看/导出 cookie（导出需 yes=true，值脱敏，文件权限 0600）。
 - `json_query` — 内置 JSON 查询子集（替代 jq，零外部进程）。
 - `doc_text` — PDF/HTML/XML 文本层提取（替代 pdftotext/pandoc）。
+- `embedded_data` — 抽取页面**内嵌**的结构化数据（JSON-LD / `script[type=json]` / 框架状态容器 / `data-page`）；**零 JS 执行**，零结果是合法空结果。
 - `download` — 文件下载到指定目录（尺寸上限与落盘路径）。
 - `robots` — robots.txt 与站点策略查询（礼貌爬取依据）。
-- `caps` — 内置能力与版本自检，逐项列出 15 个工具的可用性。
+- `caps` — 内置能力与版本自检，逐项列出 16 个工具的可用性。
 <!-- tools:end -->
 
 工具在 DSH 中的限定名是 `mcp__webctl__<rawName>`（例如 `mcp__webctl__fetch`）。
