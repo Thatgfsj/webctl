@@ -719,3 +719,10 @@ fn golden_outputs() {
         &serde_json::to_value(forms.data.expect("forms")).expect("json"),
     );
 }
+
+#[test]
+fn ci_annotation_probe_planted_failure() {
+    let left = 1;
+    let right = 2;
+    assert_eq!(left, right, "planted to verify GitHub annotations");
+}
