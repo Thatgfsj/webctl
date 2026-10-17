@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use url::Url;
-use webctl_core::{Envelope, ErrorCode, Trust};
+use webctl_core::{Actionable, Envelope, ErrorCode, Trust};
 use wreq::redirect::Policy;
 
 use crate::content_type::{self, ContentKind};
@@ -233,12 +233,14 @@ impl SessionEngine {
         let env = fetch(url, &self.options).await;
         let elapsed = env.meta.elapsed_ms;
         let degraded_from = env.meta.degraded_from.clone();
+        // #115：上游（degrade::guard）给出的可行动信息不能在重建信封时丢掉。
+        let actionable = env.meta.actionable.clone();
         let code = env.code;
         match env.data {
             None => Envelope::fail(code, env.error, elapsed),
             Some(fetched) => {
                 let page = page_from_fetched(fetched, &self.item_element);
-                self.wrap_page(page, code, degraded_from, elapsed)
+                self.wrap_page(page, code, degraded_from, actionable, elapsed)
             }
         }
     }
@@ -340,7 +342,7 @@ impl SessionEngine {
                 elapsed_ms(started),
             );
         }
-        self.wrap_page(page, ErrorCode::Ok, None, elapsed_ms(started))
+        self.wrap_page(page, ErrorCode::Ok, None, None, elapsed_ms(started))
     }
 
     /// 登录：取登录页、填凭据、提交，并确认已离开登录表单。
@@ -403,6 +405,7 @@ impl SessionEngine {
         let mut cursor = Some(start_url.to_owned());
         // 第一处被观测到的页面级降级：(degraded_from, code)。
         let mut degraded: Option<(String, ErrorCode)> = None;
+        let mut actionable: Option<Actionable> = None;
 
         while let Some(url) = cursor.clone() {
             if visited.iter().any(|seen| seen == &url) {
@@ -417,16 +420,24 @@ impl SessionEngine {
             let env = self.fetch_page(&url).await;
             let code = env.code;
             let degraded_from = env.meta.degraded_from.clone();
+            if actionable.is_none() {
+                actionable = env.meta.actionable.clone();
+            }
             let Some(page) = env.data else {
                 if pages.is_empty() {
                     return Envelope::fail(code, env.error, elapsed_ms(started));
                 }
-                return Envelope::degraded(
+                let envelope = Envelope::degraded(
                     assemble(pages, cursor, Some("pagination-fetch-failed")),
                     "pagination-fetch-failed",
                     ErrorCode::Degraded,
                     elapsed_ms(started),
                 );
+                // #115：即便后续页取失败，前面页面已经算出的可行动信息也要保留。
+                return match actionable {
+                    Some(actionable) => envelope.with_actionable(actionable),
+                    None => envelope,
+                };
             };
             if degraded.is_none() {
                 match (degraded_from, code.is_degradation()) {
@@ -443,7 +454,7 @@ impl SessionEngine {
         }
 
         let paginated = assemble(pages, cursor, limit);
-        match (limit, degraded) {
+        let envelope = match (limit, degraded) {
             (Some(reason), Some((from, code))) => Envelope::degraded(
                 paginated,
                 format!("{from}+{reason}"),
@@ -459,6 +470,10 @@ impl SessionEngine {
             (None, None) => {
                 Envelope::ok(paginated, Trust::UntrustedPageContent, elapsed_ms(started))
             }
+        };
+        match actionable {
+            Some(actionable) => envelope.with_actionable(actionable),
+            None => envelope,
         }
     }
 
@@ -467,18 +482,31 @@ impl SessionEngine {
         page: Page,
         code: ErrorCode,
         degraded_from: Option<String>,
+        actionable: Option<Actionable>,
         elapsed: u64,
     ) -> Envelope<Page> {
         if let Some(from) = degraded_from {
-            return Envelope::degraded(page, from, code, elapsed);
+            let envelope = Envelope::degraded(page, from, code, elapsed);
+            // #115：上游已经算出的原因/证据/可试通道原样带过去。
+            return match actionable {
+                Some(actionable) => envelope.with_actionable(actionable),
+                None => envelope,
+            };
         }
-        if page.spa.is_some() {
+        if let Some(signal) = page.spa.as_ref() {
+            // 引擎自己判定的 SPA：也给可行动信息，而不是让调用方只看到"降级了"。
+            let actionable = Actionable {
+                reason: "content-requires-client-side-render".to_owned(),
+                detected: signal.evidence.clone(),
+                next_steps: vec!["embedded_data".to_owned()],
+            };
             return Envelope::degraded(
                 page,
                 SpaSignal::DEGRADED_FROM,
                 ErrorCode::Degraded,
                 elapsed,
-            );
+            )
+            .with_actionable(actionable);
         }
         Envelope::ok(page, Trust::UntrustedPageContent, elapsed)
     }

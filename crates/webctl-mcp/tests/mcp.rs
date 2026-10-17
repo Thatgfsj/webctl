@@ -661,6 +661,49 @@ async fn limit_degradation_has_no_actionable_yet() {
     );
 }
 
+/// #115 复审修正：**传播路径不得丢掉 actionable**。
+///
+/// 复审实测：`paginate` 在 JS 空壳页上 `degraded_from=js-render` 但 `actionable=null`——
+/// `session/engine.rs` 重建信封时把上游 guard 挂的信息丢了。这条用例钉住修复。
+#[tokio::test]
+async fn paginate_propagates_actionable_from_upstream() {
+    let server =
+        http_fixture::Server::start_with(vec![("/js", http_fixture::Response::html(JS_SHELL))])
+            .await;
+    let mcp = WebctlMcp::new(in_process_context("paginate-actionable"));
+    let paged = invoke(
+        &mcp,
+        "paginate",
+        json!({"url": server.url("/js"), "max_pages": 2}),
+    )
+    .await;
+    assert_degraded(&paged, "paginate /js");
+    // 夹具只服务 /js，翻到第 2 页必然 404 —— 所以这里的 degraded_from 是
+    // `pagination-fetch-failed`（而不是 js-render）。恰恰要证明：**后续页失败也不丢可行动信息**。
+    assert!(
+        paged["meta"]["degraded_from"]
+            .as_str()
+            .is_some_and(|s| !s.is_empty()),
+        "降级来源必须写明：{paged}"
+    );
+    let actionable = &paged["meta"]["actionable"];
+    assert!(
+        actionable.is_object(),
+        "paginate 必须透传上游的 actionable，不能只给 degraded_from：{paged}"
+    );
+    assert!(
+        actionable["reason"].as_str().is_some_and(|s| !s.is_empty()),
+        "原因码不得为空：{actionable}"
+    );
+    for step in actionable["next_steps"].as_array().expect("next_steps") {
+        let name = step.as_str().expect("channel");
+        assert!(
+            webctl_mcp::dispatch::is_known_tool(name),
+            "通道 {name} 必须是真实工具"
+        );
+    }
+}
+
 /// 进程内调用一次 MCP 工具（未知工具名直接 panic）。
 async fn invoke(mcp: &WebctlMcp, name: &str, args: Value) -> Value {
     mcp.invoke(name, args)

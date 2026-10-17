@@ -112,8 +112,9 @@ v0.4 没有"层"了，只有一组**内置能力域**，全部在进程内：
             "degraded_from": null, "stale": false, "elapsed_ms": 412 } }
 ```
 
-**JS 渲染降级**（`degraded_from: js-render`，`code` 为 `DEGRADED`/`UNSUPPORTED`）额外带
+**JS 渲染降级**（`degraded_from` 含 `js-render`，`code` 为 `DEGRADED`/`UNSUPPORTED`）额外带
 **可行动信息**（0.1.2 / #115），让调用方不必猜"为什么 + 还能试什么"：
+（含**传播路径**：`paginate` 等重建信封时也原样带过去，不再丢。）
 
 ```json
 { "ok": true, "data": {}, "error": "", "code": "UNSUPPORTED",
