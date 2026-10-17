@@ -37,7 +37,8 @@ description: 纯内置的网页取回/解析/抽取 MCP server（零外部进程
 每次调用返回 JSON 信封：`{ ok, data, error, code, meta }`。
 
 - `ok=true` + `code=OK`：正常结果。
-- `ok=true` + `DEGRADED` / `UNSUPPORTED` / `LIMIT`：结果不完整，`meta.degraded_from` 非空。
+- `ok=true` + `DEGRADED` / `UNSUPPORTED` / `LIMIT`：结果不完整，`meta.degraded_from` 非空；
+  并读 `meta.actionable`（`reason` / `detected` / `next_steps`）决定换哪条通道——别猜。
 - `ok=false`：失败；`code` 是封闭集，`error` 是可读原因。
 
 空结果（合法零命中）与解析失败（`PARSE`）严格区分；工具级失败一律以信封返回，

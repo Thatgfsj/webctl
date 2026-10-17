@@ -3,10 +3,31 @@
 //! 唯一事实来源是 `crate::dispatch::is_known_tool`——也就是工具真的在派发表里；
 //! 不是把 16 个名字硬编码成 available。
 
-use webctl_core::{CapabilityState, ToolCapability};
+use webctl_core::{CapabilityState, SpaSurface, ToolCapability};
 
 use crate::dispatch;
 use crate::tools::TOOL_SPECS;
+
+/// 遇到 JS 页面时建议调用方尝试的**通道候选**（工具名）。
+///
+/// 这些名字必须真实注册：`spa_surface()` 会用 `dispatch::is_known_tool` 过滤，
+/// 且测试断言候选表本身没写错（写错了就红，而不是悄悄少一个建议）。
+pub const SUGGESTED_CHANNELS: [&str; 1] = ["embedded_data"];
+
+/// 构造 SPA 支持面（#115）：认得的容器类型 + 真实可用的通道。
+pub fn spa_surface() -> SpaSurface {
+    SpaSurface {
+        detected_containers: webctl_web::parse::embedded::CONTAINER_KINDS
+            .iter()
+            .map(|kind| (*kind).to_owned())
+            .collect(),
+        channels: SUGGESTED_CHANNELS
+            .iter()
+            .filter(|name| dispatch::is_known_tool(name))
+            .map(|name| (*name).to_owned())
+            .collect(),
+    }
+}
 
 /// 逐项报告 16 个工具的可用性（顺序与 PLAN §3.7 一致）。
 pub fn tool_capabilities() -> Vec<ToolCapability> {

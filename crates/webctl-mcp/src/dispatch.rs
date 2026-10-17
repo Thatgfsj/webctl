@@ -750,7 +750,7 @@ async fn tool_caps(ctx: &McpContext, args: &Value) -> Value {
     } else {
         Vec::new()
     };
-    let report = CapsReport::detect_with(&ctx.config, tools);
+    let report = CapsReport::detect_with(&ctx.config, tools).with_spa(crate::caps::spa_surface());
     to_value(Envelope::ok(report, Trust::TrustedLocal, 0))
 }
 #[cfg(test)]

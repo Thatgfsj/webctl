@@ -568,6 +568,73 @@ async fn embedded_data_rejects_url_and_html_together() {
     assert_eq!(code_of(&envelope), "BAD_URL");
 }
 
+/// #115：SPA 支持面的通道必须是**真实注册的工具**（候选表写错即红）。
+#[test]
+fn spa_surface_channels_are_registered_tools() {
+    for name in webctl_mcp::caps::SUGGESTED_CHANNELS {
+        assert!(
+            webctl_mcp::dispatch::is_known_tool(name),
+            "建议的通道 {name} 必须是真实注册的工具"
+        );
+    }
+    let surface = webctl_mcp::caps::spa_surface();
+    assert!(!surface.channels.is_empty(), "SPA 通道不得为空");
+    assert_eq!(surface.detected_containers.len(), 4, "应报告 4 类容器");
+    assert!(
+        surface
+            .channels
+            .iter()
+            .all(|name| webctl_mcp::dispatch::is_known_tool(name)),
+        "过滤后仍必须全是真实工具：{:?}",
+        surface.channels
+    );
+}
+
+/// #115：降级信封要带"为什么 + 还能试什么"，且 `next_steps` 必须是真实工具。
+#[tokio::test]
+async fn degraded_envelope_carries_actionable_next_steps() {
+    let server =
+        http_fixture::Server::start_with(vec![("/js", http_fixture::Response::html(JS_SHELL))])
+            .await;
+    let mcp = WebctlMcp::new(in_process_context("actionable"));
+    let extracted = invoke(
+        &mcp,
+        "extract",
+        json!({"url": server.url("/js"), "selector": "div.quote"}),
+    )
+    .await;
+    assert_degraded(&extracted, "extract /js");
+    let actionable = &extracted["meta"]["actionable"];
+    assert!(actionable.is_object(), "降级必须带可行动信息：{extracted}");
+    assert!(
+        actionable["reason"].as_str().is_some_and(|s| !s.is_empty()),
+        "要有机器可读原因：{actionable}"
+    );
+    assert!(
+        !actionable["detected"]
+            .as_array()
+            .expect("detected")
+            .is_empty(),
+        "要带上观察到的证据：{actionable}"
+    );
+    for step in actionable["next_steps"].as_array().expect("next_steps") {
+        let name = step.as_str().expect("channel name");
+        assert!(
+            webctl_mcp::dispatch::is_known_tool(name),
+            "建议的通道 {name} 必须真实存在（用派发表反查）"
+        );
+    }
+}
+
+/// #115：未降级的成功信封**不得**带 actionable（协议误用会被 validate 拦下）。
+#[tokio::test]
+async fn ok_envelope_has_no_actionable() {
+    let mcp = WebctlMcp::new(in_process_context("no-actionable"));
+    let envelope = invoke(&mcp, "embedded_data", json!({"html": "<p>静态</p>"})).await;
+    assert_eq!(envelope["ok"], true);
+    assert!(envelope["meta"]["actionable"].is_null(), "{envelope}");
+}
+
 /// 进程内调用一次 MCP 工具（未知工具名直接 panic）。
 async fn invoke(mcp: &WebctlMcp, name: &str, args: Value) -> Value {
     mcp.invoke(name, args)
