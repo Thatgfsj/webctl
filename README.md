@@ -11,8 +11,7 @@
 
 [项目状态](#项目状态) · [安装](#安装) · [快速开始](#快速开始) · [能力与现状](#能力与现状) · [English](#english) · [计划](docs/PLAN.md) · [发布流程](docs/RELEASE.md) · [贡献指南](CONTRIBUTING.md) · [议题](https://github.com/Thatgfsj/webctl/issues)
 
-> **v0.1.0 已发布**（[Release v0.1.0](https://github.com/Thatgfsj/webctl/releases/tag/v0.1.0)）：三平台压缩包 + shell / PowerShell 安装器；Linux 为 glibc 动态链接（musl 静态见议题 [#90](https://github.com/Thatgfsj/webctl/issues/90)）。
-> **v0.1.0 已发布**（[Release v0.1.0](https://github.com/Thatgfsj/webctl/releases/tag/v0.1.0)）：三平台资产 + shell/PowerShell 安装器；安装见[安装](#安装)。进度见 [PLAN §5.2.1](docs/PLAN.md)。
+> **v0.1.0 已发布**（[Release v0.1.0](https://github.com/Thatgfsj/webctl/releases/tag/v0.1.0)）：三平台资产（`webctl` 与 `webctl-mcp`）+ shell / PowerShell 安装器；Linux 为 glibc 动态链接（musl 静态见议题 [#90](https://github.com/Thatgfsj/webctl/issues/90)）。安装见[安装](#安装)，进度见 [PLAN §5.2.1](docs/PLAN.md)。
 
 ---
 
