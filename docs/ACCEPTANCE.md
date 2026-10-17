@@ -119,7 +119,7 @@
 
 - 2026-10-17（Lead）**v0.1.1 发布 E2E（musl 静态资产首次产出）**：
   - 打 tag `v0.1.1`（annotated，含发布说明）→ Release 流水线 run `39025412524` **全绿**：plan / build-local-artifacts ×**5**（gnu、**musl**、aarch64-apple、x86_64-apple、windows-msvc）/ build-global-artifacts / host / **announce** 均 success；
-  - Release 已创建：[https://github.com/Thatgfsj/webctl/releases/tag/v0.1.1](https://github.com/Thatgfsj/webctl/releases/tag/v0.1.1)，**28 个资产**（5 个目标 × `webctl`/`webctl-mcp` + 各自 `.sha256`、shell/PowerShell 安装器、源码包与 `sha256.sum`）；
+  - Release 已创建：[https://github.com/Thatgfsj/webctl/releases/tag/v0.1.1](https://github.com/Thatgfsj/webctl/releases/tag/v0.1.1)，**28 个资产**（5 个目标 ×（`webctl` 与 `webctl-mcp` 的压缩包 + 各自 `.sha256`）= 20；安装器 4：`webctl-installer.{sh,ps1}` 与 `webctl-mcp-installer.{sh,ps1}` = 24；`source.tar.gz` + `source.tar.gz.sha256` = 26；`sha256.sum` = 27；`dist-manifest.json` = 28）；
   - **musl 静态验证（#90 的验收核心）**：下载 `webctl-x86_64-unknown-linux-musl.tar.xz` → `sha256sum -c` **成功** → `file`/`ldd` 报 **statically linked** → `scripts/release-e2e.sh --static` **PASS**（PKG-04 版本 == tag；PKG-06 干净环境 `caps --json`；**PKG-08 静态链接**）；
   - **体积/冷启动基线回填（真实资产）**：musl **22,612,520** 字节 / p50 **4ms**（static）；glibc **22,867,752** 字节 / p50 6ms（dynamic）——两条 `source` 均为 `release-asset`；
   - **Alpine / 容器干净环境 E2E**：v0.1.1 发布当日**已闭环**——本机虽无 Docker/podman，但用 user namespace + `bwrap` + Alpine minirootfs 构造真实 musl 用户态并实测通过（方法见本节下一条；议题 [#105](https://github.com/Thatgfsj/webctl/issues/105) 已关闭）。
