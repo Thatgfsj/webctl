@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head><meta charset="utf-8"><title>Nuxt 样本：数据在 window.__NUXT__</title></head>
+<body>
+  <div id="__nuxt"></div>
+  <!-- 注意：内联状态必须是 **JSON** 字面量（键要加引号）。写成 JS 对象字面量不会被硬猜。 -->
+  <script>window.__NUXT__={"data":[{"title":"Nuxt 内联数据标题","body":"正文只在 window.__NUXT__ 的 data 里。"}],"state":{"counter":1}};</script>
+  <script src="/_nuxt/entry.abc.js"></script>
+</body>
+</html>

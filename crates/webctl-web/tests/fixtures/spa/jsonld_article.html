@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <title>静态文章：HTML 里就有正文，同时带 JSON-LD</title>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"静态文章标题","author":{"@type":"Person","name":"作者"}}</script>
+</head>
+<body>
+  <main>
+    <article>
+      <h1>静态文章标题</h1>
+      <p>第一段：这段正文直接写在 HTML 里，服务端渲染，不需要执行 JavaScript 就能读到。</p>
+      <p>第二段：为了让它被判为"服务端已渲染"，这里需要足够的可见文本，避免被误判成 JS 空壳页。</p>
+      <p>第三段：同时页面头部带 JSON-LD，元数据一类也算取到。</p>
+    </article>
+  </main>
+</body>
+</html>
