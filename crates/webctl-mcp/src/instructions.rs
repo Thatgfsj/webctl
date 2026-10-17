@@ -13,11 +13,11 @@ pub const MAX_INSTRUCTIONS_BYTES: usize = 32 * 1024;
 pub const INSTRUCTIONS: &str = r#"webctl MCP server：纯内置的网页取回 / 解析 / 抽取层。零外部进程、零外部浏览器；**默认不执行页面 JavaScript**。
 
 ## 工具边界
-本服务器只注册 15 个工具（仅这些，没有截图、没有坐标点击、没有 evaluate）：
+本服务器只注册 16 个工具（仅这些，没有截图、没有坐标点击、没有 evaluate）：
 - 取回：fetch（状态/头/重定向链/内容或落盘路径）、download（落盘到指定目录）。
 - 抽取：extract（CSS 选择器）、search（文本/正则）、links、tables、forms。
 - 会话：fill_form、paginate、session、cookies。
-- 数据：json_query、doc_text（PDF/HTML/XML 文本层）、robots、caps。
+- 数据：json_query、doc_text（PDF/HTML/XML 文本层）、embedded_data（页面内嵌 JSON：JSON-LD / script[type=json] / 框架状态容器）、robots、caps。
 
 ## 结果信封（所有工具统一）
 每次调用都返回 JSON 信封：ok / data / error / code / meta。

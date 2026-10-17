@@ -24,7 +24,7 @@
 | 计划文档 | [docs/PLAN.md](docs/PLAN.md)（**v0.4**，含 2026-10-16 的方向变更） |
 | 事实依据 | [docs/SURVEY.md](docs/SURVEY.md)（本机实测 + 公开仓库核对；其中 CDP 部分已成历史记录） |
 | 形态 | Rust workspace，4 个 crate；发布 **2 个二进制**：`webctl`（主 CLI，含 `mcp` 子命令）与 `webctl-mcp`（独立 MCP server 入口）。三平台；v0.1.1 起 Linux 同时提供 glibc 与 **musl 静态**两种资产；musl 静态由 CI 每次 PR 验证（[#90](https://github.com/Thatgfsj/webctl/issues/90)） |
-| 接口 | CLI（`caps` / `fetch` / `config` / `cookies` / `mcp`）+ MCP server（`mcp__webctl__*`，15 个工具） |
+| 接口 | CLI（`caps` / `fetch` / `config` / `cookies` / `mcp`）+ MCP server（`mcp__webctl__*`，16 个工具） |
 | 外部依赖 | **运行时零外部进程、零外部浏览器**；不调用 `curl`/`jq`/`pdftotext` 等系统命令；JS 引擎（boa）是**进程内库**且默认关闭 |
 | 发布物 | cargo-dist 生成的三平台压缩包（`webctl` 与 `webctl-mcp` 各一；Linux 含 glibc 与 **musl 静态**两种）+ shell/PowerShell 安装器（[清单](docs/RELEASE.md)）；**v0.1.1 已发布** |
 | 前身 | [playwright-crawler-helper](https://github.com/Thatgfsj-easyRep/playwright-crawler-helper)（Python + Playwright，不再兼容维护） |
@@ -43,15 +43,15 @@
 | **CLI** | 配置优先级、代理、输出格式、退出码、`caps`/`fetch`/`config` | ✅ 已合并（PR 10） |
 | **抽取** | 选择器 / `search` / `links` / `tables` / `forms` / `paginate` 的结构化输出 | ✅ 已合并（PR 06） |
 | **降级语义** | SPA/JS 页显式 `DEGRADED`/`UNSUPPORTED`，禁止"成功但 0 条" | ✅ 已合并（PR 09） |
-| **MCP** | rmcp server + 15 工具 schema + `SKILL.md`（与 `tools/list` 强制一致） | ✅ 已合并（PR 11） |
+| **MCP** | rmcp server + 16 工具 schema + `SKILL.md`（与 `tools/list` 强制一致） | ✅ 已合并（PR 11；#114 增至 16） |
 | **安全** | cookie 导出确认、信封/日志脱敏、路径与协议校验 | ✅ 已合并（PR 12） |
 
-工具面定稿为 **15 个内置工具**（[PLAN §3.7](docs/PLAN.md)）：
+工具面定稿为 **16 个内置工具**（[PLAN §3.7](docs/PLAN.md)，`embedded_data` 于 0.1.2 加入）：
 `fetch` / `extract` / `search` / `links` / `tables` / `forms` / `fill_form` / `paginate` /
-`session` / `cookies` / `json_query` / `doc_text` / `download` / `robots` / `caps`。
-**CLI 子命令**：`caps` / `fetch` / `config` / `cookies` / `mcp`；15 个工具由 MCP 工具面同时暴露（`webctl mcp --list-tools`）。
+`session` / `cookies` / `json_query` / `doc_text` / `embedded_data` / `download` / `robots` / `caps`。
+**CLI 子命令**：`caps` / `fetch` / `config` / `cookies` / `mcp`；16 个工具由 MCP 工具面同时暴露（`webctl mcp --list-tools`）。
 
-<!-- 已回填（#68 已关闭）：`webctl caps --json` 枚举 15 个工具并逐项给出可用性与原因；能力表与 PLAN §3.7 一致。 -->
+<!-- 已回填（#68 已关闭）：`webctl caps --json` 枚举 16 个工具并逐项给出可用性与原因；能力表与 PLAN §3.7 一致。 -->
 
 ## 它不做什么（诚实清单）
 
@@ -134,7 +134,7 @@ crates/
 ├─ webctl/        # bin：CLI 入口 + MCP 入口（feature 切换）
 ├─ webctl-core/   # envelope / 错误码 / 配置 / 能力自检 / 会话状态 / 安全脱敏
 ├─ webctl-web/    # 取回 + 解析 + 会话 + 文档与数据（全部内置）
-└─ webctl-mcp/    # MCP server + 15 工具 schema + SKILL.md（PR 11）
+└─ webctl-mcp/    # MCP server + 16 工具 schema + SKILL.md（PR 11 建 15 个，#114 增至 16）
 ~~~
 
 拆分纪律：**只有变更来源/节奏不同、且依赖方向单向无环时才拆 crate**；其余同一 crate 内用目录分隔。
@@ -159,8 +159,8 @@ crates/
 
 - **Status:** **v0.1.1 released** (https://github.com/Thatgfsj/webctl/releases/tag/v0.1.1) for Linux (**glibc** and **musl static**), macOS (aarch64 / x86_64) and Windows, with shell/PowerShell installers; see [docs/RELEASE.md](docs/RELEASE.md). The musl asset is produced by the release pipeline and statically asserted (`ldd` = `statically linked`).
 - **Runtime:** zero subprocesses, zero browser, zero JS execution. JS-heavy pages degrade explicitly to `DEGRADED`/`UNSUPPORTED` instead of silently returning "success with 0 results".
-- **Capabilities shipped (PR 03–14 all merged):** fetch (PR 02/08), parsing (PR 03), extraction (PR 06), document/data (PR 07), politeness (PR 08), degradation semantics (PR 09), CLI and config (PR 10), MCP server with 15 tools (PR 11), security hardening (PR 12), packaging (PR 14). The README table above is the source of truth.
-- **Commands available today:** `webctl caps`, `webctl fetch <url>`, `webctl config`, `webctl cookies`, `webctl mcp` (the 15-tool surface).
+- **Capabilities shipped (PR 03–14 all merged):** fetch (PR 02/08), parsing (PR 03), extraction (PR 06), document/data (PR 07), politeness (PR 08), degradation semantics (PR 09), CLI and config (PR 10), MCP server with 16 tools (PR 11 built 15; #114 added `embedded_data`), security hardening (PR 12), packaging (PR 14). The README table above is the source of truth.
+- **Commands available today:** `webctl caps`, `webctl fetch <url>`, `webctl config`, `webctl cookies`, `webctl mcp` (the 16-tool surface).
 - **Build:** `cargo build --release` (requires cmake, a C/C++ toolchain, and libclang at build time only). Rust 1.98.1, pinned in `rust-toolchain.toml`.
 - **Docs:** [PLAN](docs/PLAN.md) · [RELEASE](docs/RELEASE.md) · [TESTING](docs/TESTING.md) · [CONTRIBUTING](CONTRIBUTING.md).
 - **License:** MIT.

@@ -152,14 +152,18 @@ fn mcp_01_initialize_negotiates_protocol_version() {
     assert_eq!(response["result"]["serverInfo"]["name"], "webctl");
 }
 
-/// MCP-02：tools/list 恰好 15 个且名字与 PLAN §3.7 完全一致。
+/// MCP-02：tools/list 恰好 TOOL_NAMES 那么多个且名字与 PLAN §3.7 完全一致。
 #[test]
 fn mcp_02_tools_list_is_exactly_the_plan_set() {
     let mut server = Server::start(&temp_dir("list"), None);
     server.initialize();
     let response = server.request(2, "tools/list", json!({}));
     let tools = response["result"]["tools"].as_array().expect("tools array");
-    assert_eq!(tools.len(), 15, "tools/list 必须恰好 15 个");
+    assert_eq!(
+        tools.len(),
+        TOOL_NAMES.len(),
+        "tools/list 数量必须与 TOOL_NAMES 一致"
+    );
     let names: Vec<&str> = tools
         .iter()
         .map(|tool| tool["name"].as_str().expect("tool name"))
@@ -172,7 +176,7 @@ fn mcp_02_tools_list_is_exactly_the_plan_set() {
     let mut sorted = names.clone();
     sorted.sort_unstable();
     sorted.dedup();
-    assert_eq!(sorted.len(), 15, "工具名不得重复");
+    assert_eq!(sorted.len(), TOOL_NAMES.len(), "工具名不得重复");
 }
 
 /// MCP-03：每个 inputSchema 合法（对象 + properties 对象 + required 已声明）。
@@ -245,8 +249,14 @@ fn mcp_06_two_servers_start_without_conflict() {
     assert_eq!(two["result"]["serverInfo"]["name"], "webctl");
     let list_a = first.request(2, "tools/list", json!({}));
     let list_b = second.request(3, "tools/list", json!({}));
-    assert_eq!(list_a["result"]["tools"].as_array().expect("a").len(), 15);
-    assert_eq!(list_b["result"]["tools"].as_array().expect("b").len(), 15);
+    assert_eq!(
+        list_a["result"]["tools"].as_array().expect("a").len(),
+        TOOL_NAMES.len()
+    );
+    assert_eq!(
+        list_b["result"]["tools"].as_array().expect("b").len(),
+        TOOL_NAMES.len()
+    );
 }
 
 /// MCP-07：跨 Session 调用被拒且错误可读。
@@ -393,8 +403,8 @@ fn mcp_12_skill_md_matches_tools_list() {
     }
     assert_eq!(
         declared.len(),
-        15,
-        "SKILL.md 必须声明 15 个工具：{declared:?}"
+        TOOL_NAMES.len(),
+        "SKILL.md 声明的工具数必须与 TOOL_NAMES 一致：{declared:?}"
     );
     assert_eq!(
         declared,
@@ -458,13 +468,104 @@ fn env_06_cli_and_mcp_map_the_same_error_code() {
     assert_eq!(mcp["code"], serde_json::to_value(cli.code).expect("code"));
 }
 
-/// 派发表与 caps 一致：is_known_tool 对 15 个名字都为真。
+/// 派发表与 caps 一致：is_known_tool 对 TOOL_NAMES 里每个名字都为真。
 #[test]
 fn all_tools_are_dispatchable() {
     for name in TOOL_NAMES {
         assert!(webctl_mcp::dispatch::is_known_tool(name), "{name} 未注册");
     }
     assert!(!webctl_mcp::dispatch::is_known_tool("screenshot"));
+}
+
+/// embedded_data（0.1.2 / 议题 #114）：从内联 HTML 抽 JSON-LD，**零 JS 执行**。
+#[tokio::test]
+async fn embedded_data_extracts_json_ld_from_inline_html() {
+    let mcp = WebctlMcp::new(in_process_context("embedded-ok"));
+    let html = r#"<html><head>
+      <script type="application/ld+json">{"@type":"Article","headline":"内嵌标题"}</script>
+      </head><body><div id="root"></div></body></html>"#;
+    let envelope = invoke(&mcp, "embedded_data", json!({ "html": html })).await;
+    assert_eq!(envelope["ok"], true, "{envelope}");
+    assert_eq!(code_of(&envelope), "OK");
+    let entries = envelope["data"]["entries"].as_array().expect("entries");
+    assert_eq!(entries.len(), 1, "{envelope}");
+    assert_eq!(entries[0]["source"], "ld+json");
+    assert_eq!(entries[0]["value"]["headline"], "内嵌标题");
+}
+
+/// embedded_data：没有内嵌数据是**合法空结果**（ok=true + OK），不是解析失败。
+#[tokio::test]
+async fn embedded_data_empty_result_is_not_a_parse_failure() {
+    let mcp = WebctlMcp::new(in_process_context("embedded-empty"));
+    let html = r#"<html><body><p>纯静态</p><script src="/app.js"></script></body></html>"#;
+    let envelope = invoke(&mcp, "embedded_data", json!({ "html": html })).await;
+    assert_eq!(envelope["ok"], true, "{envelope}");
+    assert_eq!(code_of(&envelope), "OK");
+    assert!(
+        envelope["data"]["entries"]
+            .as_array()
+            .expect("entries")
+            .is_empty()
+    );
+    assert_eq!(envelope["data"]["scanned_scripts"], 1);
+}
+
+/// embedded_data：容器在但 JSON 坏了 —— 必须是 PARSE（由 web crate 的信封语义保证）。
+#[tokio::test]
+async fn embedded_data_broken_payload_is_parse_error() {
+    let mcp = WebctlMcp::new(in_process_context("embedded-parse"));
+    let html = r#"<script type="application/ld+json">{"a": }</script>"#;
+    let envelope = invoke(&mcp, "embedded_data", json!({ "html": html })).await;
+    assert_eq!(envelope["ok"], false, "{envelope}");
+    assert_eq!(code_of(&envelope), "PARSE");
+}
+
+/// embedded_data 的 inputSchema **只声明实现真正支持的参数**。
+///
+/// 起因：第一版声明了 `path` 但实现没接线（会静默忽略），复审据此驳回。
+/// 这条用例把"声明 = 实现"钉成可机械校验的约束。
+#[test]
+fn embedded_data_schema_declares_only_wired_parameters() {
+    let mut server = Server::start(&temp_dir("embedded-schema"), None);
+    server.initialize();
+    let response = server.request(2, "tools/list", json!({}));
+    let tools = response["result"]["tools"].as_array().expect("tools");
+    let tool = tools
+        .iter()
+        .find(|tool| tool["name"] == "embedded_data")
+        .expect("embedded_data 必须在 tools/list 里");
+    let mut props: Vec<&str> = tool["inputSchema"]["properties"]
+        .as_object()
+        .expect("properties")
+        .keys()
+        .map(String::as_str)
+        .collect();
+    props.sort_unstable();
+    assert_eq!(
+        props,
+        vec![
+            "html",
+            "include_inline_state",
+            "max_entries",
+            "max_entry_bytes",
+            "url"
+        ],
+        "schema 里的参数必须都是实现真正读的；不得出现未接线的 path"
+    );
+}
+
+/// embedded_data：`url` 与 `html` 同时给出必须报错，不能静默挑一个。
+#[tokio::test]
+async fn embedded_data_rejects_url_and_html_together() {
+    let mcp = WebctlMcp::new(in_process_context("embedded-both"));
+    let envelope = invoke(
+        &mcp,
+        "embedded_data",
+        json!({ "url": "https://example.test/", "html": "<p>x</p>" }),
+    )
+    .await;
+    assert_eq!(envelope["ok"], false, "{envelope}");
+    assert_eq!(code_of(&envelope), "BAD_URL");
 }
 
 /// 进程内调用一次 MCP 工具（未知工具名直接 panic）。

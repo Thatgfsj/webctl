@@ -1,4 +1,4 @@
-//! 工具派发：把 15 个工具接到既有能力（MCP-10/MCP-11/MCP-13/SEC-09）。
+//! 工具派发：把 16 个工具接到既有能力（MCP-10/MCP-11/MCP-13/SEC-09）。
 //!
 //! 约定：
 //! - 已知工具的**任何**执行失败都以结果信封返回（ok=false + code + 可读 error），
@@ -15,6 +15,7 @@ use url::Url;
 use webctl_core::{CapsReport, Envelope, ErrorCode, Trust};
 use webctl_web::doc::{DocOptions, doc_text, json_query};
 use webctl_web::extract::{self, ExtractOptions, LinkFilter, SearchOptions};
+use webctl_web::parse::{EmbeddedOptions, extract_embedded};
 use webctl_web::politeness::{PoliteFetcher, PolitenessConfig};
 use webctl_web::session::{FormFill, SessionEngine, SessionState};
 use webctl_web::transport::{Fetched, fetch};
@@ -44,6 +45,7 @@ pub async fn dispatch(ctx: &McpContext, name: &str, args: Value) -> Option<Value
         "cookies" => tool_cookies(ctx, &args).await,
         "json_query" => tool_json_query(ctx, &args).await,
         "doc_text" => tool_doc_text(ctx, &args).await,
+        "embedded_data" => tool_embedded_data(ctx, &args).await,
         "download" => tool_download(ctx, &args).await,
         "robots" => tool_robots(ctx, &args).await,
         "caps" => tool_caps(ctx, &args).await,
@@ -133,7 +135,7 @@ async fn resolve_source(
     }
 }
 
-// ---------------------------------------------------------------- 15 个工具
+// ---------------------------------------------------------------- 16 个工具
 
 async fn tool_fetch(ctx: &McpContext, args: &Value) -> Value {
     let params = match parse::<FetchParams>(args) {
@@ -599,6 +601,33 @@ async fn tool_doc_text(ctx: &McpContext, args: &Value) -> Value {
         Err(value) => return value,
     };
     to_value(doc_text(&bytes, &DocOptions::default()))
+}
+
+/// embedded_data：抽取页面内嵌的结构化数据。
+///
+/// 零 JS 执行：只解析 HTML 里已经存在的 JSON 载荷（JSON-LD / script[type=json] /
+/// 内联状态 / data-page）。语义与 `webctl_web::parse::extract_embedded` 一致：
+/// 零结果是合法的空结果，容器在但全部解析失败才是 PARSE。
+async fn tool_embedded_data(ctx: &McpContext, args: &Value) -> Value {
+    let params = match parse::<EmbeddedDataParams>(args) {
+        Ok(params) => params,
+        Err(value) => return value,
+    };
+    let html = match resolve_source(ctx, params.url.as_deref(), params.html.as_deref()).await {
+        Ok(html) => html,
+        Err(value) => return value,
+    };
+    let mut options = EmbeddedOptions::default();
+    if let Some(value) = params.max_entries {
+        options.max_entries = value;
+    }
+    if let Some(value) = params.max_entry_bytes {
+        options.max_entry_bytes = value;
+    }
+    if let Some(value) = params.include_inline_state {
+        options.include_inline_state = value;
+    }
+    to_value(extract_embedded(&html, &options))
 }
 
 async fn tool_download(ctx: &McpContext, args: &Value) -> Value {

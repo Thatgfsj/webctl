@@ -1,7 +1,7 @@
 //! webctl 的 MCP server 层（PLAN v0.4 §3.6 / §3.7）。
 //!
 //! 职责：
-//! - `tools`：15 个工具的名字、说明与 schemars inputSchema（MCP-02…04）；
+//! - `tools`：16 个工具的名字、说明与 schemars inputSchema（MCP-02…04）；
 //! - `dispatch`：把工具调用接到 core / web 的既有能力，失败以信封返回（MCP-10）；
 //! - `server`：rmcp ServerHandler + stdio 启动（MCP-01/05/06/09/11）；
 //! - `ownership`：绑定 live Agent+Session，拒绝跨 Session（MCP-07）；

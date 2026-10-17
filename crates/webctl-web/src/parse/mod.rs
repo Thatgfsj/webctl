@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use webctl_core::{Envelope, ErrorCode, Trust};
 
 pub mod article;
+pub mod embedded;
 pub mod forms;
 pub mod html;
 pub mod links;
@@ -27,6 +28,7 @@ pub mod structured;
 pub mod tables;
 
 pub use article::{Article, extract_article, extract_article_fallback};
+pub use embedded::{EmbeddedEntry, EmbeddedOptions, EmbeddedReport, extract_embedded};
 pub use forms::{Form, FormField, FormOption, extract_forms};
 pub use links::{Link, extract_links};
 pub use structured::{Parsed, PlainText, Structured, parse_body, parse_json, parse_xml};

@@ -1,4 +1,4 @@
-//! 15 个工具的 MCP 输入参数（schemars 生成 inputSchema，MCP-03）。
+//! 16 个工具的 MCP 输入参数（schemars 生成 inputSchema，MCP-03）。
 //!
 //! 字段名与 PLAN v0.4 §3.7 的工具语义一一对应；可选字段用 Option，
 //! 缺省值在派发层解释。这里只描述形状，不做业务校验。
@@ -204,6 +204,21 @@ pub struct DocTextParams {
     pub url: Option<String>,
 }
 
+/// embedded_data：抽取页面内嵌的结构化数据（零 JS 执行）。
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+pub struct EmbeddedDataParams {
+    /// 目标 URL；与 html 二选一（同 `extract`：本工具不从本地文件读，本地文档走 `doc_text`）。
+    pub url: Option<String>,
+    /// 内存中的 HTML；与 url 二选一（离线用例用）。
+    pub html: Option<String>,
+    /// 最多返回的内嵌载荷条数。
+    pub max_entries: Option<usize>,
+    /// 单条载荷的字节上限（超过则标记 truncated 且不解析）。
+    pub max_entry_bytes: Option<usize>,
+    /// 是否抽取内联状态赋值（window.__NUXT__ 这类）；默认 true。
+    pub include_inline_state: Option<bool>,
+}
+
 /// download：文件下载到指定目录。
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
 pub struct DownloadParams {
@@ -229,6 +244,6 @@ pub struct RobotsParams {
 /// caps：内置能力与版本自检。
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
 pub struct CapsParams {
-    /// 是否附带 15 个工具逐项可用性（默认 true）。
+    /// 是否附带 16 个工具逐项可用性（默认 true）。
     pub include_tools: Option<bool>,
 }

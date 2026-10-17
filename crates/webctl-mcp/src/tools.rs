@@ -1,4 +1,4 @@
-//! 工具注册表：15 个工具的名字、说明与 inputSchema（PLAN v0.4 §3.7 / MCP-02…04）。
+//! 工具注册表：16 个工具的名字、说明与 inputSchema（PLAN v0.4 §3.7 / MCP-02…04）。
 //!
 //! 名字是**契约**：与 PLAN §3.7 逐字一致，且 DSH 挂载后形如 mcp__webctl__<rawName>。
 //! 工具的 inputSchema 由 schemars 从 params.rs 的分支类型派生，保证合法 JSON Schema。
@@ -10,8 +10,8 @@ use crate::params;
 /// MCP server 名（DSH 工具名 mcp__<serverName>__<rawName> 的中间段）。
 pub const SERVER_NAME: &str = "webctl";
 
-/// 15 个工具的名字，顺序与 PLAN v0.4 §3.7 表格一致。
-pub const TOOL_NAMES: [&str; 15] = [
+/// 16 个工具的名字，顺序与 PLAN v0.4 §3.7 表格一致。
+pub const TOOL_NAMES: [&str; 16] = [
     "fetch",
     "extract",
     "search",
@@ -24,6 +24,7 @@ pub const TOOL_NAMES: [&str; 15] = [
     "cookies",
     "json_query",
     "doc_text",
+    "embedded_data",
     "download",
     "robots",
     "caps",
@@ -50,8 +51,8 @@ pub fn qualified_name(raw: &str) -> String {
     format!("mcp__{SERVER_NAME}__{raw}")
 }
 
-/// 15 个工具的静态清单（顺序同 TOOL_NAMES）。
-pub const TOOL_SPECS: [ToolSpec; 15] = [
+/// 16 个工具的静态清单（顺序同 TOOL_NAMES）。
+pub const TOOL_SPECS: [ToolSpec; 16] = [
     ToolSpec {
         name: "fetch",
         description: "取回 http(s) URL：状态、头、重定向链、内容或落盘路径",
@@ -101,6 +102,10 @@ pub const TOOL_SPECS: [ToolSpec; 15] = [
         description: "PDF/HTML/XML 文本层提取（替代 pdftotext/pandoc）",
     },
     ToolSpec {
+        name: "embedded_data",
+        description: "抽取页面内嵌的结构化数据（JSON-LD / script[type=json] / 框架状态容器 / data-page）",
+    },
+    ToolSpec {
         name: "download",
         description: "文件下载到指定目录（尺寸上限与落盘路径）",
     },
@@ -110,7 +115,7 @@ pub const TOOL_SPECS: [ToolSpec; 15] = [
     },
     ToolSpec {
         name: "caps",
-        description: "内置能力与版本自检，逐项列出 15 个工具的可用性",
+        description: "内置能力与版本自检，逐项列出 16 个工具的可用性",
     },
 ];
 
@@ -119,7 +124,7 @@ fn tool<P: schemars::JsonSchema + 'static>(name: &'static str, description: &'st
     Tool::new(name, description, serde_json::Map::new()).with_input_schema::<P>()
 }
 
-/// 供 tools/list 使用的 15 个工具定义（顺序与 TOOL_NAMES 一致）。
+/// 供 tools/list 使用的 16 个工具定义（顺序与 TOOL_NAMES 一致）。
 pub fn tool_definitions() -> Vec<Tool> {
     let [
         fetch,
@@ -134,6 +139,7 @@ pub fn tool_definitions() -> Vec<Tool> {
         cookies,
         json_query,
         doc_text,
+        embedded_data,
         download,
         robots,
         caps,
@@ -151,9 +157,10 @@ pub fn tool_definitions() -> Vec<Tool> {
         tool::<params::CookiesParams>(cookies, TOOL_SPECS[9].description),
         tool::<params::JsonQueryParams>(json_query, TOOL_SPECS[10].description),
         tool::<params::DocTextParams>(doc_text, TOOL_SPECS[11].description),
-        tool::<params::DownloadParams>(download, TOOL_SPECS[12].description),
-        tool::<params::RobotsParams>(robots, TOOL_SPECS[13].description),
-        tool::<params::CapsParams>(caps, TOOL_SPECS[14].description),
+        tool::<params::EmbeddedDataParams>(embedded_data, TOOL_SPECS[12].description),
+        tool::<params::DownloadParams>(download, TOOL_SPECS[13].description),
+        tool::<params::RobotsParams>(robots, TOOL_SPECS[14].description),
+        tool::<params::CapsParams>(caps, TOOL_SPECS[15].description),
     ]
 }
 
@@ -163,7 +170,7 @@ mod tests {
 
     #[test]
     fn registry_is_exactly_the_plan_list() {
-        assert_eq!(TOOL_SPECS.len(), 15);
+        assert_eq!(TOOL_SPECS.len(), TOOL_NAMES.len());
         for (index, spec) in TOOL_SPECS.iter().enumerate() {
             assert_eq!(spec.name, TOOL_NAMES[index]);
         }
