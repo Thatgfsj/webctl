@@ -69,7 +69,7 @@ git push origin v0.1.0
 ~~~
 
 6. 观察 **Actions → Release** 流水线：`plan` → `build-local-artifacts` → `build-global-artifacts` → `host` → `announce`。
-7. 按 §4 跑发布 E2E，并回填体积基线（§7）。
+7. 按 §4 跑发布 E2E，并回填体积基线（§7）；**再跑一次性能基线** `scripts/perf-baseline.sh --check`（L4 通道，抓量级级退化；见 [TESTING §6.11](TESTING.md)）。
 8. 失败时回滚后重来：
 
 ~~~bash

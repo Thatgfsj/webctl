@@ -28,8 +28,12 @@ done
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BASELINE="$ROOT/docs/perf-baseline.json"
-FACTOR="${PERF_FACTOR:-5}"      # 允许 5 倍以内（远小于量级级退化）
-FLOOR_MS="${PERF_FLOOR_MS:-50}" # 小数值的绝对下限，避免噪声误判
+# 门槛优先级：环境变量 > docs/perf-baseline.json 里的 factor/floor_ms > 内置默认。
+# 内置 floor 取 100ms：微小夹具（PERF-01/04）本身只有几毫秒，在负载机器上会抖到 20ms 量级，
+# 下限太紧会假红、太松则等于没门禁——100ms 让它们仍能抓住灾难级退化（如 13.9s 类）。
+# 有效门槛 = max(基线 × factor, floor_ms)，逐项数值见 docs/TESTING.md §6.11。
+FACTOR="${PERF_FACTOR:-}"
+FLOOR_MS="${PERF_FLOOR_MS:-}"
 
 cd "$ROOT"
 echo "== 运行探针（cargo run --release --example perf_probe）=="
@@ -74,9 +78,11 @@ if [ "$MODE" = "check" ]; then
   if [ ! -f "$BASELINE" ]; then echo "缺少基线文件 $BASELINE（先 --record）" >&2; exit 1; fi
   python3 - "$BASELINE" "$JSON" "$FACTOR" "$FLOOR_MS" <<'PY'
 import json, sys
-path, raw, factor, floor = sys.argv[1], sys.argv[2], float(sys.argv[3]), float(sys.argv[4])
+path, raw, factor_env, floor_env = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 base = json.load(open(path, encoding="utf-8"))
 m = json.loads(raw)
+factor = float(factor_env) if factor_env else float(base.get("factor", 5))
+floor = float(floor_env) if floor_env else float(base.get("floor_ms", 100))
 bad = []
 for k, expect in base["metrics"].items():
   got = m[k]
@@ -86,6 +92,7 @@ for k, expect in base["metrics"].items():
   if got > limit: bad.append(k)
 if bad:
   print(f"结论：量级级退化（{len(bad)} 项超门槛）: {', '.join(bad)}")
+  print("提示：本通道对机器负载敏感；请在空闲机器上复跑一次再定论（docs/TESTING.md §6.11）。")
   sys.exit(1)
 print("结论：全部在门槛内")
 PY

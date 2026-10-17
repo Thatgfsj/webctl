@@ -2,7 +2,7 @@
   "schema": 1,
   "description": "解析/抽取性能 p50 基线（TESTING §1 L4 / 议题 #83）。单位毫秒；由 scripts/perf-baseline.sh --record 写入。",
   "factor": 5,
-  "floor_ms": 50,
+  "floor_ms": 100,
   "metrics": {
     "parse_100kb_ms_p50": 3.197,
     "extract_1mb_hit_ms_p50": 2088.054,
