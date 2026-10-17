@@ -10,7 +10,7 @@
 | `static · fmt / scripts / config` | ubuntu | 格式、`scripts/*.sh` 语法、**报错定位器自检**、cargo-dist 生成物一致性 | 20 min | 最便宜的错误最先挡住；不需要编译 |
 | `clippy (ubuntu-latest / macos / windows)` | 三平台 | `clippy --all-targets -D warnings`（默认 + offline 两条通道） | 40 min | 不同平台的 cfg / 依赖解析差异只有矩阵能暴露 |
 | `test (ubuntu-latest / macos / windows)` | 三平台 | **默认门禁 + L0 离线通道 + release 构建**；忽略测试零容忍；工作区洁净 | 60 min | 主体（工具/套件测试都在这里） |
-| `guards · 锁文件 / 工具面 / 行数口径` | ubuntu | `cargo metadata --locked`、SKILL.md ↔ tools/list 一致、PR 行数口径 | 20 min | 与"能不能编译"正交的合并安全项 |
+| `guards · 锁文件 / 工具面 / 行数口径` | ubuntu | `cargo metadata --locked`、**工具面一致性**（TOOL_NAMES = PLAN §3.7 = SKILL.md = 文案数字）、SKILL.md ↔ tools/list、依赖边界、PR 行数口径 | 20 min | 与"能不能编译"正交的合并安全项 |
 | `musl-static (x86_64-unknown-linux-musl)` | ubuntu | Bootlin 工具链构建 + `file`/`ldd`/`readelf` 静态断言 | 60 min | 议题 [#90](https://github.com/Thatgfsj/webctl/issues/90) |
 
 ## 2. 通道映射（对应 [TESTING.md §1](TESTING.md) 的 L0–L4）
@@ -83,6 +83,7 @@ cargo build --release --locked
 cargo metadata --locked --format-version 1 > /dev/null
 cargo build --locked -p webctl && scripts/check-skill-tools.sh
 scripts/check-dependency-boundary.sh   # ADR-0005：只允许 boa_engine
+python3 scripts/check-tool-face.py      # 工具面数字/清单一致（#114）
 ~~~
 
 构建前置（libclang / BoringSSL）见 [CONTRIBUTING.md §4](CONTRIBUTING.md) 的说明。

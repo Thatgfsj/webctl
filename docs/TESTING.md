@@ -500,6 +500,8 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 - **EMBED-12**：条数上限生效（防畸形页面撑爆结果）；
 - **EMBED-13**：`window.X` 与裸 `X` **各自出现**时必须是两条（防止去重修过头）。
 
+**工具面守卫**：`scripts/check-tool-face.py`（CI 的 `guards` 作业）机械校验"`TOOL_NAMES` = PLAN §3.7 = SKILL.md = 现行文案里的数字"；三种变异（文档数字 / README 清单 / SKILL 清单）都能让它红。
+
 模块内另有 **4 条**单测（`parse::embedded::tests`）：字面量扫描处理字符串/转义、拒绝 IIFE、深度上限、实体反转义。
 
 **反向对照**：把 `script_blocks` 改成不产出任何载荷后，13 条里 **9 条 FAILED**（证明用例不空转）。
