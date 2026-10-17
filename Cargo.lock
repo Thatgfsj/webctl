@@ -2409,7 +2409,7 @@ dependencies = [
 
 [[package]]
 name = "webctl"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "clap",
  "regex",
@@ -2423,7 +2423,7 @@ dependencies = [
 
 [[package]]
 name = "webctl-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "fslock",
  "serde",
@@ -2433,7 +2433,7 @@ dependencies = [
 
 [[package]]
 name = "webctl-mcp"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "encoding_rs",
  "rmcp",
@@ -2448,7 +2448,7 @@ dependencies = [
 
 [[package]]
 name = "webctl-web"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "dom_smoothie",
  "encoding_rs",
