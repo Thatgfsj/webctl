@@ -7,7 +7,8 @@
 //! - **零宿主能力**：不注入 `fetch` / `XMLHttpRequest` / `require` / `process` / `setTimeout` 等；
 //!   沙箱里只有 ECMAScript 标准内建。有测试逐项断言这些全局**不存在**。
 //! - **可中断**：死循环与深递归在限值处被中断，返回**显式错误**——绝不假装成功。
-//! - **确定性**：不注入时间/随机源；同一输入两次求值结果一致。
+//! - **确定性（有边界）**：不注入**宿主**时间/随机源；ECMAScript 自带的 `Date` / `Math.random` 仍在，
+//!   依赖它们的脚本两次求值可能不同。对不依赖时间/随机的脚本，结果一致（有测试）。
 //!
 //! ## 不承诺什么（诚实边界，不许宣传成"有墙钟上限"）
 //!
@@ -15,8 +16,10 @@
 //! 因此"任意脚本都在 X 毫秒内结束"**不是**本 crate 的承诺：直线型长脚本只受"脚本字节上限 + 引擎吞吐"约束。
 //! CPU/内存的硬隔离由进程级手段（如 `ulimit`）承担，不由本 crate 冒充。
 
+use std::rc::Rc;
 use std::time::{Duration, Instant};
 
+use boa_engine::module::IdleModuleLoader;
 use boa_engine::{Context, Source};
 
 /// 沙箱限值（全部可下调；默认值按"取出一个页面的文本"这个目标设定）。
@@ -132,8 +135,19 @@ pub fn run_scripts(scripts: &[String], limits: &JsLimits) -> Result<JsOutcome, J
 }
 
 /// 建一个**只有 ECMAScript 内建**的上下文，并装上全部限值。
+///
+/// **安全关键**：这里**不能**用 `Context::default()`。boa 0.20 在未显式指定模块加载器时，
+/// 会装上以**进程 CWD 为根**的 `SimpleModuleLoader`（`boa_engine` 源码里 `SimpleModuleLoader::new(Path::new("."))`），
+/// 于是页面脚本里的 `import('相对路径.js')` 会真的打开并读取宿主文件——
+/// 这一点已由独立安全审阅用 FIFO 阻塞（恰好 2.000 s）实证，属**真实逃逸**。
+/// 显式装 [`IdleModuleLoader`] 后，模块解析一律 fail-closed。
+///
+/// 另一层防御：本 crate **从不**调用 `run_jobs()`，因此 promise 任务永远不会被排空。
 fn sandbox(limits: &JsLimits) -> Context {
-    let mut context = Context::default();
+    let mut context = Context::builder()
+        .module_loader(Rc::new(IdleModuleLoader))
+        .build()
+        .expect("沙箱上下文应当能建起来");
     let runtime = context.runtime_limits_mut();
     runtime.set_loop_iteration_limit(limits.loop_iteration_limit);
     runtime.set_recursion_limit(limits.recursion_limit);
@@ -283,6 +297,49 @@ mod tests {
         let first = run(script, &JsLimits::default()).expect("第一次");
         let second = run(script, &JsLimits::default()).expect("第二次");
         assert_eq!(first.value, second.value);
+    }
+
+    /// **安全回归**：动态 `import()` 必须 fail-closed，且**不得**读取宿主文件。
+    ///
+    /// 起因：第一版用 `Context::default()`，boa 会装上以 CWD 为根的模块加载器——
+    /// 独立安全审阅用 FIFO 阻塞 2.000 s 证明 `import('相对路径.js')` 真的 open/read 了宿主文件。
+    /// 这条用例用**确定性**方式验证修复：模块文件**存在**且会设置 `globalThis.__LOADED`，
+    /// 排空任务队列后必须既拿到"解析被禁用"，又看到那个全局**仍未定义**。
+    #[test]
+    fn dynamic_import_is_disabled_fail_closed() {
+        let dir = std::env::temp_dir().join(format!("webctl-js-import-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("建临时目录");
+        let target = dir.join("hostile_module.js");
+        std::fs::write(&target, "globalThis.__LOADED = true; export const x = 1;")
+            .expect("写临时模块");
+
+        let mut context = sandbox(&JsLimits::default());
+        let script = format!(
+            "import({:?}).then(() => {{ globalThis.__OUTCOME = 'resolved' }}, e => {{ globalThis.__OUTCOME = String(e) }})",
+            target.to_string_lossy()
+        );
+        context
+            .eval(Source::from_bytes(script.as_bytes()))
+            .expect("import 表达式本身不应抛错");
+        context.run_jobs();
+        let outcome = context
+            .eval(Source::from_bytes(
+                b"String(globalThis.__OUTCOME) + '|' + typeof globalThis.__LOADED",
+            ))
+            .expect("读结果")
+            .to_string(&mut context)
+            .expect("转字符串")
+            .to_std_string_escaped();
+        assert!(
+            outcome.contains("module resolution is disabled"),
+            "动态 import 必须 fail-closed，实测：{outcome}"
+        );
+        assert!(
+            outcome.ends_with("|undefined"),
+            "宿主模块文件不得被加载/执行，实测：{outcome}"
+        );
+        let _ = std::fs::remove_file(&target);
+        let _ = std::fs::remove_dir(&dir);
     }
 
     #[test]
