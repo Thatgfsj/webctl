@@ -289,6 +289,31 @@ mod tests {
         assert_eq!(failure.kind, JsFailureKind::Rejected, "{failure}");
     }
 
+    /// **安全**：页面脚本**不能**改写或删除序列化函数（否则可伪造渲染结果 / 让渲染失败）。
+    ///
+    /// 复审观察：初版把 `__webctl_serialize` 作为可写全局暴露。现改为 `writable: false,
+    /// configurable: false, enumerable: false`——只读调用允许（无副作用），改写与删除都无效。
+    #[test]
+    fn page_cannot_overwrite_serializer() {
+        let html = concat!(
+            "<html><body><div id=\"x\">真实内容</div><script>",
+            "globalThis.__webctl_serialize = function () { return 'PWNED' };",
+            "try { delete globalThis.__webctl_serialize; } catch (e) {}",
+            "</script></body></html>"
+        );
+        let outcome = render(html, &JsLimits::default()).expect("应能渲染");
+        // 判定"页面内容"前先剥掉脚本正文（RAWTEXT 会忠实保留脚本源码，里面就有 PWNED 字面量）。
+        let content = strip_scripts(&outcome.html);
+        assert!(
+            content.contains("真实内容"),
+            "页面不得伪造渲染结果：{content}"
+        );
+        assert!(
+            !content.contains("PWNED"),
+            "被改写后的序列化函数不得生效：{content}"
+        );
+    }
+
     /// **安全**：页面脚本同样受引擎限值约束（死循环被中断，不会挂住渲染）。
     #[test]
     fn render_limits_apply_to_page_scripts() {

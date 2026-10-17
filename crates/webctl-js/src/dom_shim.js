@@ -12,6 +12,7 @@
 //   网络、存储、事件循环的真实语义（addEventListener 是空实现）、layout/样式。
 (function (initialHtml) {
   var VOID = { area: 1, base: 1, br: 1, col: 1, embed: 1, hr: 1, img: 1, input: 1, link: 1, meta: 1, param: 1, source: 1, track: 1, wbr: 1 };
+  var RAWTEXT = { script: 1, style: 1, textarea: 1, title: 1 };
 
   function Node(tag) { this.tagName = tag; this.children = []; this.attrs = {}; }
   Node.prototype.appendChild = function (child) { this.children.push(child); return child; };
@@ -57,6 +58,18 @@
         node.setAttribute(m[1], decode(value));
       }
       top().appendChild(node);
+      // RAWTEXT（script/style/textarea/title）：内容按**原文**消费到对应结束标签，
+      // 不再当 HTML 解析——否则脚本正文里的 "<div class='quote'>" 会被当成真实 DOM 元素。
+      if (!selfClose && RAWTEXT[tag]) {
+        var closeTag = "</" + tag;
+        var closeAt = html.toLowerCase().indexOf(closeTag, i);
+        var rawEnd = closeAt < 0 ? n : closeAt;
+        if (rawEnd > i) node.children.push(html.slice(i, rawEnd));
+        if (closeAt < 0) { i = n; continue; }
+        var closeGt = html.indexOf(">", closeAt);
+        i = closeGt < 0 ? n : closeGt + 1;
+        continue;
+      }
       if (!selfClose && !VOID[tag]) stack.push(node);
     }
     return parent;
@@ -165,6 +178,12 @@
   globalThis.window = globalThis;
   globalThis.location = { href: "about:blank", protocol: "about:", host: "", hostname: "", pathname: "/", search: "", hash: "" };
   globalThis.navigator = { userAgent: "webctl-minidom/0.1" };
-  globalThis.__webctl_serialize = function () { return serialize(documentElement); };
-  globalThis.__webctl_ready = 1;
+  // 序列化函数**不可写、不可配置、不可枚举**：页面脚本不能覆盖它（否则可伪造渲染结果）
+  // 或删掉它（否则 render 会失败）。只读地调用是允许的（无副作用）。
+  Object.defineProperty(globalThis, "__webctl_serialize", {
+    value: function () { return serialize(documentElement); },
+    writable: false,
+    configurable: false,
+    enumerable: false,
+  });
 })(__WEBCTL_INITIAL_HTML__);
