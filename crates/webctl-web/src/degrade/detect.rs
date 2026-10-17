@@ -87,6 +87,10 @@ pub struct Diagnosis {
     pub reason: String,
     /// 逐条依据，便于机械核对。
     pub evidence: Vec<String>,
+    /// 机器可读的原因码（#115），例如 `no-server-rendered-content`。
+    pub reason_code: String,
+    /// 建议调用方尝试的通道（真实工具名，见 MCP 侧反查测试）。
+    pub next_steps: Vec<String>,
 }
 
 impl Diagnosis {
@@ -99,6 +103,8 @@ impl Diagnosis {
                  unchanged and nothing was rendered or synthesized ({DEGRADED_FROM})"
             ),
             evidence: vec!["forced: js-render switch is on (DEGRADE-07)".to_owned()],
+            reason_code: "js-rendering-forced-by-switch".to_owned(),
+            next_steps: vec!["embedded_data".to_owned()],
         }
     }
 }
@@ -236,16 +242,23 @@ fn diagnose(signals: &Signals) -> Assessment {
         Severity::Partial
     };
     let reason = format!(
-        "page requires client-side JavaScript, which the v0.4 builtin engine cannot execute; \
+        "page requires client-side JavaScript, which this build does not execute; \
          the pre-render HTML was returned unchanged: {}",
         evidence.join("; ")
     );
+    // #115：机器可读的原因码 + 可尝试的下一步（写**工具名**，由 MCP 侧反查保证真实存在）。
+    let reason_code = match severity {
+        Severity::Total => "no-server-rendered-content",
+        Severity::Partial => "content-requires-client-side-render",
+    };
     Assessment::NeedsJs {
         severity,
         diagnosis: Diagnosis {
             degraded_from: DEGRADED_FROM.to_owned(),
             reason,
             evidence,
+            reason_code: reason_code.to_owned(),
+            next_steps: vec!["embedded_data".to_owned()],
         },
     }
 }

@@ -6,7 +6,7 @@
 #[path = "support/golden.rs"]
 mod golden;
 
-use webctl_core::{Envelope, ErrorCode, Trust};
+use webctl_core::{Actionable, Envelope, ErrorCode, Trust};
 
 /// ENV-07：ok / fail / degraded 三种信封的字段名与类型快照。
 #[test]
@@ -25,10 +25,24 @@ fn env_07_envelope_schema_matches_golden() {
         7,
     );
 
+    // #115：降级时附加可行动信息（reason / detected / next_steps）。
+    let actionable = Envelope::degraded(
+        serde_json::json!({"truncated": true}),
+        "js-render",
+        ErrorCode::Unsupported,
+        9,
+    )
+    .with_actionable(Actionable {
+        reason: "no-server-rendered-content".to_owned(),
+        detected: vec!["visible text: 0 chars".to_owned()],
+        next_steps: vec!["embedded_data".to_owned()],
+    });
+
     let shape = serde_json::json!({
         "ok": serde_json::to_value(&ok).expect("serialize ok"),
         "fail": serde_json::to_value(&fail).expect("serialize fail"),
         "degraded": serde_json::to_value(&degraded).expect("serialize degraded"),
+        "degraded_actionable": serde_json::to_value(&actionable).expect("serialize actionable"),
     });
     golden::assert_json_golden("envelope_schema", &shape);
 }

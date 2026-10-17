@@ -102,6 +102,19 @@ impl ToolCapability {
     }
 }
 
+/// SPA / JS 页面的支持面（#115）。
+///
+/// 两部分都是**机器可读**的：`detected_containers` 是引擎认得的容器类型，
+/// `channels` 是建议调用方在遇到 JS 页时尝试的通道（**工具名**）。
+/// `channels` 必须只包含真实注册的工具——由 MCP 层的过滤与测试保证。
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SpaSurface {
+    /// 认得的内嵌数据容器类型。
+    pub detected_containers: Vec<String>,
+    /// 可尝试的通道（工具名）。
+    pub channels: Vec<String>,
+}
+
 /// 能力自检报告。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CapsReport {
@@ -113,6 +126,8 @@ pub struct CapsReport {
     pub capabilities: Vec<Capability>,
     /// 工具清单（由接口层实际注册情况派生）。
     pub tools: Vec<ToolCapability>,
+    /// SPA / JS 页面的支持面（#115）。
+    pub spa: SpaSurface,
 }
 
 impl CapsReport {
@@ -156,7 +171,14 @@ impl CapsReport {
             engine: "builtin",
             capabilities,
             tools,
+            spa: SpaSurface::default(),
         }
+    }
+
+    /// 附加 SPA 支持面（#115）：由接口层用真实容器类型与真实工具名填充。
+    pub fn with_spa(mut self, spa: SpaSurface) -> Self {
+        self.spa = spa;
+        self
     }
 
     /// 取某个能力域。

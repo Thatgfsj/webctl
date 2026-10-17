@@ -14,6 +14,30 @@
     },
     "ok": true
   },
+  "degraded_actionable": {
+    "code": "UNSUPPORTED",
+    "data": {
+      "truncated": true
+    },
+    "error": "",
+    "meta": {
+      "actionable": {
+        "detected": [
+          "visible text: 0 chars"
+        ],
+        "next_steps": [
+          "embedded_data"
+        ],
+        "reason": "no-server-rendered-content"
+      },
+      "degraded_from": "js-render",
+      "elapsed_ms": 9,
+      "engine": "builtin",
+      "stale": false,
+      "trust": "untrusted_page_content"
+    },
+    "ok": true
+  },
   "fail": {
     "code": "BLOCKED",
     "data": null,

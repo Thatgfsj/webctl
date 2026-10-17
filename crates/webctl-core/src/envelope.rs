@@ -37,6 +37,21 @@ pub enum Trust {
     TrustedLocal,
 }
 
+/// 降级时的**可行动信息**（议题 #115）。
+///
+/// 目的：降级不只告诉调用方"我降级了"，还要说清**为什么**与**还能试什么**，
+/// 否则 agent 只能猜。`reason` 是机器可读的原因码；`detected` 是观察到的证据；
+/// `next_steps` 是**真实存在的工具名**（由 MCP 侧的测试反查保证）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Actionable {
+    /// 机器可读的原因码（例如 `no-server-rendered-content`）。
+    pub reason: String,
+    /// 观察到的证据（容器、指纹、量化信号），逐条可核对。
+    pub detected: Vec<String>,
+    /// 建议尝试的通道（工具名）。空数组表示"没有别的可试"。
+    pub next_steps: Vec<String>,
+}
+
 /// 信封元信息。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Meta {
@@ -46,6 +61,9 @@ pub struct Meta {
     pub trust: Trust,
     /// 降级来源：能力或路径名（例如 js-render）。未降级时为 null。
     pub degraded_from: Option<String>,
+    /// 降级时的可行动信息（#115）。未降级时**不出现**在 JSON 里。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub actionable: Option<Actionable>,
     /// 结果是否来自过期数据。v0.4 无跨请求引用，恒为 false，字段保留供将来使用。
     pub stale: bool,
     /// 端到端耗时（毫秒）。
@@ -67,6 +85,8 @@ pub enum EnvelopeViolation {
     ReasonWithoutDegradation,
     /// 失败还带了 data。
     FailureWithData,
+    /// 未降级却带了可行动信息（actionable 只在降级时有意义）。
+    ActionableWithoutDegradation,
 }
 
 /// 统一结果信封：ok / data / error / code / meta。
@@ -90,6 +110,7 @@ impl<T> Envelope<T> {
             engine: Engine::Builtin,
             trust,
             degraded_from,
+            actionable: None,
             stale: false,
             elapsed_ms,
         }
@@ -128,6 +149,12 @@ impl<T> Envelope<T> {
         }
     }
 
+    /// 附加降级时的可行动信息（#115）。链式调用，便于在 `Envelope::degraded` 之后补。
+    pub fn with_actionable(mut self, actionable: Actionable) -> Self {
+        self.meta.actionable = Some(actionable);
+        self
+    }
+
     /// 校验信封不变量。重点是禁止静默降级。
     pub fn validate(&self) -> Result<(), EnvelopeViolation> {
         use EnvelopeViolation as Violation;
@@ -147,10 +174,15 @@ impl<T> Envelope<T> {
             self.meta.degraded_from.as_deref(),
             self.code.is_degradation(),
         ) {
-            (None, true) => Err(Violation::SilentDegradation),
-            (Some(_), false) => Err(Violation::ReasonWithoutDegradation),
-            _ => Ok(()),
+            (None, true) => return Err(Violation::SilentDegradation),
+            (Some(_), false) => return Err(Violation::ReasonWithoutDegradation),
+            _ => {}
         }
+        // #115：可行动信息只在降级时有意义；干净的 OK 带上它属于协议误用。
+        if self.meta.actionable.is_some() && self.meta.degraded_from.is_none() {
+            return Err(Violation::ActionableWithoutDegradation);
+        }
+        Ok(())
     }
 }
 

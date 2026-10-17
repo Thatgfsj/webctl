@@ -29,6 +29,9 @@ pub const MAX_EMBEDDED_ENTRIES: usize = 32;
 /// 单条载荷的字节上限；超过则标记 `truncated` 且不解析。
 pub const MAX_EMBEDDED_BYTES: usize = 256 * 1024;
 
+/// 认得的容器类型（与抽取实现一一对应；caps 会把这份清单暴露给调用方）。
+pub const CONTAINER_KINDS: [&str; 4] = ["ld+json", "script-json", "inline-state", "data-page"];
+
 /// 字面量扫描的嵌套深度上限（防畸形输入把扫描器拖爆）。
 pub const MAX_LITERAL_DEPTH: usize = 64;
 

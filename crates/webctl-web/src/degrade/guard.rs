@@ -11,7 +11,7 @@
 //!
 //! 两者都不是 OK：绝不返回「成功但 0 条」。
 
-use webctl_core::{Envelope, ErrorCode};
+use webctl_core::{Actionable, Envelope, ErrorCode};
 
 use super::detect::{self, Assessment, Diagnosis, Severity};
 
@@ -71,5 +71,10 @@ fn apply<T>(mut envelope: Envelope<T>, code: ErrorCode, diagnosis: &Diagnosis) -
     envelope.code = code;
     envelope.meta.degraded_from = Some(diagnosis.degraded_from.clone());
     envelope.error = diagnosis.reason.clone();
-    envelope
+    // #115：把"为什么 + 还能试什么"挂到 meta.actionable，让调用方不必猜。
+    envelope.with_actionable(Actionable {
+        reason: diagnosis.reason_code.clone(),
+        detected: diagnosis.evidence.clone(),
+        next_steps: diagnosis.next_steps.clone(),
+    })
 }

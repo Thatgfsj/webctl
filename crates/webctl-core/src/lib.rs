@@ -12,12 +12,14 @@ pub mod error;
 pub mod security;
 pub mod state;
 
-pub use caps::{Capability, CapabilityDomain, CapabilityState, CapsReport, ToolCapability};
+pub use caps::{
+    Capability, CapabilityDomain, CapabilityState, CapsReport, SpaSurface, ToolCapability,
+};
 pub use config::{
     Config, ConfigError, ConfigLayer, ENV_VARS, OutputFormat, default_config_path,
     load_config_file, redact_url_userinfo, resolve,
 };
-pub use envelope::{Engine, Envelope, EnvelopeViolation, Meta, Trust};
+pub use envelope::{Actionable, Engine, Envelope, EnvelopeViolation, Meta, Trust};
 pub use error::ErrorCode;
 pub use security::paths::{
     ArgumentError, SafeRoot, SchemeError, ensure_http_scheme, is_http_scheme,

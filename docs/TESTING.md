@@ -59,7 +59,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 | ENV-04 | 禁止静默降级 | 人为触发降级 → `code!="OK"` 且 `meta.degraded_from` 非空；**不允许** `ok=true` 而 data 空 | L0 | PR 01 |
 | ENV-05 | 错误码封闭集 | 遍历所有失败用例，`code` ∈ 11 个枚举值；构造未知码反序列化必须失败 | L0 | PR 01 |
 | ENV-06 | 映射唯一 | 同一异常在 CLI 与 MCP 两条路径得到同一 `code` | L0 | PR 11 |
-| ENV-07 | schema 快照 | golden 快照比对字段名与类型；新增字段需显式更新快照 | L0 | PR 01 |
+| ENV-07 | schema 快照 | golden 快照比对字段名与类型；新增字段需显式更新快照（#115 起新增 `degraded_actionable` 样本，冻结 `meta.actionable`） | L0 | PR 01 / #115 |
 | ENV-08 | 未知字段容忍 | 含未知字段的信封反序列化不失败 | L0 | PR 01 |
 | ENV-09 | 无堆栈泄漏 | 正则断言 `error` 不含 `panicked` / 文件路径栈帧 | L0 | PR 12 |
 | ENV-10 | 空 vs 失败 | 解析零命中 `ok=true`；解析失败 `ok=false, code="PARSE"` | L0 | PR 03 |
@@ -510,10 +510,11 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 
 `crates/webctl-mcp/src/` 单元 **13 条**（含本版新增的 MCP 侧脱敏隔离用例）：`registry_is_exactly_the_plan_list`、`definitions_match_the_static_specs`、`qualified_names_follow_the_dsh_contract`、`all_plan_tools_are_registered_and_available`、`capabilities_mirror_the_dispatch_table`、`instructions_stay_under_limit`、`dsh_snippet_has_no_tool_order_and_no_tool_names`、`bound_session_accepts_only_itself`、`cross_session_error_is_readable_and_mentions_both`、`unbound_defaults_to_default_and_validates`、`small_result_stays_inline`、`large_result_is_spilled_and_keeps_degradation`、`sec_09_mcp_dispatcher_is_the_one_that_redacts`（[#82](https://github.com/Thatgfsj/webctl/issues/82) 补的隔离用例，详见本节末尾）。
 
-`crates/webctl-mcp/tests/mcp.rs` **25 条通过 + 0 ignored**（#82 转正后 20 条，#114 增 3 条 + 2 条 schema 守卫）：
+`crates/webctl-mcp/tests/mcp.rs` **30 条通过 + 0 ignored**（#82 转正后 20 条，#114 增 3 条 + 2 条 schema 守卫，#115 增 5 条）：
 
 - **MCP-01**：`mcp_01_initialize_negotiates_protocol_version`
 - **embedded_data**（#114）：`embedded_data_extracts_json_ld_from_inline_html`、`embedded_data_empty_result_is_not_a_parse_failure`、`embedded_data_broken_payload_is_parse_error`、`embedded_data_schema_declares_only_wired_parameters`（**声明必须等于实现**）、`embedded_data_rejects_url_and_html_together`
+- **可行动降级**（#115）：`spa_surface_channels_are_registered_tools`（建议通道必须是真实工具）、`degraded_envelope_carries_actionable_next_steps`（降级信封带 reason/detected/next_steps，且 next_steps 用派发表反查）、`ok_envelope_has_no_actionable`（干净成功不得带 actionable）、`limit_degradation_has_no_actionable_yet`（**口径边界**：只有 JS 渲染降级带 actionable，其余见 #124）、`paginate_propagates_actionable_from_upstream`（**传播不丢信息**：复审实测 paginate 曾丢 actionable，此用例钉住修复）
 - **MCP-02**：`mcp_02_tools_list_is_exactly_the_plan_set`
 - **MCP-03**：`mcp_03_input_schemas_are_valid_json_schema`
 - **MCP-04**：`mcp_04_qualified_names_follow_the_function_name_contract`

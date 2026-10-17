@@ -38,6 +38,8 @@ description: 纯内置的网页取回/解析/抽取 MCP server（零外部进程
 
 - `ok=true` + `code=OK`：正常结果。
 - `ok=true` + `DEGRADED` / `UNSUPPORTED` / `LIMIT`：结果不完整，`meta.degraded_from` 非空。
+  **JS 渲染降级**还会带 `meta.actionable`（`reason` / `detected` / `next_steps`）——有就读它再换通道；
+  **其他降级路径目前没有该字段**，别假设它一定存在。
 - `ok=false`：失败；`code` 是封闭集，`error` 是可读原因。
 
 空结果（合法零命中）与解析失败（`PARSE`）严格区分；工具级失败一律以信封返回，
