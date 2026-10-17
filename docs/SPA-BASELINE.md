@@ -10,7 +10,7 @@
 | 通道 | 怎么算 |
 |---|---|
 | **正文** | `extract` 用内容选择器（见各表）命中数 ≥ 1 **且**信封不是降级码 |
-| **内嵌结构化数据** | `embedded_data` 的 `data.entries` ≥ 1 |
+| **内嵌结构化数据** | `embedded_data` 的 `data.entries` ≥ 1（结果**落盘**时以 `data.saved_to` 指向的完整信封里的 `entries` 计，见 §3 的复现必读） |
 | **元数据** | HTML 头部有 RSS/JSON-LD 等可发现线索（本版只记录"有无"，发现能力见 #117） |
 | **无** | 三条通道都没拿到 —— **即使 HTTP 200 也记 `none`** |
 
@@ -61,9 +61,9 @@ embedded_data {"url": <URL>}                       # 看 code / data.entries 条
 | `quotes.toscrape.com/` | 服务端渲染 | OK | OK，**10 条**（`div.quote`） | OK，0 条 | **content** | 同（L1 锚点） |
 | `nextjs.org` | Next.js | OK | OK，1 条（`main`） | OK，**1 条**（`ld+json`，1940 B） | **content + embedded** | 正文通道同；**内嵌数据拿不到**（当时无该工具） |
 | `tailwindcss.com` | 内容站 | OK | OK，**0 条**（`main`） | OK，0 条（扫了 187 个 script） | **none** | 同 |
+| `nuxt.com` | Nuxt | OK | OK，1 条（`main`） | OK，**3 条**（`ld+json` 1836 B + `__NUXT_DATA__` 171264 B + `inline-state` 2 B；163 KB **落盘**） | **content + embedded** | 内嵌数据拿不到（当时无该工具） |
 
 > `tailwindcss.com` 的 `scanned_scripts` 会在 186～187 之间抖（站点本身变化），不影响 `obtained`。
-| `nuxt.com` | Nuxt | OK | OK，1 条（`main`） | OK，**3 条**（`ld+json` 1836 B + `__NUXT_DATA__` 171264 B + `inline-state` 2 B；163 KB **落盘**） | **content + embedded** | 内嵌数据拿不到（当时无该工具） |
 
 真站 `有效信息获取率`（至少一条通道）：**4/5**（`tailwindcss.com` 如实记 `none`）。
 
