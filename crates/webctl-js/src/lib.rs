@@ -303,6 +303,30 @@ mod tests {
         assert_eq!(first.value, second.value);
     }
 
+    /// **安全回归（相对说明符）**：最危险的形态是"CWD 相对路径"（旧默认加载器把 CWD 当 root）。
+    ///
+    /// 这条用**裸说明符**断言 fail-closed：旧加载器下该说明符会走到"打开文件"分支，
+    /// 现在必须是"模块解析被禁用"。绝对路径用例覆盖"存在的文件不被加载"，本条覆盖"相对说明符"。
+    #[test]
+    fn relative_dynamic_import_is_also_disabled() {
+        let mut context = sandbox(&JsLimits::default());
+        let script = "import('definitely-not-a-module.js').then(() => { globalThis.__REL = 'resolved' }, e => { globalThis.__REL = String(e) })";
+        context
+            .eval(Source::from_bytes(script.as_bytes()))
+            .expect("import 表达式本身不应抛错");
+        context.run_jobs();
+        let outcome = context
+            .eval(Source::from_bytes(b"String(globalThis.__REL)"))
+            .expect("读结果")
+            .to_string(&mut context)
+            .expect("转字符串")
+            .to_std_string_escaped();
+        assert!(
+            outcome.contains("module resolution is disabled"),
+            "相对说明符同样必须 fail-closed（旧加载器会去 open 文件），实测：{outcome}"
+        );
+    }
+
     /// **安全回归**：动态 `import()` 必须 fail-closed，且**不得**读取宿主文件。
     ///
     /// 起因：第一版用 `Context::default()`，boa 会装上以 CWD 为根的模块加载器——

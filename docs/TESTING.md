@@ -516,13 +516,13 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 
 ### 6.8d #127 沙箱核心 `crates/webctl-js`（ADR-0005 第 1 片）
 
-`crates/webctl-js` **9 条**（离线，纯内存；**不联网、不执行外部进程**）：
+`crates/webctl-js` **10 条**（离线，纯内存；**不联网、不执行外部进程**）：
 
 - 同一上下文共享全局：两段脚本依次求值，`acc*21` → `42`；
 - **限值可中断**：`while(true){}` → `Limit`（实测默认限值下 **609 ms** 被中断）；深递归 → `Limit`（实测 **3.4 ms**）；
 - **输入预算**：单段超尺寸、脚本段数超限 → `Rejected`（**不进入引擎**）；
 - **零宿主能力**：`typeof` 逐项断言 `fetch` / `XMLHttpRequest` / `require` / `process` / `Deno` / `WebSocket` / `setTimeout` / `setInterval` / `Buffer` **全部 `undefined`**；
-- **动态 `import()` fail-closed**（安全回归，见下）：模块文件**存在**也不会被加载——断言拿到 "module resolution is disabled" 且宿主全局未被设置；
+- **动态 `import()` fail-closed**（安全回归，见下，**两条**）：绝对路径指向的**存在的**模块文件不会被加载（断言拿到 "module resolution is disabled" 且宿主全局未被设置）；裸**相对说明符**同样 fail-closed（最危险的 CWD 形态）；
 - **确定性（有边界）**：不注入**宿主**时间/随机源；ECMAScript 自带的 `Date`/`Math.random` 仍在，依赖它们的脚本可能不同；
 - 语法错误归类为 `Syntax`。
 
