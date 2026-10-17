@@ -58,7 +58,7 @@ powershell -ExecutionPolicy Bypass -c "irm https://github.com/Thatgfsj/webctl/re
 
 1. 定版本：编辑 `Cargo.toml` 的 `[workspace.package] version`（各 crate 用 `version.workspace = true`）。
 2. 写 [CHANGELOG.md](../CHANGELOG.md)：把 `[Unreleased]` 改为 `[X.Y.Z] - YYYY-MM-DD`（见 §6）。
-3. 本地门禁（见 §7）并确认真实输出。
+3. 本地门禁（见 §7）并确认真实输出；**再跑一次性能基线** `scripts/perf-baseline.sh --check`（L4 通道，抓量级级退化；有效门槛见 [TESTING §6.11](TESTING.md)）。**这一步必须在打 tag 之前完成**。
 4. 提交、开 PR、由审阅者合并到 `main`。
 5. 打 tag 并推送（tag 必须与 Cargo 版本一致）：
 
@@ -69,7 +69,7 @@ git push origin v0.1.0
 ~~~
 
 6. 观察 **Actions → Release** 流水线：`plan` → `build-local-artifacts` → `build-global-artifacts` → `host` → `announce`。
-7. 按 §4 跑发布 E2E，并回填体积基线（§7）；**再跑一次性能基线** `scripts/perf-baseline.sh --check`（L4 通道，抓量级级退化；见 [TESTING §6.11](TESTING.md)）。
+7. 按 §4 跑发布 E2E，并回填体积基线（§7）。
 8. 失败时回滚后重来：
 
 ~~~bash
