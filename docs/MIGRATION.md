@@ -19,7 +19,7 @@
 | `crawl(urls, sel, limit, …)` | 批量爬取 + 去重 + 复用浏览器进程 | `fetch` 批量调用 + `paginate` | webctl 不做爬虫调度（PLAN 非目标）：批量循环与去重由调用方维护；`paginate` 只处理单站分页且有页数上限 |
 | `links(url, sel, headless, timeout, stealth, same_domain)` | 提取渲染后 DOM 的链接 | `links` | 直接对应；绝对化与 `rel` 由 `links` 处理，`same_domain` 用域名过滤替代。注意：**没有 JS 渲染**，链接来自静态 HTML |
 | `json_api(url, timeout)` | 轻量调用 JSON API（不用浏览器） | `fetch` + `json_query` | 两步：`fetch` 按 `application/json` 路由取回，`json_query` 取值/过滤/投影 |
-| `stream(urls, sel, …)` | 流式爬取避免大数据集 OOM | `paginate` + 结果上限 | webctl 用"条目/字节上限 + 截断标记 + `LIMIT` 码"替代流式；单次调用预算 < 60s（DSH MCP 默认超时） |
+| `stream(urls, sel, …)` | 流式爬取避免大数据集 OOM | `paginate` + 结果上限 | webctl 用"条目/字节上限 + 截断标记 + `LIMIT` 码"替代流式；单次工具调用预算 60s（与 DSH MCP 默认工具超时相等） |
 | `close_browser()` | 手动释放浏览器进程 | **不需要** | 没有外部进程与浏览器；会话状态由 `session` 工具管理（PR 05） |
 | `screenshot(url, full_page, output_path)` | 页面截图（Base64 或落盘） | **不支持** | 无渲染器 ⇒ 无像素（ADR-0001 代价 2）。没有替代方案，需要截图的流程请留在旧版或改用其它工具 |
 | `intercept(url, patterns, wait_actions)` | 拦截并分析页面网络请求 | **不支持** | 需要浏览器网络域。若目标是拿接口数据，改用 `fetch` + `json_query` 直取 API；**SPA 内的接口发现不再支持** |
