@@ -52,4 +52,11 @@
 ## 旧仓库处置
 
 - PLAN §10 默认值：归档（archive）旧仓 + 顶部加迁移说明。
-- **现状：尚未归档。** 该动作需要 `Thatgfsj-easyRep` 组织下的 admin 权限，且属于对另一个仓库的写操作，留待维护者执行；本仓库内先交付这份映射表。
+- **已执行（2026-10-17）**：
+  1. 旧仓 README 顶部加入迁移提示（提交 `898604b`）——指向本仓库、说明**不提供 API 兼容层**，并显式列出"依赖真实渲染的能力不支持"；
+  2. 旧仓已**归档**（`archived=true`，只读）：<https://github.com/Thatgfsj-easyRep/playwright-crawler-helper>（归档前该仓 0 个开放 issue / 0 个开放 PR）。
+- **撤销方式**（归档可逆）：
+  ```bash
+  gh api -X PATCH repos/Thatgfsj-easyRep/playwright-crawler-helper -F archived=false
+  ```
+- 结论与 [PLAN §10](PLAN.md) 的默认值一致：**归档旧版 + 只出迁移映射表**，不提供兼容层。

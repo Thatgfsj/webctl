@@ -4,6 +4,21 @@
 [语义化版本](https://semver.org/lang/zh-CN/)。格式约定、发版步骤与 release note 模板见
 [docs/RELEASE.md](docs/RELEASE.md)。
 
+## [Unreleased]
+
+### Added
+
+- CI 增加 `musl-static` 作业：每次 PR 用固定版本 Bootlin 2026.08-1 musl C++ 工具链
+  （GCC 15.3.0 / musl 1.2.6，SHA256 校验）构建 `webctl`/`webctl-mcp`，并用
+  `file`/`ldd`/`readelf` 断言静态（[#90](https://github.com/Thatgfsj/webctl/issues/90)）。
+- `x86_64-unknown-linux-musl` 恢复到 cargo-dist 发布矩阵；**下一次 tag** 才会产出
+  musl 资产，v0.1.0 已有资产不变。
+
+### Changed
+
+- README（中英）、RELEASE、ACCEPTANCE、TESTING 与体积基线同步为「CI 已达成构建/静态断言，
+  release 资产待下一次 tag；体积待真实资产回填」，不把 CI 构建值写成发布基线。
+
 ## [0.1.0] - 2026-10-17
 
 ### Added
