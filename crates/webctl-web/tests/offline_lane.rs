@@ -80,27 +80,36 @@ fn offline_lane_has_no_subprocess_call_sites() {
     );
 }
 
-/// DOC-12（pending）：文档处理全程零子进程。
+/// DOC-12：文档处理全程零子进程（**真实调用点**）。
 ///
-/// **依赖**：文档与数据层（PDF 文本层 / json_query / 格式转换）归属 PR 07，
-/// 当前 webctl-web 尚未提供任何文档处理入口，无法构造真实调用点。
-/// **可验收交接点**：PR 07 合并后，调用其公开入口处理一份样本 PDF/JSON，
-/// 在调用前后各采一次 child_process_count，断言增量为 0，并移除本 #[ignore]。
-/// 现在显式标为 pending，不用恒真断言冒充覆盖。
+/// PR 07（#36）已合并，交接条件成立：本用例真的调用两个公开入口——
+/// `doc_text`（HTML → 正文）与 `json_query`（JSON → 查询），并在调用前后各采一次
+/// `child_process_count`，断言增量为 0。不再是 pending 占位。
+///
+/// 分工提醒：`doc_text` 对 JSON 是 `UNSUPPORTED`（`degraded_from == "use-json-query"`），
+/// 故 JSON 走 `json_query`，两条路径都覆盖。
 #[test]
-#[ignore = "pending PR 07：文档处理层未落地，无可断言的零子进程调用点"]
 fn doc_12_document_processing_spawns_no_children() {
-    panic!("DOC-12 尚未实现：PR 07 落地文档层后，用真实调用点替换本占位");
+    use webctl_web::{DocOptions, JsonQueryOptions, doc_text, json_query};
+
+    let Some(before) = child_count_or_skip() else {
+        return;
+    };
+
+    // 1) HTML 文档 → 正文（doc/mod.rs：HTML 交给解析层，失败透传其 code）。
+    let html = b"<html><body><article><h1>T</h1><p>hello doc</p></article></body></html>";
+    let doc = doc_text(html, &DocOptions::default());
+    assert!(doc.ok, "HTML 正文提取应成功：{:?}", doc.error);
+
+    // 2) JSON → 查询（内置 JSON 查询子集，替代外部 jq）。
+    let json = br#"{"items":[{"id":1},{"id":2}]}"#;
+    let queried = json_query(json, "$.items[*].id", &JsonQueryOptions::default());
+    assert!(queried.ok, "json_query 应成功：{:?}", queried.error);
+
+    let after = resources::child_process_count().expect("Linux 上第二次采样不应失败");
+    assert_eq!(after, before, "文档处理不得创建子进程");
 }
 
-/// MCP-14（pending）：MCP 运行期无子进程、无浏览器。
-///
-/// **依赖**：MCP server（rmcp + 15 个工具）归属 PR 11；当前 webctl-mcp 只有 crate 骨架。
-/// **可验收交接点**：PR 11 合并后启动 MCP server 进程，跑一次 initialize + tools/list，
-/// 断言该进程期间的子进程计数不变；进程内 MCP 层则直接按零子进程断言。
-/// 现在显式标为 pending，不用恒真断言冒充覆盖。
-#[test]
-#[ignore = "pending PR 11：MCP server 未落地（webctl-mcp 仅骨架），无可断言的运行期"]
-fn mcp_14_server_runs_without_child_processes() {
-    panic!("MCP-14 尚未实现：PR 11 落地 MCP server 后用真实运行期替换本占位");
-}
+// MCP-14 的真实用例在 `crates/webctl-mcp/tests/mcp14.rs`
+// （`mcp_14_in_process_dispatch_spawns_no_children`）：那里单独成一个测试二进制，
+// 子进程计数基线不会被其它用例干扰。此处原先的 pending 占位是**重复**，已删除。
