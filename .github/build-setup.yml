@@ -5,7 +5,8 @@
 #   - Windows：NASM（BoringSSL 的 .asm 汇编）；
 #   - Linux x86_64-musl：自带 libstdc++ 的 musl C++ 交叉工具链
 #     （Ubuntu 的 musl-tools/musl-dev 只有 C 侧，见议题 #90）；
-#   - 所有 Linux 构建：libclang（btls-sys 用 bindgen 生成绑定）。
+#   - 本步骤只对 Windows 与 Linux-musl 生效（见下面的 if）。Linux-gnu 不需要它：
+#     ubuntu runner 自带可用工具链，实测 gnu 构建无需 intervention（v0.1.0 发布验证）。
 # 缺任一项时发布会在 CMake enable_language / bindgen 处失败。
 #
 # 工具链版本、SHA256、来源与信任评估统一在 scripts/install-musl-toolchain.sh，
