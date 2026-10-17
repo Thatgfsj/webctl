@@ -482,14 +482,6 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 - SESS-10 由既有 `crates/webctl-web/tests/session.rs::sess_10_spa_degrades`（连同 `sess_15_paginate_spa_stays_degraded`）覆盖；接入守卫后仍全绿。
 - **L1（可跳过、不作 CI 门禁）**：`crates/webctl-web/tests/e2e/run-real.sh` 承载 DEGRADE-01/02 与 E2E-01/02——静态锚点计数 10 条、JS 页断言降级码非 OK 且 `degraded_from` 非空；`WEBCTL_REAL!=1` 或无网络/缺 curl/cargo 时显式 SKIP。
 
-### 6.8c #119 SPA 样本集与基线（`tests/spa_baseline.rs`）
-
-`crates/webctl-web/tests/spa_baseline.rs` **2 条**：5 类 SPA 形态的**可执行基线**（正文字符数、内嵌条数、
-是否判为依赖 JS、RSS 线索、`obtained` 分级）+ 分级函数本身的区分性用例。
-
-样本在 `crates/webctl-web/tests/fixtures/spa/`（nextjs / nuxt / 纯 CSR 空壳 / 静态文章+JSON-LD / 静态博客+RSS）。
-数字与口径见 [docs/SPA-BASELINE.md](SPA-BASELINE.md)；**改行为必须同时更新该文件与本节基线**。
-
 ### 6.8b #114 内嵌结构化数据（EMBED-01…EMBED-13）
 
 `crates/webctl-web/tests/embedded.rs` **13 条**（离线；只读内存里的 HTML 字符串，不联网、不执行 JS）：
@@ -508,6 +500,14 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 - **EMBED-12**：条数上限生效（防畸形页面撑爆结果）；
 - **EMBED-13**：`window.X` 与裸 `X` **各自出现**时必须是两条（防止去重修过头）。
 
+### 6.8c #119 SPA 样本集与基线（`tests/spa_baseline.rs`）
+
+`crates/webctl-web/tests/spa_baseline.rs` **2 条**：5 类 SPA 形态的**可执行基线**（正文字符数、内嵌条数、
+是否判为依赖 JS、RSS 线索、`obtained` 分级）+ 分级函数本身的区分性用例。
+
+样本在 `crates/webctl-web/tests/fixtures/spa/`（nextjs / nuxt / 纯 CSR 空壳 / 静态文章+JSON-LD / 静态博客+RSS）。
+数字与口径见 [docs/SPA-BASELINE.md](SPA-BASELINE.md)；**改行为必须同时更新该文件与本节基线**。
+
 **工具面守卫**：`scripts/check-tool-face.py`（CI 的 `guards` 作业）机械校验"`TOOL_NAMES` = PLAN §3.7 = SKILL.md = 现行文案里的数字"；三种变异（文档数字 / README 清单 / SKILL 清单）都能让它红。
 
 模块内另有 **4 条**单测（`parse::embedded::tests`）：字面量扫描处理字符串/转义、拒绝 IIFE、深度上限、实体反转义。
@@ -518,11 +518,11 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 
 `crates/webctl-mcp/src/` 单元 **13 条**（含本版新增的 MCP 侧脱敏隔离用例）：`registry_is_exactly_the_plan_list`、`definitions_match_the_static_specs`、`qualified_names_follow_the_dsh_contract`、`all_plan_tools_are_registered_and_available`、`capabilities_mirror_the_dispatch_table`、`instructions_stay_under_limit`、`dsh_snippet_has_no_tool_order_and_no_tool_names`、`bound_session_accepts_only_itself`、`cross_session_error_is_readable_and_mentions_both`、`unbound_defaults_to_default_and_validates`、`small_result_stays_inline`、`large_result_is_spilled_and_keeps_degradation`、`sec_09_mcp_dispatcher_is_the_one_that_redacts`（[#82](https://github.com/Thatgfsj/webctl/issues/82) 补的隔离用例，详见本节末尾）。
 
-`crates/webctl-mcp/tests/mcp.rs` **30 条通过 + 0 ignored**（#82 转正后 20 条，#114 增 3 条 + 2 条 schema 守卫，#115 增 5 条）：
+`crates/webctl-mcp/tests/mcp.rs` **31 条通过 + 0 ignored**（#82 转正后 20 条，#114 增 3 条 + 2 条 schema 守卫，#115 增 5 条，#119 补 1 条）：
 
 - **MCP-01**：`mcp_01_initialize_negotiates_protocol_version`
 - **embedded_data**（#114）：`embedded_data_extracts_json_ld_from_inline_html`、`embedded_data_empty_result_is_not_a_parse_failure`、`embedded_data_broken_payload_is_parse_error`、`embedded_data_schema_declares_only_wired_parameters`（**声明必须等于实现**）、`embedded_data_rejects_url_and_html_together`
-- **可行动降级**（#115）：`spa_surface_channels_are_registered_tools`（建议通道必须是真实工具）、`degraded_envelope_carries_actionable_next_steps`（降级信封带 reason/detected/next_steps，且 next_steps 用派发表反查）、`ok_envelope_has_no_actionable`（干净成功不得带 actionable）、`limit_degradation_has_no_actionable_yet`（**口径边界**：只有 JS 渲染降级带 actionable，其余见 #124）、`paginate_propagates_actionable_from_upstream`（**传播不丢信息**：复审实测 paginate 曾丢 actionable，此用例钉住修复）
+- **可行动降级**（#115）：`spa_surface_channels_are_registered_tools`（建议通道必须是真实工具）、`degraded_envelope_carries_actionable_next_steps`（降级信封带 reason/detected/next_steps，且 next_steps 用派发表反查）、`ok_envelope_has_no_actionable`（干净成功不得带 actionable）、`limit_degradation_has_no_actionable_yet`（**口径边界**：只有 JS 渲染降级带 actionable，其余见 #124）、`paginate_propagates_actionable_from_upstream`（**传播不丢信息**：复审实测 paginate 曾丢 actionable，此用例钉住修复）、`paginate_normal_finish_keeps_actionable`（#119 补：#123 复审发现原用例只覆盖 `pagination-fetch-failed` 早返回，**正常收尾**分支此前没被钉住）
 - **MCP-02**：`mcp_02_tools_list_is_exactly_the_plan_set`
 - **MCP-03**：`mcp_03_input_schemas_are_valid_json_schema`
 - **MCP-04**：`mcp_04_qualified_names_follow_the_function_name_contract`

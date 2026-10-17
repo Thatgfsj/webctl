@@ -50,13 +50,20 @@ extract       {"url": <URL>, "selector": <SEL>}    # 看 code / matches 条数
 embedded_data {"url": <URL>}                       # 看 code / data.entries 条数
 ```
 
+> **⚠️ 复现必读（我在这里踩过一次坑）**：结果超过内联上限时，`tools/call` 的**内联信封是落盘占位**
+> ——`data = { bytes, inline: false, note, saved_to, tool }`，**没有 `entries`/`matches` 字段**。
+> 只看内联字段会把"有数据"误记成 `0`。必须顺着 `data.saved_to` 读完整信封。
+> （本表 `nuxt.com` 就是这种情况。）
+
 | 站点 | 类型 | `fetch` | `extract`（选择器） | `embedded_data` | obtained | 0.1.1 时的状态 |
 |---|---|---|---|---|---|---|
 | `quotes.toscrape.com/js/` | 纯 CSR 空壳 | **DEGRADED**/`js-render` | DEGRADED/`js-render`，0 条（`div.quote`） | OK，0 条 | **none** | 同样 `none`（#113 的痛点） |
 | `quotes.toscrape.com/` | 服务端渲染 | OK | OK，**10 条**（`div.quote`） | OK，0 条 | **content** | 同（L1 锚点） |
 | `nextjs.org` | Next.js | OK | OK，1 条（`main`） | OK，**1 条**（`ld+json`，1940 B） | **content + embedded** | 正文通道同；**内嵌数据拿不到**（当时无该工具） |
 | `tailwindcss.com` | 内容站 | OK | OK，**0 条**（`main`） | OK，0 条（扫了 187 个 script） | **none** | 同 |
-| `nuxt.com` | Nuxt | OK | OK，1 条（`main`） | OK，0 条 | **content** | 同 |
+
+> `tailwindcss.com` 的 `scanned_scripts` 会在 186～187 之间抖（站点本身变化），不影响 `obtained`。
+| `nuxt.com` | Nuxt | OK | OK，1 条（`main`） | OK，**3 条**（`ld+json` 1836 B + `__NUXT_DATA__` 171264 B + `inline-state` 2 B；163 KB **落盘**） | **content + embedded** | 内嵌数据拿不到（当时无该工具） |
 
 真站 `有效信息获取率`（至少一条通道）：**4/5**（`tailwindcss.com` 如实记 `none`）。
 
@@ -66,10 +73,10 @@ embedded_data {"url": <URL>}                       # 看 code / data.entries 条
 
 | 变化 | 事实 |
 |---|---|
-| **新增内嵌数据通道** | 真站 5 个样本里 **1 个**（`nextjs.org`）从"拿不到结构化数据"变为拿到（`ld+json`）。离线样本里 2/5 靠这条通道拿到内容（nextjs / nuxt） |
+| **新增内嵌数据通道** | 真站 5 个样本里 **2 个**（`nextjs.org` 的 `ld+json`、`nuxt.com` 的 `ld+json`+`__NUXT_DATA__`+`inline-state`）从"拿不到结构化数据"变为拿到；离线样本 2/5 靠这条通道拿到内容 |
 | **降级可行动**（#115） | JS 空壳页的降级信封现在带 `meta.actionable`（原因码 + 证据 + 建议通道），调用方知道"还能试 `embedded_data`" |
 | **JS 空壳仍然拿不到内容** | `quotes.toscrape.com/js/` 依旧 `none`——引擎尚未接线（ADR-0005），这一项要等 0.1.2 的引擎 PR |
-| **总体获取率未变** | 真站仍是 4/5：本版改善的是**通道覆盖**，不是总数 |
+| **总体获取率未变** | 真站仍是 4/5：本版改善的是**通道覆盖**（内嵌数据通道 **0/5 → 2/5**），不是总数 |
 
 ## 5. 0.1.2 完成后的对比（待填）
 
