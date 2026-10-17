@@ -27,7 +27,7 @@
 安装器：`shell` + `powershell`；`install-path = CARGO_HOME`；`install-updater = false`。
 
 `dist plan` 为 CI 计算的构建矩阵：`macos-14`（aarch64-apple）、`macos-15-intel`（x86_64-apple）、`windows-2022`、
-`ubuntu-22.04`（gnu 与 musl 各一，musl 任务自动 `apt-get install musl-tools`）。以上均为 2026-10-17 在本机用 cargo-dist 0.33.0 实测输出。
+`ubuntu-22.04`（**gnu**；musl 目标已暂缓，见 [#90](https://github.com/Thatgfsj/webctl/issues/90)）。以上均为 2026-10-17 在本机用 cargo-dist 0.33.0 实测输出。
 
 ## 2. 发布物（`dist plan` 实测，2026-10-17，`webctl 0.1.0`）
 

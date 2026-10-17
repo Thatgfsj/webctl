@@ -339,13 +339,13 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 | ID | 用例 | 期望（可机械判定） | 通道 | 归属 |
 |---|---|---|---|---|
 | PKG-01 | release 构建 | `cargo build --release` 成功 | L2 | PR 14 |
-| PKG-02 | musl 静态 | `x86_64-unknown-linux-musl` 产物可运行 | L2 | PR 14 |
+| PKG-02 | musl 静态 | **暂缓**：`x86_64-unknown-linux-musl` 产物可运行（[#90](https://github.com/Thatgfsj/webctl/issues/90)） | L2 | 后续 |
 | PKG-03 | 三平台 | linux/macos/windows 资产齐全 | L2 | PR 14 |
 | PKG-04 | 版本 | `--version` 与 tag 一致 | L2 | PR 14 |
 | PKG-05 | 体积基线 | 不超过 P0 定下的基线 | L2 | PR 14 |
 | PKG-06 | 干净环境 | 无 Rust/无浏览器的干净环境可直接运行 | L2 | PR 14 |
 | PKG-07 | 文档一致 | README 安装命令与实际资产一致（无虚构命令） | L2 | PR 14 |
-| PKG-08 | 无动态依赖 | `ldd` 显示静态（musl 产物） | L2 | PR 14 |
+| PKG-08 | 无动态依赖 | **暂缓**：当前产物为 glibc 动态链接（[#90](https://github.com/Thatgfsj/webctl/issues/90)） | L2 | 后续 |
 
 ### 2.17 E2E — 真实站点锚点（7）
 

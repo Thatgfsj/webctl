@@ -106,6 +106,7 @@ baseline_field() {
 }
 
 BASELINE_BYTES="$(baseline_field bytes)"
+BASELINE_SOURCE="$(baseline_field source)"
 LIMIT=""
 if [ -n "$BASELINE_BYTES" ]; then
   LIMIT=$(( BASELINE_BYTES + BASELINE_BYTES * TOLERANCE_PCT / 100 ))
@@ -146,7 +147,11 @@ else
   if [ -n "$BASELINE_BYTES" ]; then
     printf 'baseline     = %s bytes (limit %s, +%s%%)\n' "$BASELINE_BYTES" "$LIMIT" "$TOLERANCE_PCT"
   else
-    printf 'baseline     = 待 CI 回填（musl 数字待首个 release 产物）\n'
+    if [ "$BASELINE_SOURCE" = "deferred" ]; then
+      printf 'baseline     = 暂缓（该目标见 docs/size-baseline.json 的 source=deferred 与议题 #90）\n'
+    else
+      printf 'baseline     = 待回填（无基线数字）\n'
+    fi
   fi
   printf 'status       = %s\n' "$STATUS"
 fi
