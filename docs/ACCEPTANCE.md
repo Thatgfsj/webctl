@@ -74,7 +74,7 @@
 | extract 的 `links`/`tables`/`forms`/`form_by_index` 未纳入 `max_elapsed_ms` 兜底 | PR #71 复审登记：`links` 只在过滤循环查预算（解析耗时不计入、零链接时循环体不执行）；`tables`/`forms`/`form_by_index` 完全不读取预算 | 建议随 #73（PR 09 会重写 `links`/`structured`）或后续议题一并收口 |
 | `download` / `doc_text` 的 URL 路径仅支持文本类响应 | PR 02 的 `Fetched.content` 不暴露二进制原始字节；二进制返回 `UNSUPPORTED` 降级信封 | 需在 webctl-web 加原始字节接口（PR 11 正文已登记） |
 | 解析/抽取性能 `[~5s, 30s)` 档 | **已由 L4 通道接手**：`scripts/perf-baseline.sh --check`（相对基线 + 5× tolerance，抓**量级级退化**，TESTING §6.11）。诚实边界：**不抓 20% 级抖动**，也不替代单测挂死守卫 | 议题 [#83](https://github.com/Thatgfsj/webctl/issues/83)（本轮落地） |
-| musl 静态目标（PKG-02 / PKG-08） | **已达成（v0.1.1）**：发布矩阵产出 `webctl-x86_64-unknown-linux-musl.tar.xz`（22,612,520 字节）与 `webctl-mcp` 同款；下载后 `sha256sum -c` 通过、`ldd` = `statically linked`、`scripts/release-e2e.sh --static` **PASS**。诚实边界：**未在 Alpine/容器里跑**（构建机无 Docker），见 §7 | 议题 [#90](https://github.com/Thatgfsj/webctl/issues/90)（已收口） |
+| musl 静态目标（PKG-02 / PKG-08） | **已达成（v0.1.1）**：发布矩阵产出 `webctl-x86_64-unknown-linux-musl.tar.xz`（22,612,520 字节）与 `webctl-mcp` 同款；`sha256sum -c` 通过、`ldd` = `statically linked`、`release-e2e.sh --static` PASS；并已在**真实 Alpine(musl) 用户态**实测（user namespace + bwrap + minirootfs，见 §7） | 议题 [#90](https://github.com/Thatgfsj/webctl/issues/90)（已收口） |
 
 ## 7. 验收记录
 
@@ -123,3 +123,10 @@
   - **musl 静态验证（#90 的验收核心）**：下载 `webctl-x86_64-unknown-linux-musl.tar.xz` → `sha256sum -c` **成功** → `file`/`ldd` 报 **statically linked** → `scripts/release-e2e.sh --static` **PASS**（PKG-04 版本 == tag；PKG-06 干净环境 `caps --json`；**PKG-08 静态链接**）；
   - **体积/冷启动基线回填（真实资产）**：musl **22,612,520** 字节 / p50 **4ms**（static）；glibc **22,867,752** 字节 / p50 6ms（dynamic）——两条 `source` 均为 `release-asset`；
   - **未做（如实登记）**：**Alpine / 容器干净环境 E2E** —— 构建机无 Docker/podman；静态性的等价证据为 `ldd` + `readelf -d` 无 NEEDED + `env -i` 冒烟。
+
+- 2026-10-17（Lead）**Alpine(musl) 干净环境 E2E（#105，方法：user namespace + bwrap）**：
+  - 本机无 Docker/podman，改用 `unshare` 的用户命名空间 + `bwrap` 构造真实 Alpine rootfs（`alpine-minirootfs-3.20.3-x86_64`，`/lib/libc.musl-x86_64.so.1` 存在 ⇒ 真实 musl 用户态），并把 v0.1.1 的 musl 资产 bind 进去；
+  - `webctl --version` → `webctl 0.1.1`；`caps --json` → `ok=true`、`engine=builtin`；
+  - `webctl fetch https://quotes.toscrape.com/` → **HTTP/2 200**（TLS 在 musl 用户态可用）；
+  - MCP over stdio（`webctl mcp`）→ `serverInfo={webctl, 0.1.1}`、**15 个工具**；**L1 锚点 1**：`extract` 静态页 → `code=OK`、**matched 10 element(s)**；**L1 锚点 2**：`extract` JS 页 → `code=DEGRADED`（诚实降级，不返回"成功但 0 条"）；
+  - 失败路径也记一笔：不绑定 `/etc/resolv.conf` 时 Alpine rootfs 无解析配置 ⇒ `fetch` 返回 `NETWORK`；这是**环境**缺文件，不是 webctl 缺陷。

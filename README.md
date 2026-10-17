@@ -124,7 +124,7 @@ webctl --offline caps
 - 发布步骤、release note 模板、变更日志约定与发布 E2E 清单：[docs/RELEASE.md](docs/RELEASE.md)。
 - 体积 / 冷启动基线工具：`scripts/size-baseline.sh`；记录：[docs/size-baseline.json](docs/size-baseline.json)。
   - glibc release **本机实测** 7,978,256 字节（约 7.61 MiB），`--version` 冷启动 p50 约 10–24 ms（全部 < 50 ms，CLI-12 本地通过）。
-  - **musl 静态目标**：`musl-static` CI 作业每次 PR 用固定版本 Bootlin musl C++ 工具链构建，并以 `file`/`ldd`/`readelf` 断言无动态依赖；发布矩阵已恢复，下一次 tag 产出资产。musl 静态资产已于 v0.1.1 产出（22,612,520 字节，`ldd` 报 `statically linked`），体积基线已回填（[#90](https://github.com/Thatgfsj/webctl/issues/90) 已收口）。
+  - **musl 静态目标**：`musl-static` CI 作业每次 PR 用固定版本 Bootlin musl C++ 工具链构建，并以 `file`/`ldd`/`readelf` 断言无动态依赖；**v0.1.1 已产出该资产**（22,612,520 字节，`ldd` 报 `statically linked`），并已在**真实 Alpine(musl) 用户态**跑通（见 [ACCEPTANCE §7](docs/ACCEPTANCE.md)）。musl 静态资产已于 v0.1.1 产出（22,612,520 字节，`ldd` 报 `statically linked`），体积基线已回填（[#90](https://github.com/Thatgfsj/webctl/issues/90) 已收口）。
 - 发布资产 E2E 冒烟：`scripts/release-e2e.sh`（PKG-04 / PKG-06 / PKG-08）。
 
 ## 架构

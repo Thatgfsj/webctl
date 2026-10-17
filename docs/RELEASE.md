@@ -30,7 +30,7 @@
 `ubuntu-22.04`（gnu）、`ubuntu-22.04`（musl）。以上为 2026-10-17 在本机用 cargo-dist 0.33.0 实测输出；musl 作业的
 `packages_install` 仍会装 `musl-tools`，但实际编译器来自 `scripts/install-musl-toolchain.sh`。
 
-## 2. 发布物（`dist plan` 实测，2026-10-17，`webctl 0.1.0`）
+## 2. 发布物（`dist plan` 实测，2026-10-17，`webctl 0.1.1`）
 
 | 资产 | 类型 | 内容 / 目标 |
 |---|---|---|
@@ -103,7 +103,7 @@ scripts/release-e2e.sh ./webctl 0.1.0          # glibc 资产
 
 ~~~bash
 docker run --rm -v "$PWD:/w" -w /w debian:stable-slim ./webctl --version
-#（musl 静态资产已随 v0.1.1 发布；alpine 验证需容器运行时——本机无 Docker，见 [#105](https://github.com/Thatgfsj/webctl/issues/105)）
+#（musl 静态资产已随 v0.1.1 发布，并已在**真实 Alpine(musl) 用户态**验证：见 ACCEPTANCE §7 的 bwrap + minirootfs 方法）
 ~~~
 
 ## 5. Release note 模板
