@@ -48,15 +48,25 @@ echo "$JSON"
 if [ "$MODE" = "record" ]; then
   TODAY="$(date +%F)"
   COMMIT="$(git rev-parse --short HEAD)"
-  python3 - "$BASELINE" "$JSON" "$TODAY" "$COMMIT" <<'PY'
-import json, sys
-path, raw, day, commit = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+  python3 - "$BASELINE" "$JSON" "$TODAY" "$COMMIT" "${FACTOR:-}" "${FLOOR_MS:-}" <<'PY'
+import json, os, sys
+path, raw, day, commit, factor_env, floor_env = sys.argv[1:7]
 m = json.loads(raw)
+# 门槛字段必须**继承**而不是硬编码：否则 --record 会把 floor_ms 悄悄改回旧值，
+# 与文档声明的有效门槛脱节（复审在 #100 指出过这个陷阱）。
+existing = {}
+if os.path.exists(path):
+    try:
+        existing = json.load(open(path, encoding="utf-8"))
+    except Exception:
+        existing = {}
+factor = float(factor_env) if factor_env else float(existing.get("factor", 5))
+floor = float(floor_env) if floor_env else float(existing.get("floor_ms", 100))
 doc = {
   "schema": 1,
   "description": "解析/抽取性能 p50 基线（TESTING §1 L4 / 议题 #83）。单位毫秒；由 scripts/perf-baseline.sh --record 写入。",
-  "factor": 5,
-  "floor_ms": 50,
+  "factor": factor,
+  "floor_ms": floor,
   "metrics": {
     "parse_100kb_ms_p50": m["parse_100kb_ms_p50"],
     "extract_1mb_hit_ms_p50": m["extract_1mb_hit_ms_p50"],

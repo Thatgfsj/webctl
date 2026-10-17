@@ -554,10 +554,10 @@ PR 11 留下的 `#[ignore]` 交接哨兵及其常量已随 #82 删除；`cargo t
 
 | 编号 | 用例 | 输入 | 期望 |
 |---|---|---|---|
-| PERF-01 | 解析 100KiB 嵌套 HTML（`parse::select`） | 自生成 ~100KiB | p50 ≤ max(基线×5, 50ms) |
-| PERF-02 | 抽取 1MiB **多命中**（`select_matches`，放开输出上限） | 自生成 ~1MiB | p50 ≤ max(基线×5, 50ms) |
-| PERF-03 | 抽取 1MiB **零命中全量扫描**（PR 06 缺陷路径） | 自生成 ~1MiB | p50 ≤ max(基线×5, 50ms) |
-| PERF-04 | 深嵌套（2000 层）抽取 | 自生成 | p50 ≤ max(基线×5, 50ms) |
+| PERF-01 | 解析 100KiB 嵌套 HTML（`parse::select`） | 自生成 ~100KiB | p50 ≤ max(基线 × 5, floor_ms) |
+| PERF-02 | 抽取 1MiB **多命中**（`select_matches`，放开输出上限） | 自生成 ~1MiB | p50 ≤ max(基线 × 5, floor_ms) |
+| PERF-03 | 抽取 1MiB **零命中全量扫描**（PR 06 缺陷路径） | 自生成 ~1MiB | p50 ≤ max(基线 × 5, floor_ms) |
+| PERF-04 | 深嵌套（2000 层）抽取 | 自生成 | p50 ≤ max(基线 × 5, floor_ms) |
 
 **有效门槛**（= `max(基线 × 5, floor_ms)`；`floor_ms` 由 `docs/perf-baseline.json` 提供，环境变量可覆盖）：
 
