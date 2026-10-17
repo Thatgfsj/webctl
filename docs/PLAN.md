@@ -198,7 +198,7 @@ webctl/
 
 - 口径 = `git diff --numstat` 的 `additions + deletions`（实现见 [`scripts/pr-size.sh`](../scripts/pr-size.sh)）。
 - **不计入**：`docs/**`、`crates/*/tests/fixtures/**`、`Cargo.lock`、生成的 `.github/workflows/release.yml`、`CHANGELOG.md`。**但必须在 PR 描述里写明实际行数**。
-- **目标 ≤1000 行**；越线时 CI 的 `pr-size` 作业失败，维护者在关联 issue 批准后打 `lines: exempt` 标签放行。
+- **目标 ≤1000 行**；越线时 CI 的 `guards`（行数口径那一步）失败，维护者在关联 issue 批准后打 `lines: exempt` 标签放行。
 - 本规则与组织级「加权 2 分制」门禁**并行**，互不替代（见 [CONTRIBUTING §2](../CONTRIBUTING.md)）。
 
 ### 5.2 PR 清单（v0.4 重切，14 个）

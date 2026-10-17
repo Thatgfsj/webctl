@@ -1,17 +1,102 @@
 name: CI
 
+# 设计要点（详见 docs/CI.md）：
+#   1) 快速前置：格式 / 脚本语法 / cargo-dist 生成物一致性 / 报错定位器自检，先挡住最便宜的错误；
+#   2) 三平台矩阵：clippy 与 test 都在 ubuntu / macos / windows 上跑，避免"只在一个系统上绿"；
+#   3) 合并安全：cargo 全部 --locked；每个 job 有 timeout；并发取消旧运行；最小权限；
+#      忽略测试零容忍；测试跑完后工作区必须洁净；cargo-dist 生成物不许漂移；
+#   4) 精准报错：每个可能失败的命令把输出 tee 到日志，成功后也过一遍 scripts/ci-report.sh，
+#      把失败变成 file:line:col 的 GitHub 注解 + 作业摘要，并把原始日志作为 artifact 上传。
+
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 env:
   CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  RUST_BACKTRACE: "1"
 
 jobs:
-  gates:
-    name: gates (${{ matrix.os }})
+  # ---------- 快速前置（ubuntu，秒级） ----------
+  static:
+    name: static · fmt / scripts / config
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.98.1
+          components: rustfmt
+      - name: 格式（cargo fmt --all --check）
+        run: cargo fmt --all --check
+      - name: 脚本语法（bash -n 覆盖 scripts/*.sh）
+        shell: bash
+        run: |
+          fail=0
+          for f in scripts/*.sh; do
+            if bash -n "$f"; then
+              echo "ok   $f"
+            else
+              echo "::error file=$f,title=脚本语法::bash -n 失败"
+              fail=1
+            fi
+          done
+          exit $fail
+      - name: 报错定位器自检（证明注解机制有判别力）
+        shell: bash
+        run: scripts/ci-report.sh --selftest
+      - name: 判断是否需要校验 cargo-dist 生成物
+        id: dist-need
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "need=1" >> "$GITHUB_OUTPUT"
+            echo "非 PR：始终校验"
+            exit 0
+          fi
+          git fetch --no-tags origin "${{ github.base_ref }}" >/dev/null 2>&1 || true
+          changed="$(git diff --name-only "origin/${{ github.base_ref }}...HEAD" || echo unknown)"
+          if printf "%s\n" "$changed" | grep -qE "^(dist-workspace\.toml|\.github/build-setup\.yml|\.github/workflows/release\.yml)$"; then
+            echo "need=1" >> "$GITHUB_OUTPUT"
+            echo "触及 dist 相关文件：需要校验"
+          else
+            echo "need=0" >> "$GITHUB_OUTPUT"
+            echo "::notice::未触及 dist-workspace.toml / build-setup.yml / release.yml，跳过 cargo-dist 一致性校验"
+          fi
+      - name: 缓存 cargo-dist 二进制
+        if: steps.dist-need.outputs.need == '1'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-dist
+          key: cargo-dist-0.33.0-${{ runner.os }}
+      - name: cargo-dist 生成物一致性（generate --mode ci --check）
+        if: steps.dist-need.outputs.need == '1'
+        shell: bash
+        run: |
+          if ! command -v cargo-dist >/dev/null 2>&1; then
+            echo "安装 cargo-dist 0.33.0（与 dist-workspace.toml 锁定版本一致）"
+            cargo install cargo-dist --version 0.33.0 --locked
+          fi
+          cargo dist generate --mode ci --check
+
+  # ---------- clippy：三平台 ----------
+  clippy:
+    name: clippy (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -21,26 +106,116 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.98.1
-          components: rustfmt, clippy
+          components: clippy
       - uses: Swatinem/rust-cache@v2
-      - name: fmt
-        run: cargo fmt --check
-      - name: clippy
-        run: cargo clippy --all-targets -- -D warnings
-      - name: test
-        run: cargo test
-      - name: clippy (offline lane)
-        run: cargo clippy --all-targets --features offline -- -D warnings
-      - name: test (offline lane)
-        run: cargo test --features offline
-      - name: build (release)
-        run: cargo build --release
+        with:
+          key: clippy
+      - name: clippy 两条通道（默认 + offline），失败先出报告再退出
+        shell: bash
+        run: |
+          set +e
+          cargo clippy --all-targets --locked -- -D warnings 2>&1 | tee "$RUNNER_TEMP/clippy.log"
+          rc_default=$?
+          cargo clippy --all-targets --locked --features offline -- -D warnings 2>&1 | tee "$RUNNER_TEMP/clippy-offline.log"
+          rc_offline=$?
+          scripts/ci-report.sh --lane "clippy (默认)"   --log "$RUNNER_TEMP/clippy.log"
+          scripts/ci-report.sh --lane "clippy (offline)" --log "$RUNNER_TEMP/clippy-offline.log"
+          if [ "$rc_default" -ne 0 ]; then echo "::error title=clippy::默认特性通道未通过 → 见上面每条 file:line:col"; fi
+          if [ "$rc_offline" -ne 0 ]; then echo "::error title=clippy::offline 通道未通过 → 见上面每条 file:line:col"; fi
+          [ "$rc_default" -eq 0 ] && [ "$rc_offline" -eq 0 ]
+      - name: 上传日志
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clippy-logs-${{ matrix.os }}
+          path: |
+            ${{ runner.temp }}/clippy.log
+            ${{ runner.temp }}/clippy-offline.log
+          retention-days: 7
 
-  pr-size:
-    name: pr-size (行数口径)
-    # 只在 PR 上跑：口径是相对 base 的差分
-    if: github.event_name == 'pull_request'
+  # ---------- 工具/套件测试：三平台（主体） ----------
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.98.1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: test
+      - name: 记录测试前工作区状态（供后面判断"测试是否新增脏文件"）
+        shell: bash
+        run: git status --porcelain > "$RUNNER_TEMP/ws-before.txt" || true
+      - name: 三条通道（默认门禁 / offline L0 / release 构建），失败先出报告再退出
+        shell: bash
+        run: |
+          set +e
+          cargo test --locked --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/test.log"
+          rc_test=$?
+          cargo test --locked --features offline --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/test-offline.log"
+          rc_offline=$?
+          cargo build --release --locked 2>&1 | tee "$RUNNER_TEMP/build-release.log"
+          rc_build=$?
+          scripts/ci-report.sh --lane "test (默认)"        --log "$RUNNER_TEMP/test.log"
+          scripts/ci-report.sh --lane "test (offline L0)"  --log "$RUNNER_TEMP/test-offline.log"
+          scripts/ci-report.sh --lane "build --release (L2)" --log "$RUNNER_TEMP/build-release.log"
+          if [ "$rc_test" -ne 0 ];    then echo "::error title=test::默认门禁未通过 → 见上面每条 file:line:col"; fi
+          if [ "$rc_offline" -ne 0 ]; then echo "::error title=test::offline 通道未通过 → 见上面每条 file:line:col"; fi
+          if [ "$rc_build" -ne 0 ];   then echo "::error title=build::release 构建未通过"; fi
+          [ "$rc_test" -eq 0 ] && [ "$rc_offline" -eq 0 ] && [ "$rc_build" -eq 0 ]
+      - name: 忽略测试零容忍（不许悄悄跳过）
+        shell: bash
+        run: |
+          hits="$(grep -rnE '^#\[ignore' --include='*.rs' crates/ || true)"
+          if [ -n "$hits" ]; then
+            printf "%s\n" "$hits" | while IFS= read -r h; do
+              f="${h%%:*}"; rest="${h#*:}"; n="${rest%%:*}"
+              echo "::error file=$f,line=$n,title=忽略测试::该处有 #[ignore]，请修好或删除"
+            done
+            exit 1
+          fi
+          echo "无 #[ignore]"
+      - name: 测试后工作区必须洁净（防止测试留下脏文件）
+        shell: bash
+        run: |
+          git status --porcelain > "$RUNNER_TEMP/ws-after.txt" || true
+          # 只判定"测试过程新增"的脏文件：这样 Windows 上因换行符设置产生的既有差异不会误报
+          new_dirty="$(comm -13 <(sort "$RUNNER_TEMP/ws-before.txt") <(sort "$RUNNER_TEMP/ws-after.txt") || true)"
+          if [ -n "$new_dirty" ]; then
+            printf "%s\n" "$new_dirty"
+            printf "%s\n" "$new_dirty" | while IFS= read -r d; do
+              p="${d#?? }"
+              echo "::error file=$p,title=工作区不洁::测试过程新增了未跟踪或被修改的文件"
+            done
+            exit 1
+          fi
+          if [ -s "$RUNNER_TEMP/ws-before.txt" ]; then
+            echo "::notice::checkout 后本来就有的工作区差异（不计入本次判定）："; cat "$RUNNER_TEMP/ws-before.txt"
+          fi
+          echo "测试过程未新增脏文件"
+      - name: 上传日志
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs-${{ matrix.os }}
+          path: |
+            ${{ runner.temp }}/test.log
+            ${{ runner.temp }}/test-offline.log
+            ${{ runner.temp }}/build-release.log
+          retention-days: 7
+
+  # ---------- 合并安全守卫（单平台） ----------
+  guards:
+    name: guards · 锁文件 / 工具面 / 行数口径
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
       pull-requests: read
@@ -48,29 +223,37 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: 计算计入 / 不计入行数（CONTRIBUTING §2）
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.98.1
+      - name: 锁文件与清单一致（cargo metadata --locked）
+        run: cargo metadata --locked --format-version 1 > /dev/null && echo "Cargo.lock 与清单一致"
+      - name: 构建 webctl（check-skill-tools.sh 需要真实二进制来读 tools/list）
+        run: cargo build --locked -p webctl
+      - name: SKILL.md 与工具面一致（scripts/check-skill-tools.sh）
+        run: scripts/check-skill-tools.sh
+      - name: 行数口径（仅 PR；CONTRIBUTING §2）
+        if: github.event_name == 'pull_request'
+        shell: bash
         env:
           BASE_REF: ${{ github.base_ref }}
           PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
         run: |
-          set -uo pipefail
           git fetch --no-tags origin "$BASE_REF"
-          BASELINE="origin/$BASE_REF"
           ALLOW=""
-          if printf '%s' "$PR_LABELS" | tr ',' '\n' | grep -qx 'lines: exempt'; then
+          if printf "%s" "$PR_LABELS" | tr "," "\n" | grep -qx "lines: exempt"; then
             echo "::notice::PR 带 lines: exempt 标签 ⇒ 越线放行（批准记录应在关联 issue 中）"
             ALLOW="--allow-over"
           fi
-          bash scripts/pr-size.sh "$BASELINE" $ALLOW > /tmp/pr-size.txt 2>&1
-          code=$?
-          cat /tmp/pr-size.txt
-          { echo "### PR 行数口径（CONTRIBUTING §2）"; echo '```'; cat /tmp/pr-size.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-          exit $code
+          OUT="$RUNNER_TEMP/pr-size.txt"
+          if bash scripts/pr-size.sh "origin/$BASE_REF" $ALLOW > "$OUT" 2>&1; then rc=0; else rc=1; fi
+          cat "$OUT"
+          { echo "### PR 行数口径（CONTRIBUTING §2）"; echo '```'; cat "$OUT"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $rc
 
-  # 每次 PR 都验证 musl 静态目标（议题 #90）。
-  # 之前的 release 失败根因：Ubuntu 的 musl-tools 只带 C 侧，没有面向 musl 的
-  # libstdc++；BoringSSL(btls-sys) 的 C++ 源码无法编译/链接。这里改用 Bootlin
-  # 的 musl C++ 交叉工具链（固定版本 + SHA256），并用 file/ldd/readelf 硬断言静态。
+  # ---------- musl 静态目标（议题 #90） ----------
+  # Ubuntu 的 musl-tools 只带 C 侧，没有面向 musl 的 libstdc++；BoringSSL(btls-sys)
+  # 的 C++ 源码需要 Bootlin 的 musl C++ 交叉工具链（固定版本 + SHA256）。
   musl-static:
     name: musl-static (x86_64-unknown-linux-musl)
     runs-on: ubuntu-latest
@@ -96,7 +279,12 @@ jobs:
       - name: Install pinned musl C++ toolchain
         run: scripts/install-musl-toolchain.sh
       - name: Build webctl + webctl-mcp (musl, release)
-        run: cargo build --release --target x86_64-unknown-linux-musl -p webctl -p webctl-mcp
+        shell: bash
+        run: |
+          cargo build --release --locked --target x86_64-unknown-linux-musl -p webctl -p webctl-mcp 2>&1 | tee "$RUNNER_TEMP/musl-build.log"
+          rc=$?
+          scripts/ci-report.sh --lane "musl build" --log "$RUNNER_TEMP/musl-build.log"
+          exit $rc
       - name: Assert static linkage (file / ldd / readelf)
         run: |
           scripts/check-static-binary.sh target/x86_64-unknown-linux-musl/release/webctl
