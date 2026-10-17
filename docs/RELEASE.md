@@ -4,7 +4,7 @@
 |---|---|
 | 适用 | v0.1.0（首个 release）及后续版本 |
 | 流水线 | cargo-dist 0.33.0：`dist-workspace.toml` + `.github/workflows/release.yml` |
-| 状态 | **尚未发布任何版本**：本文件是可执行的操作手册；发布 E2E 需在首个 release 时由维护者执行 |
+| 状态 | **v0.1.0 已发布**（[Release v0.1.0](https://github.com/Thatgfsj/webctl/releases/tag/v0.1.0)）：本文件是可执行的操作手册；发布 E2E 已于 2026-10-17 执行（见 §4 / ACCEPTANCE §7） |
 | 相关 | [TESTING §2.16 PKG](TESTING.md) · [PLAN §5.2 PR 14](PLAN.md) · [体积基线](size-baseline.json) |
 
 ## 1. 流水线结构
@@ -43,7 +43,7 @@
 | `webctl-mcp-<target>.tar.xz` / `.zip` (+ `.sha256`) | 压缩包 | **第二个二进制**：`webctl-mcp`（独立 MCP server 入口；与 `webctl mcp` 子命令等价）。`dist plan` 对 workspace 内该包同样产出资产 |
 | `webctl-mcp-installer.sh` / `.ps1` | 安装器 | 同上（对应 `webctl-mcp`） |
 
-首个 release 之后的安装命令（取自 `dist plan` 的 `install_hint`；**当前这些 URL 尚不存在**）：
+以下安装命令取自 **v0.1.0 的真实资产**（`dist plan` 的 `install_hint`；已于 2026-10-17 实测可用）：
 
 ~~~bash
 # Linux / macOS（tag 为 v0.1.0 时）
@@ -77,11 +77,11 @@ git push origin :refs/tags/v0.1.0    # 删远端 tag
 git tag -d v0.1.0                    # 删本地 tag
 ~~~
 
-> **本 PR 不执行第 5 步**：不打 tag、不创建 release。改动未经审阅合并前不得发布。
+> **发布纪律**：打 tag 前，改动必须先经审阅者合并到 `main`。v0.1.0（2026-10-17）即按此流程发布（见 §4 与 ACCEPTANCE §7）。
 
 ## 4. 发布 E2E（PKG-04 / PKG-06 / PKG-07 / PKG-08）
 
-**当前状态：未执行**（仓库无 tag、无资产）。首个 release 时的收尾清单：
+**当前状态：已于 2026-10-17 执行**（tag `v0.1.0` 与 24 个资产已存在；实测结果见 ACCEPTANCE §7）。收尾清单：
 
 | 用例 | 命令 | 期望 |
 |---|---|---|
@@ -167,9 +167,9 @@ scripts/size-baseline.sh --binary ./webctl --target x86_64-unknown-linux-gnu --r
 | 项 | 状态 | 接手 |
 |---|---|---|
 | musl 静态构建 | **已确认当前工具链不可达**：三次 release 实测——缺 `x86_64-linux-musl-g++` → 链接用宿主 cc → 最后 `openssl/base.h: memory: No such file`（musl-dev 无 C++ 头） | [#90](https://github.com/Thatgfsj/webctl/issues/90) |
-| 发布 E2E（PKG-04/06/08） | **未执行**：无 tag（本 PR 明确不打 tag） | 维护者 |
+| 发布 E2E（PKG-04/06/08） | **已执行（2026-10-17）**：下载 + `sha256sum -c` 校验 + `release-e2e.sh` **PASS**，见 ACCEPTANCE §7 | 完成 |
 | PKG-05 musl 体积数字 | 随 musl 目标一并暂缓 | [#90](https://github.com/Thatgfsj/webctl/issues/90) |
-| PKG-07 文档-资产一致 | README 已按"尚无发布版"如实写；资产清单待首个 release 核对 | 维护者 |
+| PKG-07 文档-资产一致 | **已完成**：README 安装命令与资产名已按 v0.1.0 真实资产逐项核对 | 完成 |
 | `caps --json` 枚举 15 工具 | 由 PR 11 / 议题 #68 落地；README 已留回填标记 | PR 11 |
 | 代码签名 / macOS 公证 | 未配置（需 Apple Developer 凭据与 Windows 证书） | 后续议题 |
 | `aarch64-unknown-linux-musl` | 未纳入 targets（交叉编译 BoringSSL 风险，先保守） | 后续议题 |

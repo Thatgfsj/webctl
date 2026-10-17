@@ -255,6 +255,12 @@ webctl/
 `cargo fmt --check` 通过、`clippy -D warnings` 0 问题、**241 用例全绿**（含 PR 03 的 parse 25 条）、
 `cargo test --features offline` 全绿。CI 三平台（ubuntu/macos/windows）绿。
 
+### 5.2.2 发布记录
+
+| 版本 | tag / release | 日期 | 目标 | 备注 |
+|---|---|---|---|---|
+| v0.1.0 | [https://github.com/Thatgfsj/webctl/releases/tag/v0.1.0](https://github.com/Thatgfsj/webctl/releases/tag/v0.1.0) | 2026-10-17 | `x86_64-unknown-linux-gnu`、`aarch64-apple-darwin`、`x86_64-apple-darwin`、`x86_64-pc-windows-msvc` | 首个发布：`webctl` 与 `webctl-mcp` 各 4 平台资产 + shell/PowerShell 安装器；下载 + `sha256sum -c` 校验 + 干净环境 `caps --json` 实测通过（见 ACCEPTANCE §7）。**musl 静态暂缓**（[#90](https://github.com/Thatgfsj/webctl/issues/90)） |
+
 ### 5.3 验收锚点（v0.4 重定）
 
 v0.3 的锚点（JS 页必须拿到 10 条）**作废**。v0.4 的锚点：

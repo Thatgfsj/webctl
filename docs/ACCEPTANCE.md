@@ -44,12 +44,12 @@
 
 ## 4. 工具面与打包
 
-- [ ] `caps --json` **如实反映**已实现能力，并**枚举 PLAN §3.7 的 15 个工具**（议题 #68）
-- [ ] MCP `tools/list` 恰好 15 个工具且与 §3.7 名单一致（MCP-02），SKILL.md 与之一致（MCP-12）
-- [ ] 服务器指令 ≤ 32768 字节（MCP-05）；配置不写 `toolOrder`（MCP-08）
-- [ ] Release 资产在**干净环境**可下载即用：`--version` 与 `caps --json` 可跑（PKG-06）
-- [ ] README 双语、无虚构徽章/命令；安装命令与实际发布物一致（PKG-07）
-- [ ] 体积基线写入防回归（PKG-05）
+- [x] `caps --json` **如实反映**已实现能力，并**枚举 PLAN §3.7 的 15 个工具**（议题 #68 已关闭）—— 实测 5 个域 available + 枚举 15 个工具
+- [x] MCP `tools/list` 恰好 15 个且与 §3.7 逐字同序（MCP-02）；`check-skill-tools.sh` 校验 SKILL.md 一致（MCP-12）
+- [x] 服务器指令 2222 字节 ≤ 32768（MCP-05）；配置不写 `toolOrder`（MCP-08）
+- [x] Release 资产在**干净环境**可下载即用（PKG-06）：v0.1.0 资产下载 + `sha256sum -c` 校验通过 + `scripts/release-e2e.sh` PASS（见 §7）
+- [x] README 双语；安装命令已改为 **v0.1.0 真实资产**的 URL（不再声明「尚无发布版」）；无虚构徽章（PKG-07）
+- [x] 体积基线已从**真实发布资产**回填（PKG-05）：22,859,144 字节 / 冷启动 p50 5ms（见 `docs/size-baseline.json`）
 
 ## 5. 硬约束（全仓审计，收尾时各跑一次）
 
@@ -105,3 +105,10 @@
   - **硬约束全仓审计**：`crates/*/src/` 内 `Command::new`/`.spawn(` **0**、unsafe 实质命中 **0**、浏览器/JS 引擎依赖 **0**、错误码 **11** 个；
   - **收口**：DOC-09（#59）与 caps 诚实性（#68）已关闭；state_02/state_03 计时 flake 修复（#85 → #86）。
   - 尚待：**release E2E**（打 tag → 下载资产 → 干净环境运行），见 §4。
+
+- 2026-10-17（Lead）**release E2E 实测（v0.1.0，首个真实发布）**：
+  - 打 tag `v0.1.0`（annotated，含发布说明）→ Release 流水线 run `39012230617` **全绿**：plan / build-local-artifacts ×4（gnu、aarch64-apple、x86_64-apple、windows-msvc）/ build-global-artifacts / host / **announce** 均 success；
+  - **4 个目标全部构建成功**（musl 已于本日摘除，见议题 [#90](https://github.com/Thatgfsj/webctl/issues/90)）；
+  - Release 已创建：[https://github.com/Thatgfsj/webctl/releases/tag/v0.1.0](https://github.com/Thatgfsj/webctl/releases/tag/v0.1.0)，资产含 `webctl`/`webctl-mcp` 各 4 平台压缩包 + 各自 `.sha256`、shell/PowerShell 安装器、源码包与 `sha256.sum`；
+  - **下载验证**：`gh release download` → `sha256sum -c` **成功** → 解压 → `scripts/release-e2e.sh ./webctl 0.1.0` **PASS**（PKG-04 版本 == tag；PKG-06 干净环境 `caps --json` 可跑、5 个域；PKG-08 `ldd` 显示 glibc 动态依赖，与文档一致）；
+  - **体积/冷启动回填**：CI 产物 22,859,144 字节、冷启动 p50 5ms（本机同提交 release profile 21,067,504、dist profile 22,891,304，故 CI 值合理）。与旧基线 7,978,256（commit `5f10aa6`，PR 09/11/12 合并**前**）相比增长约 2.9×，来自 MCP（rmcp+schemars）、降级语义与安全层，**非打包异常**。

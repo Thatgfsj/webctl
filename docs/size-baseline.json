@@ -5,13 +5,13 @@
   "cold_start_limit_ms": 50,
   "entries": {
     "x86_64-unknown-linux-gnu": {
-      "bytes": 7978256,
-      "cold_start_ms_p50": 24,
+      "bytes": 22859144,
+      "cold_start_ms_p50": 5,
       "linkage": "dynamic",
-      "source": "local",
+      "source": "release-asset",
       "recorded_at": "2026-10-17",
-      "commit": "5f10aa6",
-      "note": "本机实测后由 scripts/size-baseline.sh --record 回填"
+      "commit": "f50ce69",
+      "note": "取自 v0.1.0 真实发布资产（CI 的 dist profile，22859144 B）；冷启动 p50 5ms。相比 2026-10-17 早先基线 7978256（commit 5f10aa6，PR 09/11/12 合并前）增长约 2.9x，来自 MCP(rmcp+schemars)/降级语义/安全层，非打包异常；本机同提交 release profile 21067504、dist profile 22891304。"
     },
     "x86_64-unknown-linux-musl": {
       "bytes": null,
