@@ -81,35 +81,20 @@ fn offline_guard(ctx: &McpContext) -> Option<Value> {
         .then(|| fail(ErrorCode::Blocked, "offline 模式已启用：拒绝任何网络访问"))
 }
 
-/// 显式交接点：JS 降级传播（DEGRADE-*）由 PR 09 交付。
+/// SEC-09：把 PR 12 的脱敏入口显式接到 MCP 自己拿到的取回结果上。
 ///
-/// PR 11 **只**保证 MCP 协议面与信封语义。页面是否为 JS 依赖、以及 DEGRADED 如何
-/// 从取回层传播到 MCP 结果，必须在 PR 09 合并后接上；现在不假装已覆盖。
-pub const DEGRADE_HANDOFF_PENDING_PR09: &str = "js-render/degrade-propagation-pending-pr09";
-
-const SENSITIVE_HEADERS: [&str; 4] = [
-    "set-cookie",
-    "cookie",
-    "authorization",
-    "proxy-authorization",
-];
-
-fn redact_fetch_headers(envelope: &mut Envelope<Fetched>) {
+/// 取回层（`transport::finish`）本身已调用 `redact_fetched`；这里再显式接一次，
+/// 让 **MCP 自己**对任何进入信封 / 序列化 / 落盘的 `Fetched` 负责，而不是依赖
+/// 「上游记得脱敏」。脱敏幂等：重复调用只是把占位符再脱敏一次。
+fn redact_fetched_envelope(envelope: &mut Envelope<Fetched>) {
     if let Some(data) = &mut envelope.data {
-        for (name, value) in &mut data.headers {
-            if SENSITIVE_HEADERS
-                .iter()
-                .any(|header| name.eq_ignore_ascii_case(header))
-            {
-                *value = "<redacted>".to_owned();
-            }
-        }
+        webctl_web::redact::redact_fetched(data);
     }
 }
 
 async fn fetch_target(ctx: &McpContext, url: &str) -> Envelope<Fetched> {
     let mut envelope = fetch(url, &ctx.fetch_options()).await;
-    redact_fetch_headers(&mut envelope);
+    redact_fetched_envelope(&mut envelope);
     envelope
 }
 
@@ -169,7 +154,7 @@ async fn tool_fetch(ctx: &McpContext, args: &Value) -> Value {
         options.timeout = Duration::from_millis(timeout_ms.max(1));
     }
     let mut envelope = fetch(&params.url, &options).await;
-    redact_fetch_headers(&mut envelope);
+    redact_fetched_envelope(&mut envelope);
     to_value(envelope)
 }
 
@@ -738,4 +723,81 @@ async fn tool_caps(ctx: &McpContext, args: &Value) -> Value {
     };
     let report = CapsReport::detect_with(&ctx.config, tools);
     to_value(Envelope::ok(report, Trust::TrustedLocal, 0))
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use webctl_web::content_type::ContentKind;
+    use webctl_web::transport::{Body, Fetched, RedirectHop};
+
+    const SECRET: &str = "SUPER_SECRET_TOKEN";
+
+    /// 手工构造**仍含明文凭据**的 `Fetched`。
+    ///
+    /// 刻意**不经过** `webctl_web::transport::finish`（那里也会脱敏）——
+    /// 否则本用例就会退化成"系统整体会脱敏"，证明不了 MCP 侧这次接入是否还有效。
+    fn plaintext_fetched() -> Fetched {
+        Fetched {
+            status: 200,
+            version: "http/1.1".to_owned(),
+            final_url: format!("https://example.test/z?access_token={SECRET}&user=bob"),
+            headers: vec![
+                ("set-cookie".to_owned(), format!("sid={SECRET}; Path=/")),
+                ("authorization".to_owned(), format!("Bearer {SECRET}")),
+                ("content-type".to_owned(), "text/html".to_owned()),
+            ],
+            redirects: vec![RedirectHop {
+                url: format!("https://example.test/a?token={SECRET}"),
+                status: 302,
+                location: format!("https://example.test/z?access_token={SECRET}"),
+            }],
+            content: Body {
+                kind: ContentKind::Text,
+                content_type: Some("text/html".to_owned()),
+                byte_len: 0,
+                declared_len: Some(0),
+                truncated: false,
+                text: Some("ok".to_owned()),
+                charset: Some("UTF-8".to_owned()),
+                charset_source: None,
+                decode_had_errors: false,
+            },
+            elapsed_ms: 1,
+        }
+    }
+
+    /// SEC-09 **隔离用例**：直接打 MCP 侧的接入点，不经过取回层。
+    ///
+    /// 反向对照（复核者必做）：把 `redact_fetched_envelope` 里的
+    /// `webctl_web::redact::redact_fetched(data)` 删掉，本用例**必须失败**。
+    /// 若它仍然通过，说明用例没有隔离住 MCP 侧接入。
+    #[test]
+    fn sec_09_mcp_dispatcher_is_the_one_that_redacts() {
+        // 1) 先证明夹具里**确实**有明文（否则整条用例是空转）。
+        let raw = plaintext_fetched();
+        let raw_json = serde_json::to_string(&raw).expect("serialize raw");
+        assert!(
+            raw_json.contains(SECRET),
+            "夹具构造有误：未脱敏数据里本应出现明文 SECRET"
+        );
+
+        // 2) 只调用 MCP 侧的接入点。
+        let mut envelope = Envelope::ok(raw, Trust::UntrustedPageContent, 0);
+        redact_fetched_envelope(&mut envelope);
+        let data = envelope.data.expect("data");
+        let json = serde_json::to_string(&data).expect("serialize redacted");
+
+        // 3) 明文必须消失，而**非敏感头必须原样保留**（证明是定向脱敏，不是整段抹掉）。
+        assert!(
+            !json.contains(SECRET),
+            "MCP 侧脱敏未生效，仍可见明文：{json}"
+        );
+        assert!(
+            data.headers
+                .iter()
+                .any(|(name, value)| name == "content-type" && value == "text/html"),
+            "非敏感头必须保持原样"
+        );
+        assert_eq!(envelope.meta.trust, Trust::UntrustedPageContent);
+    }
 }

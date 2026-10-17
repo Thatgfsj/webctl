@@ -482,7 +482,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 
 `crates/webctl-mcp/src/` 单元 **12 条**：`registry_is_exactly_the_plan_list`、`definitions_match_the_static_specs`、`qualified_names_follow_the_dsh_contract`、`all_plan_tools_are_registered_and_available`、`capabilities_mirror_the_dispatch_table`、`instructions_stay_under_limit`、`dsh_snippet_has_no_tool_order_and_no_tool_names`、`bound_session_accepts_only_itself`、`cross_session_error_is_readable_and_mentions_both`、`unbound_defaults_to_default_and_validates`、`small_result_stays_inline`、`large_result_is_spilled_and_keeps_degradation`。
 
-`crates/webctl-mcp/tests/mcp.rs` **16 条通过 + 1 条 ignored**：
+`crates/webctl-mcp/tests/mcp.rs` **20 条通过 + 0 ignored**（#82 转正后）：
 
 - **MCP-01**：`mcp_01_initialize_negotiates_protocol_version`
 - **MCP-02**：`mcp_02_tools_list_is_exactly_the_plan_set`
@@ -500,14 +500,20 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 - **SEC-09**：`sec_09_mcp_content_is_untrusted`
 - **ENV-06**：`env_06_cli_and_mcp_map_the_same_error_code`
 - 补充：`all_tools_are_dispatchable`
+- **#82 收口（DEGRADE-* 的 MCP 侧接线 + SEC-09；原 `mcp_js_degradation_pending_pr09` 转正并更名）**：
+  - `mcp_js_degradation_propagates`：JS 页（fixture `js_data_script_shell.html`）在 MCP `fetch` / `extract` / `paginate` 上 `code` 非 OK 且 `meta.degraded_from` 非空、`trust=untrusted_page_content`；静态对照页零命中仍是 `ok=true + code=OK + 空数组`（EXTRACT-06）。
+  - `mcp_deg_search_and_listing_paths_follow_pr09`：`search` / `links` / `tables` / `forms` 在 JS 页零结果同样非 OK；静态页 `search` 零命中仍是 OK 空结果。
+  - `mcp_deg_code_matches_library_on_same_input`：同一 fixture 输入下 MCP 与库路径（`transport::fetch` / `extract::select_matches` / `extract::search`）的 `code` 逐一相等。
+  - `sec_09_mcp_fetch_redacts_credentials`：MCP 页面内容 `trust=untrusted_page_content`，信封不含 `set-cookie` / `Authorization` / URL query token 明文；脱敏入口 `dispatch::redact_fetched_envelope` 复用 `webctl_web::redact::redact_fetched`。
 
-**ignored**：`mcp_js_degradation_pending_pr09` —— DEGRADE-*（JS 降级传播）依赖 PR 09，故意保持失败状态作为「未达成」的机器证据（交接点常量 `DEGRADE_HANDOFF_PENDING_PR09`）；PR 09 合并后去 ignore 即成为 MCP 侧验收。
+PR 11 留下的 `#[ignore]` 交接哨兵及其常量已随 #82 删除；`cargo test` 的 ignored 由 3 降为 2（余下 2 条在 `crates/webctl-web/tests/offline_lane.rs`：DOC-12 pending PR 07 与历史 MCP-14 占位，均为本议题范围外的既有登记）。
 
 `crates/webctl-mcp/tests/mcp14.rs` **1 条**：`mcp_14_in_process_dispatch_spawns_no_children`（单独二进制，避免其他用例的子进程污染基线；复用 PR 13 的 `tests/support/resources.rs`）。
 
 议题 #68（caps 诚实性）：`crates/webctl-core/src/caps.rs` 新增 `missing_tools_never_report_interface_available`、`unavailable_tools_do_not_light_up_interface`、`registered_tools_light_up_interface`；`webctl caps --json` 现枚举 §3.7 的 15 个工具并逐项给 state/reason，`interface` 只在工具真注册且可用时 available。
 
 服务 ENV-06、STATE-06、MCP-01…14、SEC-09。
+| MCP-SEC09-ISO | MCP 侧脱敏接入的**隔离**用例：手工构造仍含明文凭据的 `Fetched`，**只**调 `dispatch::redact_fetched_envelope`，断言明文消失且非敏感头保留 | `crates/webctl-mcp/src/dispatch.rs`（`sec_09_mcp_dispatcher_is_the_one_that_redacts`） | 删掉该函数里的 `redact_fetched` 调用则**必须失败**（反向对照已实测） |
 
 ### 6.10 PR 12 安全与凭据（议题 #21）
 

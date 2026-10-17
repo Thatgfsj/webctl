@@ -242,14 +242,27 @@ pub fn search(text: &str, query: &str, options: &SearchOptions) -> Envelope<Sear
     }
 
     if reasons.is_empty() {
-        result.conclusion = if result.matches.is_empty() {
+        let empty = result.matches.is_empty();
+        result.conclusion = if empty {
             format!(
                 "query {query:?} matched 0 times; this is a valid empty result, not a parse failure"
             )
         } else {
             format!("query {query:?} matched {} time(s)", result.matches.len())
         };
-        Envelope::ok(result, Trust::UntrustedPageContent, elapsed_ms(started))
+        let envelope = Envelope::ok(result, Trust::UntrustedPageContent, elapsed_ms(started));
+        // PR 09 接入点（#82 收口）：零命中且页面被判定为需要 JS 时，绝不返回
+        // 「成功但 0 条」；静态页面的零命中仍是 EXTRACT-06 的 OK（DEGRADE-06）。
+        if empty {
+            crate::degrade::guard(
+                text,
+                envelope,
+                &crate::degrade::DegradeOptions::default(),
+                crate::degrade::Scope::EmptyExtract,
+            )
+        } else {
+            envelope
+        }
     } else {
         result.truncated = true;
         result.more_matches = more;
