@@ -31,6 +31,7 @@ NUMBER = re.compile(r"[0-9]+")
 SCAN_FILES = [
     "README.md",
     "SKILL.md",
+    "docs/ACCEPTANCE.md",
     "docs/DSH-INTEGRATION.md",
     "docs/CONFIGURATION.md",
     "docs/CI.md",
@@ -76,20 +77,36 @@ def main() -> int:
     if section:
         plan_names = re.findall(r"^\|\s*[0-9]+\s*\|\s*`([a-z_]+)`", section.group(1), re.M)
     if len(plan_names) != count:
-        fail(problems, f"::error file=docs/PLAN.md,title=工具面::§3.7 表格 {len(plan_names)} 行，但 TOOL_NAMES 有 {count} 个")
+        line = plan_text[: section.start()].count("\n") + 1 if section else 1
+        fail(
+            problems,
+            f"::error file=docs/PLAN.md,line={line},title=工具面::§3.7 表格 {len(plan_names)} 行，但 TOOL_NAMES 有 {count} 个",
+        )
     elif plan_names != names:
-        fail(problems, "::error file=docs/PLAN.md,title=工具面::§3.7 名字或顺序与 TOOL_NAMES 不一致")
+        line = plan_text[: section.start()].count("\n") + 1 if section else 1
+        fail(
+            problems,
+            f"::error file=docs/PLAN.md,line={line},title=工具面::§3.7 名字或顺序与 TOOL_NAMES 不一致",
+        )
 
     # 3) SKILL.md
     skill_text = skill.read_text(encoding="utf-8")
     declared = re.search(r"^## 工具（([0-9]+) 个", skill_text, re.M)
     if not declared or int(declared.group(1)) != count:
         got = declared.group(1) if declared else "?"
-        fail(problems, f"::error file=SKILL.md,title=工具面::标题写 {got} 个工具，实际 {count} 个")
+        line = skill_text[: declared.start()].count("\n") + 1 if declared else 1
+        fail(
+            problems,
+            f"::error file=SKILL.md,line={line},title=工具面::标题写 {got} 个工具，实际 {count} 个",
+        )
     listed = re.search(r"<!-- tools:start -->(.*?)<!-- tools:end -->", skill_text, re.S)
     skill_names = re.findall(r"^- `([a-z_]+)`", listed.group(1), re.M) if listed else []
     if len(skill_names) != count:
-        fail(problems, f"::error file=SKILL.md,title=工具面::清单 {len(skill_names)} 个，实际 {count} 个")
+        line = skill_text[: listed.start()].count("\n") + 1 if listed else 1
+        fail(
+            problems,
+            f"::error file=SKILL.md,line={line},title=工具面::清单 {len(skill_names)} 个，实际 {count} 个",
+        )
     elif skill_names != names:
         fail(problems, "::error file=SKILL.md,title=工具面::清单名字或顺序与 TOOL_NAMES 不一致")
 

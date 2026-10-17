@@ -44,7 +44,7 @@
 
 ## 4. 工具面与打包
 
-- [x] `caps --json` **如实反映**已实现能力，并**枚举 PLAN §3.7 的 16 个工具**（议题 #68 已关闭）—— 实测 5 个域 available + 枚举 15 个工具
+- [x] `caps --json` **如实反映**已实现能力，并**枚举 PLAN §3.7 的 16 个工具**（议题 #68 已关闭）—— 实测 5 个域 available + 枚举 16 个工具
 - [x] MCP `tools/list` 恰好 **16** 个且与 §3.7 逐字同序（MCP-02）；`check-skill-tools.sh` 校验 SKILL.md 一致（MCP-12）
 - [x] 服务器指令 **2531** 字节 ≤ 32768（MCP-05；2026-10-17 随 [ADR-0005](adr/0005-embedded-js-engine.md) 与 #114 新增第 16 个工具后两次重测，余量 **12.9×**）；配置不写 `toolOrder`（MCP-08）
 - [x] Release 资产在**干净环境**可下载即用（PKG-06）：**v0.1.1** 资产（glibc 与 **musl 静态**）下载 + `sha256sum -c` 校验通过 + `scripts/release-e2e.sh`（musl 加 `--static`）PASS；musl 资产另在**真实 Alpine(musl) 用户态**实测（§7）
@@ -100,7 +100,7 @@
 - 2026-10-17（Lead）**收尾验收走查（main 上 PR 03–14 全合并后）**：
   - **L0 离线通道**：`cargo test --features offline` → **347 passed / 0 failed / 3 ignored**；
   - **L1 真站锚点**（`WEBCTL_REAL=1 crates/webctl-web/tests/e2e/run-real.sh`，EXIT=0）：静态版取到 **10 条**；JS 版返回**非 OK 的降级码且 `degraded_from` 非空**；
-  - **工具面**：`webctl mcp --list-tools` → **恰好 15 个**且与 §3.7 逐字同序；`webctl caps --json` → 5 个域 available 且**枚举 15 个工具**；`scripts/check-skill-tools.sh` → 「SKILL.md 与 tools/list 一致（15 个工具）」；
+  - **工具面**（**v0.1.1 当时快照**）：`webctl mcp --list-tools` → **恰好 15 个**且与 §3.7 逐字同序；`webctl caps --json` → 5 个域 available 且**枚举 15 个工具**；`scripts/check-skill-tools.sh` → 「SKILL.md 与 tools/list 一致（15 个工具）」；
   - **硬约束全仓审计**：`crates/*/src/` 内 `Command::new`/`.spawn(` **0**、unsafe 实质命中 **0**、浏览器/JS 引擎依赖 **0**、错误码 **11** 个；
   - **收口**：DOC-09（#59）与 caps 诚实性（#68）已关闭；state_02/state_03 计时 flake 修复（#85 → #86）。
   - 尚待：**release E2E**（打 tag → 下载资产 → 干净环境运行），见 §4。
@@ -129,7 +129,7 @@
   - 本机无 Docker/podman，改用 `unshare` 的用户命名空间 + `bwrap` 构造真实 Alpine rootfs（`alpine-minirootfs-3.20.3-x86_64`，`/lib/libc.musl-x86_64.so.1` 存在 ⇒ 真实 musl 用户态），并把 v0.1.1 的 musl 资产 bind 进去；
   - `webctl --version` → `webctl 0.1.1`；`caps --json` → `ok=true`、`engine=builtin`；
   - `webctl fetch https://quotes.toscrape.com/` → **HTTP/2 200**（TLS 在 musl 用户态可用）；
-  - MCP over stdio（`webctl mcp`）→ `serverInfo={webctl, 0.1.1}`、**15 个工具**；**L1 锚点 1**：`extract` 静态页 → `code=OK`、**matched 10 element(s)**；**L1 锚点 2**：`extract` JS 页 → `code=DEGRADED`（诚实降级，不返回"成功但 0 条"）；
+  - MCP over stdio（`webctl mcp`，**v0.1.1 当时快照**）→ `serverInfo={webctl, 0.1.1}`、**15 个工具**；**L1 锚点 1**：`extract` 静态页 → `code=OK`、**matched 10 element(s)**；**L1 锚点 2**：`extract` JS 页 → `code=DEGRADED`（诚实降级，不返回"成功但 0 条"）；
   - 失败路径也记一笔：不绑定 `/etc/resolv.conf` 时 Alpine rootfs 无解析配置 ⇒ `fetch` 返回 `NETWORK`；这是**环境**缺文件，不是 webctl 缺陷。
 
 - 2026-10-17（Lead）**安装命令端到端实测（PKG-06 / PKG-07）**：
