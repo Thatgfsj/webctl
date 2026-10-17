@@ -137,7 +137,20 @@ pub fn links(
             result.links.len(),
             result.filtered_out
         );
-        Envelope::ok(result, Trust::UntrustedPageContent, elapsed_ms(started))
+        let empty = result.links.is_empty();
+        let envelope = Envelope::ok(result, Trust::UntrustedPageContent, elapsed_ms(started));
+        // PR 09 接入点（#82 收口）：零链接且页面被判定为需要 JS 时不得返回
+        // 「成功但 0 条」；静态页面过滤后为空仍是合法的 OK 空结果。
+        if empty {
+            crate::degrade::guard(
+                html,
+                envelope,
+                &crate::degrade::DegradeOptions::default(),
+                crate::degrade::Scope::EmptyExtract,
+            )
+        } else {
+            envelope
+        }
     } else {
         let mut result = result;
         result.conclusion = format!(

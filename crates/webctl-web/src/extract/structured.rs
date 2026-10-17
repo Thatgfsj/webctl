@@ -31,7 +31,7 @@ pub fn tables(html: &str, options: &ExtractOptions) -> Envelope<Vec<Table>> {
     if truncated {
         data.truncate(options.max_results);
     }
-    degraded_or_ok(data, already, truncated, started)
+    degraded_or_ok(html, data, already, truncated, started)
 }
 
 /// 抽取表单；结构与 crate::parse::extract_forms 完全一致（EXTRACT-11、15；FORM-09）。
@@ -47,7 +47,7 @@ pub fn forms(html: &str, base: Option<&str>, options: &ExtractOptions) -> Envelo
     if truncated {
         data.truncate(options.max_results);
     }
-    degraded_or_ok(data, already, truncated, started)
+    degraded_or_ok(html, data, already, truncated, started)
 }
 
 /// 按 form_index 选定一个表单（FORM-09）。
@@ -106,13 +106,29 @@ pub fn extract_body(
 }
 
 fn degraded_or_ok<T>(
+    html: &str,
     data: Vec<T>,
     already: Option<String>,
     truncated: bool,
     started: Instant,
 ) -> Envelope<Vec<T>> {
     match (already, truncated) {
-        (None, false) => Envelope::ok(data, Trust::UntrustedPageContent, elapsed_ms(started)),
+        (None, false) => {
+            let empty = data.is_empty();
+            let envelope = Envelope::ok(data, Trust::UntrustedPageContent, elapsed_ms(started));
+            // PR 09 接入点（#82 收口）：零结果且页面被判定为需要 JS 时不得返回
+            // 「成功但 0 条」；静态页面的零结果仍是合法的 OK 空结果。
+            if empty {
+                crate::degrade::guard(
+                    html,
+                    envelope,
+                    &crate::degrade::DegradeOptions::default(),
+                    crate::degrade::Scope::EmptyExtract,
+                )
+            } else {
+                envelope
+            }
+        }
         (Some(from), false) => {
             Envelope::degraded(data, from, ErrorCode::Limit, elapsed_ms(started))
         }
