@@ -5,13 +5,13 @@
 **给 AI agent 用的网页控制层：纯 Rust、自包含的二进制（Linux / macOS / Windows），零外部进程、零浏览器，内置取回/解析/会话/文档能力，提供 CLI 与 MCP server。**
 
 [![CI](https://img.shields.io/github/actions/workflow/status/Thatgfsj/webctl/ci.yml?label=CI&style=flat-square)](https://github.com/Thatgfsj/webctl/actions/workflows/ci.yml)
-[![状态](https://img.shields.io/badge/status-v0.1.0%20released-blue?style=flat-square)](#项目状态)
+[![状态](https://img.shields.io/badge/status-v0.1.1%20released-blue?style=flat-square)](#项目状态)
 [![许可证](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.98.1-dea584?style=flat-square)](rust-toolchain.toml)
 
 [项目状态](#项目状态) · [安装](#安装) · [快速开始](#快速开始) · [能力与现状](#能力与现状) · [English](#english) · [计划](docs/PLAN.md) · [发布流程](docs/RELEASE.md) · [贡献指南](CONTRIBUTING.md) · [议题](https://github.com/Thatgfsj/webctl/issues)
 
-> **v0.1.0 已发布**（[Release v0.1.0](https://github.com/Thatgfsj/webctl/releases/tag/v0.1.0)）：三平台资产（`webctl` 与 `webctl-mcp`）+ shell / PowerShell 安装器；v0.1.0 的 Linux 资产为 glibc 动态链接。musl 静态目标已恢复进 CI 与发布矩阵，将在下一次 tag 产出资产（[#90](https://github.com/Thatgfsj/webctl/issues/90)）。安装见[安装](#安装)，进度见 [PLAN §5.2.1](docs/PLAN.md)。
+> **v0.1.1 已发布**（[Release v0.1.1](https://github.com/Thatgfsj/webctl/releases/tag/v0.1.1)）：三平台资产（`webctl` 与 `webctl-mcp`）+ shell / PowerShell 安装器；**Linux 另提供 musl 静态资产**；glibc 产物为动态链接。安装见[安装](#安装)，进度见 [PLAN §5.2.1](docs/PLAN.md)。
 
 ---
 
@@ -20,13 +20,13 @@
 | 项 | 值 |
 |---|---|
 | 阶段 | **P0 已完成**：PLAN §5.2 的 PR 03–14 全部合并（真实 merge sha 见 [PLAN §5.2.1](docs/PLAN.md)）；cargo-dist 三平台发布流水线就绪 |
-| 发布 | **v0.1.0**（首个 release）：三平台资产 + 安装器；下载、sha256 校验与干净环境 E2E 均已实测（[docs/RELEASE.md](docs/RELEASE.md)）（PKG-06/07） |
+| 发布 | **v0.1.1**（[Release](https://github.com/Thatgfsj/webctl/releases/tag/v0.1.1)）：三平台资产（含 **musl 静态**）+ 安装器；下载、sha256 校验与干净环境 E2E 均已实测（[docs/RELEASE.md](docs/RELEASE.md)） |
 | 计划文档 | [docs/PLAN.md](docs/PLAN.md)（**v0.4**，含 2026-10-16 的方向变更） |
 | 事实依据 | [docs/SURVEY.md](docs/SURVEY.md)（本机实测 + 公开仓库核对；其中 CDP 部分已成历史记录） |
-| 形态 | Rust workspace，4 个 crate；发布 **2 个二进制**：`webctl`（主 CLI，含 `mcp` 子命令）与 `webctl-mcp`（独立 MCP server 入口）。三平台；v0.1.0 的 Linux 资产为 glibc 动态链接；musl 静态由 CI 每次 PR 验证（[#90](https://github.com/Thatgfsj/webctl/issues/90)） |
+| 形态 | Rust workspace，4 个 crate；发布 **2 个二进制**：`webctl`（主 CLI，含 `mcp` 子命令）与 `webctl-mcp`（独立 MCP server 入口）。三平台；v0.1.1 起 Linux 同时提供 glibc 与 **musl 静态**两种资产；musl 静态由 CI 每次 PR 验证（[#90](https://github.com/Thatgfsj/webctl/issues/90)） |
 | 接口 | CLI（`caps` / `fetch` / `config` / `cookies` / `mcp`）+ MCP server（`mcp__webctl__*`，15 个工具） |
 | 外部依赖 | **运行时零外部进程、零浏览器**；不调用 `curl`/`jq`/`pdftotext` 等系统命令 |
-| 发布物 | cargo-dist 生成的三平台压缩包（`webctl` 与 `webctl-mcp` 各一）+ shell/PowerShell 安装器（[清单](docs/RELEASE.md)）；**v0.1.0 已发布** |
+| 发布物 | cargo-dist 生成的三平台压缩包（`webctl` 与 `webctl-mcp` 各一；Linux 含 glibc 与 **musl 静态**两种）+ shell/PowerShell 安装器（[清单](docs/RELEASE.md)）；**v0.1.1 已发布** |
 | 前身 | [playwright-crawler-helper](https://github.com/Thatgfsj-easyRep/playwright-crawler-helper)（Python + Playwright，不再兼容维护） |
 | 许可证 | [MIT](LICENSE) |
 
@@ -64,14 +64,14 @@ v0.4 **取消了外部浏览器与外部 CLI**（[计划 §0](docs/PLAN.md)）�
 
 ## 安装
 
-**安装命令取自 v0.1.0 的真实资产**（见 [Release v0.1.0](https://github.com/Thatgfsj/webctl/releases/tag/v0.1.0)、清单见 [docs/RELEASE.md §2](docs/RELEASE.md)）：
+**安装命令取自 v0.1.1 的真实资产**（见 [Release v0.1.1](https://github.com/Thatgfsj/webctl/releases/tag/v0.1.1)、清单见 [docs/RELEASE.md §2](docs/RELEASE.md)）：
 
 ~~~bash
 # Linux / macOS（安装 webctl；另有 webctl-mcp-installer.sh）
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/Thatgfsj/webctl/releases/download/v0.1.0/webctl-installer.sh | sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/Thatgfsj/webctl/releases/download/v0.1.1/webctl-installer.sh | sh
 
 # Windows PowerShell
-powershell -ExecutionPolicy Bypass -c "irm https://github.com/Thatgfsj/webctl/releases/download/v0.1.0/webctl-installer.ps1 | iex"
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/Thatgfsj/webctl/releases/download/v0.1.1/webctl-installer.ps1 | iex"
 ~~~
 
 也可以直接下载平台压缩包（如 `webctl-x86_64-unknown-linux-gnu.tar.xz`）并用其 `.sha256` 校验；本地验证方式见 [docs/RELEASE.md §4](docs/RELEASE.md)。
@@ -124,7 +124,7 @@ webctl --offline caps
 - 发布步骤、release note 模板、变更日志约定与发布 E2E 清单：[docs/RELEASE.md](docs/RELEASE.md)。
 - 体积 / 冷启动基线工具：`scripts/size-baseline.sh`；记录：[docs/size-baseline.json](docs/size-baseline.json)。
   - glibc release **本机实测** 7,978,256 字节（约 7.61 MiB），`--version` 冷启动 p50 约 10–24 ms（全部 < 50 ms，CLI-12 本地通过）。
-  - **musl 静态目标**：`musl-static` CI 作业每次 PR 用固定版本 Bootlin musl C++ 工具链构建，并以 `file`/`ldd`/`readelf` 断言无动态依赖；发布矩阵已恢复，下一次 tag 产出资产。v0.1.0 的 Linux 资产仍是 glibc 动态链接，musl 体积待真实发布资产回填（[#90](https://github.com/Thatgfsj/webctl/issues/90)）。
+  - **musl 静态目标**：`musl-static` CI 作业每次 PR 用固定版本 Bootlin musl C++ 工具链构建，并以 `file`/`ldd`/`readelf` 断言无动态依赖；**v0.1.1 已产出该资产**（22,612,520 字节，`ldd` 报 `statically linked`），并已在**真实 Alpine(musl) 用户态**跑通（见 [ACCEPTANCE §7](docs/ACCEPTANCE.md)）。体积基线已回填（[#90](https://github.com/Thatgfsj/webctl/issues/90) 已收口）。
 - 发布资产 E2E 冒烟：`scripts/release-e2e.sh`（PKG-04 / PKG-06 / PKG-08）。
 
 ## 架构
@@ -157,7 +157,7 @@ crates/
 
 **webctl is a web-control layer for AI agents** — a single pure-Rust binary with everything built in: no external processes, no browser, no JS engine. It provides an HTTP fetch engine, HTML/JSON/XML/PDF extraction, a protocol-level session engine, and a CLI plus an MCP server.
 
-- **Status:** **v0.1.0 released** (https://github.com/Thatgfsj/webctl/releases/tag/v0.1.0) for Linux (glibc), macOS (aarch64 / x86_64) and Windows, with shell/PowerShell installers; see [docs/RELEASE.md](docs/RELEASE.md). The musl static target is now built and statically asserted on every PR (pinned Bootlin musl C++ toolchain); it is back in the release matrix and the next tag will publish the asset (issue #90).
+- **Status:** **v0.1.1 released** (https://github.com/Thatgfsj/webctl/releases/tag/v0.1.1) for Linux (**glibc** and **musl static**), macOS (aarch64 / x86_64) and Windows, with shell/PowerShell installers; see [docs/RELEASE.md](docs/RELEASE.md). The musl asset is produced by the release pipeline and statically asserted (`ldd` = `statically linked`).
 - **Runtime:** zero subprocesses, zero browser, zero JS execution. JS-heavy pages degrade explicitly to `DEGRADED`/`UNSUPPORTED` instead of silently returning "success with 0 results".
 - **Capabilities shipped (PR 03–14 all merged):** fetch (PR 02/08), parsing (PR 03), extraction (PR 06), document/data (PR 07), politeness (PR 08), degradation semantics (PR 09), CLI and config (PR 10), MCP server with 15 tools (PR 11), security hardening (PR 12), packaging (PR 14). The README table above is the source of truth.
 - **Commands available today:** `webctl caps`, `webctl fetch <url>`, `webctl config`, `webctl cookies`, `webctl mcp` (the 15-tool surface).

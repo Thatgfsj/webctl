@@ -261,6 +261,7 @@ webctl/
 | 版本 | tag / release | 日期 | 目标 | 备注 |
 |---|---|---|---|---|
 | v0.1.0 | [https://github.com/Thatgfsj/webctl/releases/tag/v0.1.0](https://github.com/Thatgfsj/webctl/releases/tag/v0.1.0) | 2026-10-17 | `x86_64-unknown-linux-gnu`、`aarch64-apple-darwin`、`x86_64-apple-darwin`、`x86_64-pc-windows-msvc` | 首个发布：`webctl` 与 `webctl-mcp` 各 4 平台资产 + shell/PowerShell 安装器；下载 + `sha256sum -c` 校验 + 干净环境 `caps --json` 实测通过（见 ACCEPTANCE §7）。**musl 静态暂缓**（[#90](https://github.com/Thatgfsj/webctl/issues/90)） |
+| v0.1.1 | [https://github.com/Thatgfsj/webctl/releases/tag/v0.1.1](https://github.com/Thatgfsj/webctl/releases/tag/v0.1.1) | 2026-10-17 | `x86_64-unknown-linux-gnu`、`x86_64-unknown-linux-musl`（**静态**）、`aarch64-apple-darwin`、`x86_64-apple-darwin`、`x86_64-pc-windows-msvc` | **5/5 目标成功**；musl 静态资产经 `sha256sum -c` + `ldd` + `release-e2e.sh --static` 验证（PKG-08 静态）；MCP 侧降级/SEC-09 收口；L4 性能通道与 CI 行数门禁落地 |
 
 ### 5.3 验收锚点（v0.4 重定）
 

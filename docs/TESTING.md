@@ -340,13 +340,13 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 | ID | 用例 | 期望（可机械判定） | 通道 | 归属 |
 |---|---|---|---|---|
 | PKG-01 | release 构建 | `cargo build --release` 成功 | L2 | PR 14 |
-| PKG-02 | musl 静态 | **CI 已达成（构建侧）**：`x86_64-unknown-linux-musl` 产物可运行（`--version` / `caps --json`）；release 资产待下一次 tag（[#90](https://github.com/Thatgfsj/webctl/issues/90)） | L2 | PR #95 |
+| PKG-02 | musl 静态 | **已达成（v0.1.1 发布资产）**：`webctl-x86_64-unknown-linux-musl.tar.xz` 可运行（`--version` / `caps --json`），并已在**真实 Alpine(musl)** 里跑通 `fetch` 与 MCP `extract`；CI 的 `musl-static` 作业每次 PR 同样断言静态 | L2 | #90（已收口） |
 | PKG-03 | 三平台 | linux/macos/windows 资产齐全 | L2 | PR 14 |
 | PKG-04 | 版本 | `--version` 与 tag 一致 | L2 | PR 14 |
 | PKG-05 | 体积基线 | 不超过 P0 定下的基线 | L2 | PR 14 |
 | PKG-06 | 干净环境 | 无 Rust/无浏览器的干净环境可直接运行 | L2 | PR 14 |
 | PKG-07 | 文档一致 | README 安装命令与实际资产一致（无虚构命令） | L2 | PR 14 |
-| PKG-08 | 无动态依赖 | **CI 已达成（构建侧）**：musl 产物 `ldd=statically linked`、`readelf -d` 无 NEEDED；v0.1.0 的 glibc 资产仍为动态（[#90](https://github.com/Thatgfsj/webctl/issues/90)） | L2 | PR #95 |
+| PKG-08 | 无动态依赖 | **已达成（v0.1.1）**：musl 资产 `ldd` = `statically linked`、`readelf -d` 无 NEEDED，并已在**真实 Alpine(musl)** 里跑通；glibc 资产为动态链接（预期）；CI 的 `musl-static` 作业每次 PR 同样断言 | L2 | #90（已收口） |
 
 ### 2.17 E2E — 真实站点锚点（7）
 
@@ -396,7 +396,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 | **状态环境工具** | 临时 state dir、权限检查、并发进程编排、文件损坏注入 | STATE-*、SEC-03,12 |
 | **资源观测工具** | fd 计数、RSS 采样、子进程计数、CPU 空闲采样 | RES-*、SEC-10、MCP-14 |
 | **真站 smoke 脚本** | `tests/e2e/run-real.sh`，可跳过、遵守 robots | E2E-* |
-| **体积基线记录** | P0 定下的 release 体积数字；musl 待真实发布资产回填（CI 构建值不写入） | PKG-05 |
+| **体积基线记录** | P0 定下的 release 体积数字；**glibc 与 musl 均已回填**（musl 22,612,520 B / p50 4ms，`source=release-asset`） | PKG-05 |
 
 ## 5. 覆盖缺口（不假装能测）
 
@@ -439,9 +439,11 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 - `crates/webctl-web/tests/politeness.rs` **8 条**：`robots_disallow_blocks_without_requesting`、`robots_can_be_disabled_and_is_recorded`、`min_interval_is_enforced`、`concurrency_is_capped`、`retry_after_is_respected`、`interception_is_blocked_without_retry_storm`、`server_error_is_blocked`、`network_errors_retry_within_budget`。
 - `crates/webctl-web/src/politeness/**` 单元 **17 条**，含首轮审阅否决后补的三条回归：`queued_requests_still_keep_min_interval`（排队场景最小间隔）、`consecutive_user_agent_lines_share_one_group`、`longest_matching_agent_token_wins`。
 
-### 6.6 待回填（PR 已开未合并）
+### 6.6 历史：早期「待回填」占位清单（**已全部回填**）
 
-| PR | 已交付用例（实现者报告，合并后回填测试名） |
+> 本节是当年 PR 尚未合并时的占位清单，**保留为历史记录**。PR 03 / 10 / 13 早已合并，用例已分别登记到本文件 §6 的对应小节（§6.2 / §6.4 与 §6.7 起各节）；下表数字是**当时的快照**——例如 `offline_lane` 当时记作「4+2 ignored」，现在是 **5 条 / 0 ignored**（DOC-12 已真实化、重复的 MCP-14 占位已删除）。
+
+| PR | 已交付用例（当时报告的快照） |
 |---|---|
 | 03 解析（#54） | `tests/parse.rs` 23 条，含 XML 深度预检对抗用例（本轮修 XML 栈溢出后新增） |
 | 10 CLI（#60） | `cargo test` 133 passed，含 cli 集成 13 条（CLI-01…11）；CLI-12 属 PR 14 |
