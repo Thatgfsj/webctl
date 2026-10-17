@@ -37,7 +37,7 @@
 - 测试失败：`test NAME ... FAILED` + `thread ... panicked at path:line:col:` + **下一行的 panic 文案**；
 - 构建失败汇总：`error: could not compile ...`。
 
-**它的可靠性由自检保证**：`scripts/ci-report.sh --selftest` 用**植入式夹具**断言 8 条，包括：Windows 路径（`D:\a\webctl\webctl\...`）必须规范成仓库相对路径、干净日志**零误报**、把夹具行号从 791 改成 999 后定位必须跟着变（证明不是硬编码）。这一步是 `static` 作业的一个步骤——**报错机制本身也被 CI 测试**。
+**它的可靠性由自检保证**：`scripts/ci-report.sh --selftest` 用**植入式夹具**断言 9 条（**以该命令的输出为准**，条数会随哨兵增加而变），包括：Windows 路径（`D:\a\webctl\webctl\...`）必须规范成仓库相对路径、干净日志**零误报**、把夹具行号从 791 改成 999 后定位必须跟着变（证明不是硬编码）。这一步是 `static` 作业的一个步骤——**报错机制本身也被 CI 测试**。
 
 ## 4. 合并安全（为什么"绿"值得信）
 
