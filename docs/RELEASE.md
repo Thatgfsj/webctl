@@ -95,7 +95,7 @@ git tag -d v0.1.1                    # 删本地 tag
 一键脚本（本地即可跑，自动覆盖 PKG-04/06/08）：
 
 ~~~bash
-scripts/release-e2e.sh ./webctl 0.1.0          # glibc 资产
+scripts/release-e2e.sh ./webctl 0.1.1          # glibc 资产
 # musl 静态资产（v0.1.1 起已产出）：scripts/release-e2e.sh ./webctl 0.1.1 --static
 ~~~
 

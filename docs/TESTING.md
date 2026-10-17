@@ -346,7 +346,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 | PKG-05 | 体积基线 | 不超过 P0 定下的基线 | L2 | PR 14 |
 | PKG-06 | 干净环境 | 无 Rust/无浏览器的干净环境可直接运行 | L2 | PR 14 |
 | PKG-07 | 文档一致 | README 安装命令与实际资产一致（无虚构命令） | L2 | PR 14 |
-| PKG-08 | 无动态依赖 | **CI 已达成（构建侧）**：musl 产物 `ldd=statically linked`、`readelf -d` 无 NEEDED；v0.1.0 的 glibc 资产仍为动态（[#90](https://github.com/Thatgfsj/webctl/issues/90)） | L2 | PR #95 |
+| PKG-08 | 无动态依赖 | **已达成（v0.1.1）**：musl 资产 `ldd` = `statically linked`、`readelf -d` 无 NEEDED，并已在**真实 Alpine(musl)** 里跑通；glibc 资产为动态链接（预期）；CI 的 `musl-static` 作业每次 PR 同样断言 | L2 | #90（已收口） |
 
 ### 2.17 E2E — 真实站点锚点（7）
 

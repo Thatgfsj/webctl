@@ -20,7 +20,7 @@
       "source": "release-asset",
       "recorded_at": "2026-10-17",
       "commit": "569acb9",
-      "note": "取自 v0.1.1 真实发布资产 webctl-x86_64-unknown-linux-musl.tar.xz（tag v0.1.1，commit 569acb9）；sha256 校验通过、ldd = statically linked、release-e2e.sh --static PASS 后测得。诚实边界：未在 Alpine/容器里运行（构建机无 Docker）。"
+      "note": "取自 v0.1.1 真实发布资产 webctl-x86_64-unknown-linux-musl.tar.xz（tag v0.1.1，commit 569acb9）；sha256 校验通过、ldd = statically linked、release-e2e.sh --static PASS 后测得；并已在**真实 Alpine(musl) 用户态**实测（user namespace + bwrap + minirootfs，见 ACCEPTANCE §7）。"
     }
   }
 }
