@@ -546,7 +546,11 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 - `render_is_deterministic`：同一页面两次渲染结果一致；
 - `render_limits_apply_to_page_scripts`：**页面脚本也受限值约束**（脚本里 `while(true){}` → `Limit`，不会挂住渲染）；
 - `page_cannot_overwrite_serializer`：页面**不能**改写/删除序列化函数（`writable: false, configurable: false, enumerable: false`），否则可伪造渲染结果；
-- `renders_document_write_page` **额外钉住**：完整输出（不剥脚本）里 `class="quote"` 也必须**正好 10 次**——否则说明解析器又把脚本正文当成了 DOM；
+- `renders_document_write_page` 有两条互补断言，作用不同（**§复审实测校正**）：
+  真正**判别 RAWTEXT 回归**的是 `contains("class='quote'")`（脚本文本按原文保留）；
+  而"完整输出里 `class="quote"` 正好 10 次"**单独并不能判别**——若脚本正文被当 DOM 解析，
+  序列化对 script 子节点会输出 `[object Object]`，幽灵节点不进输出，计数仍是 10（已用对照实验证实）；
+  该计数断言用于防"幽灵节点泄漏到输出"这一类回归。
 - `script_inside_rawtext_is_not_executed`：`<title>`/`<style>`/`<textarea>` 里的 `<script>` **不是脚本**（浏览器不执行），Rust 提取器同样跳过；
 - `rawtext_serializes_verbatim`：RAWTEXT 元素内容**按原文**序列化（不转义），与浏览器 `outerHTML` 一致。
 

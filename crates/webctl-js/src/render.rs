@@ -256,9 +256,13 @@ mod tests {
     fn renders_document_write_page() {
         let outcome = render(JS_SHELL, &JsLimits::default()).expect("应能渲染");
         assert_eq!(outcome.executed_scripts, 1, "样本只有一段内联脚本");
-        // **钉住 RAWTEXT**：完整输出（不剥脚本）就必须正好 10 次——
-        // 若解析器把脚本正文里的字面量当 DOM，这里会数成 11（复审变异 A 曾证明旧断言抓不到）。
+        // 两条断言作用不同（#133 复审用对照实验校正过）：
+        //   · `contains("class='quote'")`：**判别 RAWTEXT 回归**（脚本正文是否按原文保留）；
+        //   · `overall == 10`：防"幽灵节点泄漏到输出"（例如脚本正文被当 DOM 且序列化没有按
+        //     原文处理 script 子节点时，输出里会多出元素——那才会数成 11）。
         let overall = outcome.html.matches("class=\"quote\"").count();
+        // 这条防的是"幽灵节点泄漏到输出"；它**单独不能**判别 RAWTEXT 回归——
+        // 若脚本正文被当 DOM 解析，序列化对 script 子节点输出 [object Object]，计数仍是 10。
         assert_eq!(overall, 10, "完整输出里应正好 10 条（含脚本正文时）");
         assert!(
             outcome.html.contains("class='quote'"),
