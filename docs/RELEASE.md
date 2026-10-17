@@ -177,6 +177,6 @@ scripts/size-baseline.sh --binary ./webctl --target x86_64-unknown-linux-gnu --r
 | 发布 E2E（PKG-04/06/08） | **已执行（2026-10-17）**：下载 + `sha256sum -c` 校验 + `release-e2e.sh` **PASS**，见 ACCEPTANCE §7 | 完成 |
 | PKG-05 musl 体积数字 | **已回填（v0.1.1 真实资产）**：22,612,520 字节 / 冷启动 p50 4ms（`docs/size-baseline.json` 的 `source=release-asset`） | 完成 |
 | PKG-07 文档-资产一致 | **已完成**：README 安装命令与资产名已按 **v0.1.1** 真实资产逐项核对 | 完成 |
-| `caps --json` 枚举 15 工具 | 由 PR 11 / 议题 #68 落地；README 已留回填标记 | PR 11 |
+| `caps --json` 枚举工具 | 由 PR 11 / 议题 #68 落地（当时 15 个）；#114 起 **16 个** | PR 11 / #114 |
 | 代码签名 / macOS 公证 | 未配置（需 Apple Developer 凭据与 Windows 证书） | 后续议题 |
 | `aarch64-unknown-linux-musl` | 未纳入 targets（交叉编译 BoringSSL 风险，先保守） | 后续议题 |

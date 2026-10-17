@@ -1,4 +1,4 @@
-//! 工具注册表：15 个工具的名字、说明与 inputSchema（PLAN v0.4 §3.7 / MCP-02…04）。
+//! 工具注册表：16 个工具的名字、说明与 inputSchema（PLAN v0.4 §3.7 / MCP-02…04）。
 //!
 //! 名字是**契约**：与 PLAN §3.7 逐字一致，且 DSH 挂载后形如 mcp__webctl__<rawName>。
 //! 工具的 inputSchema 由 schemars 从 params.rs 的分支类型派生，保证合法 JSON Schema。
@@ -10,7 +10,7 @@ use crate::params;
 /// MCP server 名（DSH 工具名 mcp__<serverName>__<rawName> 的中间段）。
 pub const SERVER_NAME: &str = "webctl";
 
-/// 15 个工具的名字，顺序与 PLAN v0.4 §3.7 表格一致。
+/// 16 个工具的名字，顺序与 PLAN v0.4 §3.7 表格一致。
 pub const TOOL_NAMES: [&str; 16] = [
     "fetch",
     "extract",

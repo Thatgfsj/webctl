@@ -508,10 +508,10 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 
 `crates/webctl-mcp/src/` 单元 **13 条**（含本版新增的 MCP 侧脱敏隔离用例）：`registry_is_exactly_the_plan_list`、`definitions_match_the_static_specs`、`qualified_names_follow_the_dsh_contract`、`all_plan_tools_are_registered_and_available`、`capabilities_mirror_the_dispatch_table`、`instructions_stay_under_limit`、`dsh_snippet_has_no_tool_order_and_no_tool_names`、`bound_session_accepts_only_itself`、`cross_session_error_is_readable_and_mentions_both`、`unbound_defaults_to_default_and_validates`、`small_result_stays_inline`、`large_result_is_spilled_and_keeps_degradation`、`sec_09_mcp_dispatcher_is_the_one_that_redacts`（[#82](https://github.com/Thatgfsj/webctl/issues/82) 补的隔离用例，详见本节末尾）。
 
-`crates/webctl-mcp/tests/mcp.rs` **23 条通过 + 0 ignored**（#82 转正后 20 条，#114 增 3 条）：
+`crates/webctl-mcp/tests/mcp.rs` **25 条通过 + 0 ignored**（#82 转正后 20 条，#114 增 3 条 + 2 条 schema 守卫）：
 
 - **MCP-01**：`mcp_01_initialize_negotiates_protocol_version`
-- **embedded_data**（#114）：`embedded_data_extracts_json_ld_from_inline_html`、`embedded_data_empty_result_is_not_a_parse_failure`、`embedded_data_broken_payload_is_parse_error`
+- **embedded_data**（#114）：`embedded_data_extracts_json_ld_from_inline_html`、`embedded_data_empty_result_is_not_a_parse_failure`、`embedded_data_broken_payload_is_parse_error`、`embedded_data_schema_declares_only_wired_parameters`（**声明必须等于实现**）、`embedded_data_rejects_url_and_html_together`
 - **MCP-02**：`mcp_02_tools_list_is_exactly_the_plan_set`
 - **MCP-03**：`mcp_03_input_schemas_are_valid_json_schema`
 - **MCP-04**：`mcp_04_qualified_names_follow_the_function_name_contract`
@@ -537,7 +537,7 @@ PR 11 留下的 `#[ignore]` 交接哨兵及其常量已随 #82 删除；随后 `
 
 `crates/webctl-mcp/tests/mcp14.rs` **1 条**：`mcp_14_in_process_dispatch_spawns_no_children`（单独二进制，避免其他用例的子进程污染基线；复用 PR 13 的 `tests/support/resources.rs`）。
 
-议题 #68（caps 诚实性）：`crates/webctl-core/src/caps.rs` 新增 `missing_tools_never_report_interface_available`、`unavailable_tools_do_not_light_up_interface`、`registered_tools_light_up_interface`；`webctl caps --json` 现枚举 §3.7 的 15 个工具并逐项给 state/reason，`interface` 只在工具真注册且可用时 available。
+议题 #68（caps 诚实性）：`crates/webctl-core/src/caps.rs` 新增 `missing_tools_never_report_interface_available`、`unavailable_tools_do_not_light_up_interface`、`registered_tools_light_up_interface`；`webctl caps --json` 现枚举 §3.7 的 16 个工具（#114 起）并逐项给 state/reason，`interface` 只在工具真注册且可用时 available。
 
 服务 ENV-06、STATE-06、MCP-01…14、SEC-09。
 - **MCP-SEC09-ISO（隔离度补充）**：`crates/webctl-mcp/src/dispatch.rs` 的 `sec_09_mcp_dispatcher_is_the_one_that_redacts` —— 手工构造**仍含明文凭据**的 `Fetched`，只调 `dispatch::redact_fetched_envelope`（**不经过** `transport::finish`），断言明文消失且非敏感头保留。

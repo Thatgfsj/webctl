@@ -46,9 +46,9 @@
 | **MCP** | rmcp server + 16 工具 schema + `SKILL.md`（与 `tools/list` 强制一致） | ✅ 已合并（PR 11；#114 增至 16） |
 | **安全** | cookie 导出确认、信封/日志脱敏、路径与协议校验 | ✅ 已合并（PR 12） |
 
-工具面定稿为 **15 个内置工具**（[PLAN §3.7](docs/PLAN.md)）：
+工具面定稿为 **16 个内置工具**（[PLAN §3.7](docs/PLAN.md)，`embedded_data` 于 0.1.2 加入）：
 `fetch` / `extract` / `search` / `links` / `tables` / `forms` / `fill_form` / `paginate` /
-`session` / `cookies` / `json_query` / `doc_text` / `download` / `robots` / `caps`。
+`session` / `cookies` / `json_query` / `doc_text` / `embedded_data` / `download` / `robots` / `caps`。
 **CLI 子命令**：`caps` / `fetch` / `config` / `cookies` / `mcp`；16 个工具由 MCP 工具面同时暴露（`webctl mcp --list-tools`）。
 
 <!-- 已回填（#68 已关闭）：`webctl caps --json` 枚举 16 个工具并逐项给出可用性与原因；能力表与 PLAN §3.7 一致。 -->
@@ -159,8 +159,8 @@ crates/
 
 - **Status:** **v0.1.1 released** (https://github.com/Thatgfsj/webctl/releases/tag/v0.1.1) for Linux (**glibc** and **musl static**), macOS (aarch64 / x86_64) and Windows, with shell/PowerShell installers; see [docs/RELEASE.md](docs/RELEASE.md). The musl asset is produced by the release pipeline and statically asserted (`ldd` = `statically linked`).
 - **Runtime:** zero subprocesses, zero browser, zero JS execution. JS-heavy pages degrade explicitly to `DEGRADED`/`UNSUPPORTED` instead of silently returning "success with 0 results".
-- **Capabilities shipped (PR 03–14 all merged):** fetch (PR 02/08), parsing (PR 03), extraction (PR 06), document/data (PR 07), politeness (PR 08), degradation semantics (PR 09), CLI and config (PR 10), MCP server with 15 tools (PR 11), security hardening (PR 12), packaging (PR 14). The README table above is the source of truth.
-- **Commands available today:** `webctl caps`, `webctl fetch <url>`, `webctl config`, `webctl cookies`, `webctl mcp` (the 15-tool surface).
+- **Capabilities shipped (PR 03–14 all merged):** fetch (PR 02/08), parsing (PR 03), extraction (PR 06), document/data (PR 07), politeness (PR 08), degradation semantics (PR 09), CLI and config (PR 10), MCP server with 16 tools (PR 11 built 15; #114 added `embedded_data`), security hardening (PR 12), packaging (PR 14). The README table above is the source of truth.
+- **Commands available today:** `webctl caps`, `webctl fetch <url>`, `webctl config`, `webctl cookies`, `webctl mcp` (the 16-tool surface).
 - **Build:** `cargo build --release` (requires cmake, a C/C++ toolchain, and libclang at build time only). Rust 1.98.1, pinned in `rust-toolchain.toml`.
 - **Docs:** [PLAN](docs/PLAN.md) · [RELEASE](docs/RELEASE.md) · [TESTING](docs/TESTING.md) · [CONTRIBUTING](CONTRIBUTING.md).
 - **License:** MIT.

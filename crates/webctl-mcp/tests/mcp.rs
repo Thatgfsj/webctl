@@ -520,6 +520,54 @@ async fn embedded_data_broken_payload_is_parse_error() {
     assert_eq!(code_of(&envelope), "PARSE");
 }
 
+/// embedded_data 的 inputSchema **只声明实现真正支持的参数**。
+///
+/// 起因：第一版声明了 `path` 但实现没接线（会静默忽略），复审据此驳回。
+/// 这条用例把"声明 = 实现"钉成可机械校验的约束。
+#[test]
+fn embedded_data_schema_declares_only_wired_parameters() {
+    let mut server = Server::start(&temp_dir("embedded-schema"), None);
+    server.initialize();
+    let response = server.request(2, "tools/list", json!({}));
+    let tools = response["result"]["tools"].as_array().expect("tools");
+    let tool = tools
+        .iter()
+        .find(|tool| tool["name"] == "embedded_data")
+        .expect("embedded_data 必须在 tools/list 里");
+    let mut props: Vec<&str> = tool["inputSchema"]["properties"]
+        .as_object()
+        .expect("properties")
+        .keys()
+        .map(String::as_str)
+        .collect();
+    props.sort_unstable();
+    assert_eq!(
+        props,
+        vec![
+            "html",
+            "include_inline_state",
+            "max_entries",
+            "max_entry_bytes",
+            "url"
+        ],
+        "schema 里的参数必须都是实现真正读的；不得出现未接线的 path"
+    );
+}
+
+/// embedded_data：`url` 与 `html` 同时给出必须报错，不能静默挑一个。
+#[tokio::test]
+async fn embedded_data_rejects_url_and_html_together() {
+    let mcp = WebctlMcp::new(in_process_context("embedded-both"));
+    let envelope = invoke(
+        &mcp,
+        "embedded_data",
+        json!({ "url": "https://example.test/", "html": "<p>x</p>" }),
+    )
+    .await;
+    assert_eq!(envelope["ok"], false, "{envelope}");
+    assert_eq!(code_of(&envelope), "BAD_URL");
+}
+
 /// 进程内调用一次 MCP 工具（未知工具名直接 panic）。
 async fn invoke(mcp: &WebctlMcp, name: &str, args: Value) -> Value {
     mcp.invoke(name, args)

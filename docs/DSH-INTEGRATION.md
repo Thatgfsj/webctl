@@ -62,7 +62,7 @@ $ 两个并发 webctl mcp
 
 ## 4. "装了没反应"的排查顺序（约束 4）
 
-1. `webctl mcp --list-tools` —— 确认 server 自身能起来并列出 15 个工具；
+1. `webctl mcp --list-tools` —— 确认 server 自身能起来并列出 16 个工具；
 2. 手工发一次 `initialize`（§2.1 的命令）—— 确认 stdio 协商正常、无 stderr 噪音；
 3. 检查 DSH 侧 MCP 配置的 server 名与命令路径是否与 README「安装」段一致；
 4. 若 harness 侧连接失败，DSH 仍会启动但**工具不出现** —— 这是 DSH 的既定行为，不是 webctl 崩溃。

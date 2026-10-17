@@ -21,7 +21,7 @@ tokio.workspace = true
 url.workspace = true
 # rmcp 3.5.1：MCP 官方 Rust SDK（Apache-2.0）。仅启用 server + stdio 传输：
 # - 不启用 client / reqwest / transport-child-process，运行期不引入任何子进程能力；
-# - schemars 由 server 特性拉入，15 个工具的 inputSchema 由 derive 生成。
+# - schemars 由 server 特性拉入，16 个工具的 inputSchema 由 derive 生成。
 # 版本理由：3.5.1 是本机离线 registry 已缓存的版本，且实现 MCP 2025-06-18/2026-07-28
 # 协议协商（MCP-01）；与 wreq 的依赖树不冲突（不启用 reqwest）。
 rmcp = { version = "3.5.1", default-features = false, features = ["server", "transport-io"] }
