@@ -45,7 +45,7 @@ description: 纯内置的网页取回/解析/抽取 MCP server（零外部进程
 ## 会话归属与预算
 
 - 服务器绑定启动时的 live Agent + Session；传入其他 `session` 名会被拒绝。
-- 单次调用预算 60 秒；长任务请用分片参数（`paginate.max_pages`、`extract.max_results`）。
+- 单次调用预算默认 30 秒（`timeout_ms` 可配置），且不得超过调用方的工具超时（DSH 默认 60 秒）；长任务请用分片参数（`paginate.max_pages`、`extract.max_results`）。
 - 与 CLI 共享同一个 state dir（由 core 的配置解析，`WEBCTL_STATE_DIR` 优先）。
 - 超过 32 KiB 的结果写入 state dir 的 `results/` 目录并返回 `saved_to` 路径。
 

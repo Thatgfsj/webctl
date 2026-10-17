@@ -14,7 +14,7 @@
 | # | DSH 约束 | 代码位置 | 验证方式 | 结论 |
 |---|---|---|---|---|
 | 1 | `toolCallTimeoutMs` 默认 **60,000ms** | 默认请求预算 `timeout_ms = 30_000`（[`crates/webctl-core/src/config.rs`](../crates/webctl-core/src/config.rs)）；`paginate` 分片 | 默认预算 30s < 60s；长任务用 `paginate` 分片而非单次长跑 | **通过**（默认在预算内；分片策略见 §3） |
-| 2 | `maxInstructionBytes` 默认 **32,768** | [`crates/webctl-mcp/src/instructions.rs`](../crates/webctl-mcp/src/instructions.rs)：`MAX_INSTRUCTIONS_BYTES = 32 * 1024` | 实测 `initialize` 响应 `instructions` = **2222 字节**（见 §2.1） | **通过**（余量 14.7×） |
+| 2 | `maxInstructionBytes` 默认 **32,768** | [`crates/webctl-mcp/src/instructions.rs`](../crates/webctl-mcp/src/instructions.rs)：`MAX_INSTRUCTIONS_BYTES = 32 * 1024` | 实测 `initialize` 响应 `instructions` = **2222 字节**（**v0.1.0 资产**，见 §2.1；文本改动后数字随之变化，余量仍 >14×） | **通过** |
 | 3 | stdio 协商：**先起探测进程，再起服务进程** | 无全局锁/单实例限制；状态只在 state dir（cookie 会话） | 实测"探测→服务"与"两个并发服务"四种启动全部正常应答（见 §2.2） | **通过** |
 | 4 | 连接失败：harness 仍启动但**工具不出现** | — | 排查法见 §4 | **已记录**（属 DSH 侧行为） |
 | 5 | 工具名 `mcp__<serverName>__<rawName>` | [`crates/webctl-mcp/src/tools.rs`](../crates/webctl-mcp/src/tools.rs)：`TOOL_NAMES` 15 个**裸名** | `webctl mcp --list-tools` 输出 15 个裸名（`fetch` / `extract` / …） | **通过**（前缀由 DSH 施加，webctl 不自行加前缀） |
