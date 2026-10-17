@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "description": "解析/抽取性能 p50 基线（TESTING §1 L4 / 议题 #83）。单位毫秒；由 scripts/perf-baseline.sh --record 写入。",
+  "factor": 5,
+  "floor_ms": 50,
+  "metrics": {
+    "parse_100kb_ms_p50": 3.197,
+    "extract_1mb_hit_ms_p50": 2088.054,
+    "extract_1mb_nohit_ms_p50": 63.99,
+    "extract_deep_ms_p50": 9.516
+  },
+  "runs": 7,
+  "recorded_at": "2026-10-17",
+  "commit": "a6edc00",
+  "note": "相对基线 + 宽 tolerance：抓量级级退化，不抓 20% 抖动。"
+}
