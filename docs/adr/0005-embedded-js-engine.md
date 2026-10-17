@@ -16,6 +16,7 @@
 1. **唯一允许**：`Cargo.lock` 中只允许 `boa_engine` 一个 JS 引擎；禁止 `v8` / `deno_core` / `quickjs` / `rquickjs` / `mozjs` / `duktape` / 任何外部浏览器自动化依赖。由 `scripts/check-dependency-boundary.sh` 在 CI 的 `guards` 作业里机械校验。
 2. **默认关闭**：不改变默认行为——**默认仍不执行页面 JS**。开启是显式的（配置或逐调用参数），且 `caps` 会报告可用性与当前状态。这样 ADR-0002 立下的降级锚点**继续成立**（例如 `quotes.toscrape.com/js/` 在默认配置下仍必须 `DEGRADED`）。
 3. **硬限制，跑不飞**：指令数 / 循环迭代数 / 墙钟 / 内存都有上限；**引擎内不暴露网络与文件系统**（不注入 `fetch`/`XMLHttpRequest`/`fs`）；超限必须返回 `TIMEOUT` / `LIMIT` 信封，**禁止静默降级**（A3）。
+   > **2026-10-17 实现状态（#127 第 1 片）**：本条的目标**部分达成**。`boa_engine` 0.20 **不提供**指令数/墙钟中断 API，也不提供堆内存上限；本片已实现的是 **loop 迭代 / recursion / stack 三个限值 + 输入预算**（脚本字节、段数），模块解析 fail-closed（动态 `import` 不可用）。**墙钟与堆内存不承诺**（实测 `new Uint8Array(256MB)` 成功），由进程级手段（`ulimit`）或后续议题 [#130](https://github.com/Thatgfsj/webctl/issues/130) 承担。原文不改写，按 ADR 纪律以注记补充现状。
 4. **自建最小 DOM/BOM**：只实现取内容需要的子集（`querySelector(All)`、`textContent`、`getAttribute`、只读 `innerHTML` 等）；**实现不了的必须如实 `UNSUPPORTED`**，不做"半个浏览器"。
 5. **零外部进程、零外部浏览器不变**（ADR-0001 有效）：引擎是**进程内库**，不启动任何子进程。
 6. **反爬姿态不变**（ADR-0004 有效）：内置引擎**不是**真实浏览器指纹，不承诺绕过 Cloudflare / 验证码，遇到即 `BLOCKED`。
