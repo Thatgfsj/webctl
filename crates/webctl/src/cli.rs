@@ -61,7 +61,7 @@ impl From<OutputArg> for OutputFormat {
 #[command(
     name = "webctl",
     version,
-    about = "给 AI agent 用的网页控制层：全部内置，零外部进程、零浏览器",
+    about = "给 AI agent 用的网页控制层：全部内置，零外部进程、零外部浏览器",
     long_about = None
 )]
 struct Cli {

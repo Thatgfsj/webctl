@@ -2,7 +2,7 @@
 
 # webctl
 
-**给 AI agent 用的网页控制层：纯 Rust、自包含的二进制（Linux / macOS / Windows），零外部进程、零外部浏览器，内置取回/解析/会话/文档能力，提供 CLI 与 MCP server；**可选**受限内置 JS 引擎（默认关闭，见 [ADR-0005](docs/adr/0005-embedded-js-engine.md)）。**
+**给 AI agent 用的网页控制层：纯 Rust、自包含的二进制（Linux / macOS / Windows），零外部进程、零外部浏览器，内置取回/解析/会话/文档能力，提供 CLI 与 MCP server**；另有**可选**的受限内置 JS 引擎（默认关闭，见 [ADR-0005](docs/adr/0005-embedded-js-engine.md)）。
 
 [![CI](https://img.shields.io/github/actions/workflow/status/Thatgfsj/webctl/ci.yml?label=CI&style=flat-square)](https://github.com/Thatgfsj/webctl/actions/workflows/ci.yml)
 [![状态](https://img.shields.io/badge/status-v0.1.1%20released-blue?style=flat-square)](#项目状态)
