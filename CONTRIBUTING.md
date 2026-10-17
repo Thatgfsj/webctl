@@ -26,8 +26,9 @@
   4. `.github/workflows/release.yml` —— 由 `cargo-dist` 的 `dist generate` 生成；
   5. `CHANGELOG.md` —— 由发布流程写入条目。
 - **不计入 ≠ 不申报**：PR 描述必须写明这些文件的实际行数（`scripts/pr-size.sh` 会逐文件打印），避免其成为后门。
-- **越线与放行**：计入行数 >1000 时，CI 的 `pr-size` 作业**失败**；维护者在关联 issue 中显式批准后，给 PR 打 `lines: exempt` 标签即可放行（批准记录随 PR 保留）。
+- **越线与放行**：计入行数 >1000 时，CI 的 `guards · 锁文件 / 工具面 / 行数口径` 作业里那一步（行数口径）**失败**；维护者在关联 issue 中显式批准后，给 PR 打 `lines: exempt` 标签即可放行（批准记录随 PR 保留）。
 - **单一实现**：口径由 [`scripts/pr-size.sh`](scripts/pr-size.sh) 唯一实现，CI 与人类都用它；改排除规则时必须同步改本文件与该脚本（议题 [#24](https://github.com/Thatgfsj/webctl/issues/24)）。
+- **跑在哪**：CI 侧见 [docs/CI.md §1](docs/CI.md)；本地等效命令见下面 §4。
 
 两点已知事实（见 [docs/SURVEY.md §1.2](docs/SURVEY.md)）：
 
