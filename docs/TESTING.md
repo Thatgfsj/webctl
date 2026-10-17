@@ -516,7 +516,9 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 
 ### 6.8d #127 沙箱核心 `crates/webctl-js`（ADR-0005 第 1 片）
 
-`crates/webctl-js` **10 条**（离线，纯内存；**不联网、不执行外部进程**）：
+`crates/webctl-js` **17 条**（离线，纯内存；**不联网、不执行外部进程**）：
+
+**沙箱核心（10 条）**：
 
 - 同一上下文共享全局：两段脚本依次求值，`acc*21` → `42`；
 - **限值可中断**：`while(true){}` → `Limit`（实测默认限值下 **609 ms** 被中断）；深递归 → `Limit`（实测 **3.4 ms**）；
@@ -531,6 +533,23 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 > **安全教训（独立审阅实证的真实逃逸）**：boa 0.20 的 `Context::default()` 会装上以**进程 CWD 为根**的
 > `SimpleModuleLoader`，于是 `import('相对路径.js')` 会真的 open/read 宿主文件（审阅用 FIFO 阻塞 2.000 s 证明）。
 > 修复是显式装 `IdleModuleLoader`（fail-closed）。**结论：用第三方引擎时，"默认上下文"本身就是攻击面，必须逐项确认它默认装了什么。**
+
+**最小 DOM 渲染（7 条，议题 #128 第 1 半）**：
+
+- `renders_document_write_page`：仓库自己的 JS 空壳样本（`js_data_script_shell.html`）渲染后，
+  DOM 里出现 **10 条** `class="quote"`（原本只在 `document.write` 的脚本里）；
+- `renders_against_existing_dom`：`document.querySelector('#app').textContent = …` 能改到静态 DOM；
+- `skips_external_and_module_scripts`：`<script src>` 与 `type="module"` **不执行**（前者引入网络依赖，后者需模块加载器且已 fail-closed）；
+- `dom_shim_adds_no_host_capabilities`：**装好 DOM 之后能力面不变**——脚本自己把 `typeof fetch/require/process/setTimeout/XMLHttpRequest`
+  写进 DOM，断言全是 `undefined`；
+- `render_respects_script_budget`：脚本段数超限直接拒绝；
+- `render_is_deterministic`：同一页面两次渲染结果一致；
+- `render_limits_apply_to_page_scripts`：**页面脚本也受限值约束**（脚本里 `while(true){}` → `Limit`，不会挂住渲染）。
+
+> 垫片是**纯 JS 字符串**（`src/dom_shim.js`），不注册任何 Rust 宿主函数；实现子集：解析、`document.write`、
+> `createElement`/`appendChild`、属性、`textContent`、`innerHTML`（读+写）、`querySelector(All)`（`#id`/`.class`/`tag`）、序列化。
+> **不提供**：定时器（`setTimeout` 永不触发是"静默省略"，不如直接不提供）、网络/存储、真实事件语义（`addEventListener` 空实现）、布局。
+> 渲染结果**忠实保留**原始 `<script>` 元素（与浏览器一致），所以统计"页面内容"时要先剥掉脚本正文。
 
 依赖边界守卫新增归属校验：`boa_engine` **只允许**被 `webctl-js` 依赖（`scripts/check-dependency-boundary.sh`）。
 

@@ -23,6 +23,8 @@
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
+pub mod render;
+
 use boa_engine::module::IdleModuleLoader;
 use boa_engine::{Context, Source};
 
@@ -79,7 +81,7 @@ pub struct JsFailure {
 }
 
 impl JsFailure {
-    fn new(kind: JsFailureKind, message: impl Into<String>) -> Self {
+    pub(crate) fn new(kind: JsFailureKind, message: impl Into<String>) -> Self {
         Self {
             kind,
             message: message.into(),
@@ -147,7 +149,7 @@ pub fn run_scripts(scripts: &[String], limits: &JsLimits) -> Result<JsOutcome, J
 /// 显式装 [`IdleModuleLoader`] 后，模块解析一律 fail-closed。
 ///
 /// 另一层防御：本 crate **从不**调用 `run_jobs()`，因此 promise 任务永远不会被排空。
-fn sandbox(limits: &JsLimits) -> Context {
+pub(crate) fn sandbox(limits: &JsLimits) -> Context {
     let mut context = Context::builder()
         .module_loader(Rc::new(IdleModuleLoader))
         .build()
@@ -160,7 +162,7 @@ fn sandbox(limits: &JsLimits) -> Context {
 }
 
 /// 输入预算检查：超限**直接拒绝**，不进入引擎。
-fn check_budget(scripts: &[String], limits: &JsLimits) -> Result<(), JsFailure> {
+pub(crate) fn check_budget(scripts: &[String], limits: &JsLimits) -> Result<(), JsFailure> {
     if scripts.len() > limits.max_scripts {
         return Err(JsFailure::new(
             JsFailureKind::Rejected,
