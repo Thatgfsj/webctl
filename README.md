@@ -2,7 +2,7 @@
 
 # webctl
 
-**给 AI agent 用的网页控制层：纯 Rust 单静态二进制，零外部进程、零浏览器，内置取回/解析/会话/文档能力，提供 CLI 与 MCP server。**
+**给 AI agent 用的网页控制层：纯 Rust 单二进制（Linux / macOS / Windows），零外部进程、零浏览器，内置取回/解析/会话/文档能力，提供 CLI 与 MCP server。**
 
 [![CI](https://img.shields.io/github/actions/workflow/status/Thatgfsj/webctl/ci.yml?label=CI&style=flat-square)](https://github.com/Thatgfsj/webctl/actions/workflows/ci.yml)
 [![状态](https://img.shields.io/badge/status-pre--release-orange?style=flat-square)](#项目状态)
@@ -24,7 +24,7 @@
 | 发布 | **无**：尚无 tag / release；发布流水线已就位（[docs/RELEASE.md](docs/RELEASE.md)），资产一致性待首个 release 核验（PKG-06/07） |
 | 计划文档 | [docs/PLAN.md](docs/PLAN.md)（**v0.4**，含 2026-10-16 的方向变更） |
 | 事实依据 | [docs/SURVEY.md](docs/SURVEY.md)（本机实测 + 公开仓库核对；其中 CDP 部分已成历史记录） |
-| 形态 | Rust workspace，4 个 crate，单个静态二进制 |
+| 形态 | Rust workspace，4 个 crate；发布 **2 个二进制**：`webctl`（主 CLI，含 `mcp` 子命令）与 `webctl-mcp`（独立 MCP server 入口）。三平台；Linux 为 glibc 动态链接 |
 | 接口 | CLI（`caps` / `fetch` / `config` / `cookies` / `mcp`）+ MCP server（`mcp__webctl__*`，15 个工具） |
 | 外部依赖 | **运行时零外部进程、零浏览器**；不调用 `curl`/`jq`/`pdftotext` 等系统命令 |
 | 发布物 | cargo-dist 生成的三平台压缩包 + shell/PowerShell 安装器（[清单](docs/RELEASE.md)）；**当前尚未发布** |
@@ -117,7 +117,7 @@ webctl --offline caps
 - 发布步骤、release note 模板、变更日志约定与发布 E2E 清单：[docs/RELEASE.md](docs/RELEASE.md)。
 - 体积 / 冷启动基线工具：`scripts/size-baseline.sh`；记录：[docs/size-baseline.json](docs/size-baseline.json)。
   - glibc release **本机实测** 7,978,256 字节（约 7.61 MiB），`--version` 冷启动 p50 约 10–24 ms（全部 < 50 ms，CLI-12 本地通过）。
-  - **musl 数字待 CI 回填**（本机未安装 musl target）。
+  - **musl 静态目标暂缓**：BoringSSL 的 C++ 源需要面向 musl 的 libstdc++，而 musl-dev 只提供 C 侧（三次 release 实测，见 [#90](https://github.com/Thatgfsj/webctl/issues/90)）；Linux 产物为 glibc 动态链接。
 - 发布资产 E2E 冒烟：`scripts/release-e2e.sh`（PKG-04 / PKG-06 / PKG-08）。
 
 ## 架构
@@ -148,9 +148,9 @@ crates/
 
 ## English
 
-**webctl is a web-control layer for AI agents** — a single pure-Rust static binary with everything built in: no external processes, no browser, no JS engine. It provides an HTTP fetch engine, HTML/JSON/XML/PDF extraction, a protocol-level session engine, and a CLI plus an MCP server.
+**webctl is a web-control layer for AI agents** — a single pure-Rust binary with everything built in: no external processes, no browser, no JS engine. It provides an HTTP fetch engine, HTML/JSON/XML/PDF extraction, a protocol-level session engine, and a CLI plus an MCP server.
 
-- **Status:** pre-release. There are no tags or releases yet, so no install command is advertised here. The release pipeline (cargo-dist, Linux/macOS/Windows + static musl) is in place — see [docs/RELEASE.md](docs/RELEASE.md); build from source in the meantime.
+- **Status:** pre-release. There are no tags or releases yet, so no install command is advertised here. The release pipeline (cargo-dist, Linux/macOS/Windows) is in place — see [docs/RELEASE.md](docs/RELEASE.md); build from source in the meantime.
 - **Runtime:** zero subprocesses, zero browser, zero JS execution. JS-heavy pages degrade explicitly to `DEGRADED`/`UNSUPPORTED` instead of silently returning "success with 0 results".
 - **Capabilities shipped (PR 03–14 all merged):** fetch (PR 02/08), parsing (PR 03), extraction (PR 06), document/data (PR 07), politeness (PR 08), degradation semantics (PR 09), CLI and config (PR 10), MCP server with 15 tools (PR 11), security hardening (PR 12), packaging (PR 14). The README table above is the source of truth.
 - **Commands available today:** `webctl caps`, `webctl fetch <url>`, `webctl config`, `webctl cookies`, `webctl mcp` (the 15-tool surface).

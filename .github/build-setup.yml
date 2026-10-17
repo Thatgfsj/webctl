@@ -5,6 +5,9 @@
 #   - Windows：NASM（BoringSSL 的 .asm 汇编）；
 #   - Linux musl：x86_64-linux-musl-{gcc,g++}（musl-tools 只提供 musl-gcc）。
 # 缺任一项时 v0.1.0 首次发布在 musl 与 Windows 上失败（CMake enable_language）。
+#
+# 注：musl 目标已于 2026-10-17 暂缓（BoringSSL 的 C++ 需要面向 musl 的 libstdc++，见议题 #90），
+# Linux 分支的 musl 安装步骤当前不生效；保留以便该目标恢复时直接复用。
 - name: Install extra build toolchain (BoringSSL / btls-sys)
   shell: bash
   run: |

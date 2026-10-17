@@ -5,7 +5,7 @@ members = ["cargo:."]
 [dist]
 # BoringSSL（btls-sys）需要的额外构建工具链（NASM / musl 交叉编译器）。
 # 步骤内容见该文件；由 cargo-dist 注入到各 build 作业。
-github-build-setup = "build-setup.yml"
+github-build-setup = "../build-setup.yml"
 
 # The preferred dist version to use in CI (Cargo.toml SemVer syntax)
 cargo-dist-version = "0.33.0"
@@ -14,7 +14,10 @@ ci = "github"
 # The installers to generate for each app
 installers = ["shell", "powershell"]
 # Target platforms to build apps for (Rust target-triple syntax)
-targets = ["x86_64-unknown-linux-musl", "x86_64-unknown-linux-gnu", "aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-pc-windows-msvc"]
+# musl 静态目标暂不可达：BoringSSL(btls-sys) 的 C++ 源需要面向 musl 的 libstdc++，
+# 而 Debian/Ubuntu 的 musl-dev 只提供 C 侧（三次 release 实测，见议题 #90）。
+# 恢复它需要额外工具链（musl-cross / cargo-zigbuild）或 patch 上游，属独立工程决策。
+targets = ["x86_64-unknown-linux-gnu", "aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-pc-windows-msvc"]
 # Path that installers should place binaries in
 install-path = "CARGO_HOME"
 # Where to host releases

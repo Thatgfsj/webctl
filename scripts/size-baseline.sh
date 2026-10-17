@@ -12,7 +12,7 @@
 #   scripts/size-baseline.sh --record                           # 把本次实测写回基线文件
 #   scripts/size-baseline.sh --json                             # 机器可读输出
 #
-# 基线文件：docs/size-baseline.json；bytes=null 表示「待 CI 回填」。
+# 基线文件：docs/size-baseline.json；bytes=null 表示待回填；source=deferred 表示该目标暂缓（见 [#90](https://github.com/Thatgfsj/webctl/issues/90)）。
 # 体积容差 10%，冷启动（--version）上限 50 ms（CLI-12）。
 
 set -euo pipefail
@@ -106,6 +106,7 @@ baseline_field() {
 }
 
 BASELINE_BYTES="$(baseline_field bytes)"
+BASELINE_SOURCE="$(baseline_field source)"
 LIMIT=""
 if [ -n "$BASELINE_BYTES" ]; then
   LIMIT=$(( BASELINE_BYTES + BASELINE_BYTES * TOLERANCE_PCT / 100 ))
@@ -146,7 +147,11 @@ else
   if [ -n "$BASELINE_BYTES" ]; then
     printf 'baseline     = %s bytes (limit %s, +%s%%)\n' "$BASELINE_BYTES" "$LIMIT" "$TOLERANCE_PCT"
   else
-    printf 'baseline     = 待 CI 回填（musl 数字待首个 release 产物）\n'
+    if [ "$BASELINE_SOURCE" = "deferred" ]; then
+      printf 'baseline     = 暂缓（该目标见 docs/size-baseline.json 的 source=deferred 与议题 #90）\n'
+    else
+      printf 'baseline     = 待回填（无基线数字）\n'
+    fi
   fi
   printf 'status       = %s\n' "$STATUS"
 fi
