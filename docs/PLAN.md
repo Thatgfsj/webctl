@@ -112,8 +112,8 @@ v0.4 没有"层"了，只有一组**内置能力域**，全部在进程内：
             "degraded_from": null, "stale": false, "elapsed_ms": 412 } }
 ```
 
-降级时（`code` 为 `DEGRADED`/`UNSUPPORTED`/`LIMIT`）额外带**可行动信息**（0.1.2 / #115），
-让调用方不必猜"为什么 + 还能试什么"：
+**JS 渲染降级**（`degraded_from: js-render`，`code` 为 `DEGRADED`/`UNSUPPORTED`）额外带
+**可行动信息**（0.1.2 / #115），让调用方不必猜"为什么 + 还能试什么"：
 
 ```json
 { "ok": true, "data": {}, "error": "", "code": "UNSUPPORTED",
@@ -126,10 +126,12 @@ v0.4 没有"层"了，只有一组**内置能力域**，全部在进程内：
 
 - `actionable.reason`：机器可读原因码；`detected`：观察到的证据；`next_steps`：建议的**通道（真实工具名）**。
 - 未降级时该字段**不出现**；"干净的成功"带 `actionable` 属于协议误用（`validate()` 会拒绝）。
+- **口径边界**：其余降级路径（`LIMIT` 截断、`extract` 的 max-results、会话分页、文档/PDF 等）
+  **尚未接线**，不带该字段——不要假设"降级就一定有 `actionable`"。补齐计划见 [#124](https://github.com/Thatgfsj/webctl/issues/124)。
 
 - 错误码（封闭集）：`OK / TIMEOUT / NETWORK / BLOCKED / BAD_URL / PARSE / DEGRADED / UNSUPPORTED / SESSION_LOST / LIMIT / INTERNAL`。
   - 相对 v0.3：删除 `BROWSER_CRASH / NO_BROWSER / TOOL_MISSING / STALE_REF`，新增 `UNSUPPORTED`（能力不存在，如 JS 渲染、OCR）与 `LIMIT`（命中缓冲/尺寸上限）。
-- **禁止静默降级**：任何能力缺失或降级必须体现在 `code` + `meta.degraded_from`（#115 起再补 `meta.actionable`，说清原因与可试通道）。
+- **禁止静默降级**：任何能力缺失或降级必须体现在 `code` + `meta.degraded_from`；**JS 渲染降级**再补 `meta.actionable`（说清原因与可试通道，其余降级路径见 #124）。
 - **失败可区分**：空结果 ≠ 解析失败 ≠ 能力不支持 ≠ 被拦截，四者码不同。
 - 页面内容一律 `trust: untrusted_page_content`。
 

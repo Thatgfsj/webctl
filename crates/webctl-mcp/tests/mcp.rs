@@ -635,6 +635,32 @@ async fn ok_envelope_has_no_actionable() {
     assert!(envelope["meta"]["actionable"].is_null(), "{envelope}");
 }
 
+/// #115 的口径边界：**只有** JS 渲染降级带 `meta.actionable`。
+///
+/// 这条用例把"当前事实"钉住，防止两种偏差：① 文档说得比实现多（复审在 #123 抓到过）；
+/// ② 悄悄改了行为。等 [#124](https://github.com/Thatgfsj/webctl/issues/124) 把其余降级
+/// 路径接上后，本用例应当改成断言"该路径也带 actionable"。
+#[tokio::test]
+async fn limit_degradation_has_no_actionable_yet() {
+    let server = http_fixture::Server::start_with(vec![(
+        "/static",
+        http_fixture::Response::html(STATIC_QUOTES),
+    )])
+    .await;
+    let mcp = WebctlMcp::new(in_process_context("limit-no-actionable"));
+    let limited = invoke(
+        &mcp,
+        "extract",
+        json!({"url": server.url("/static"), "selector": "div.quote", "max_results": 1}),
+    )
+    .await;
+    assert_eq!(code_of(&limited), "LIMIT", "{limited}");
+    assert!(
+        limited["meta"]["actionable"].is_null(),
+        "LIMIT 路径目前不带 actionable（见 #124）；若要改，先改这条用例与文档：{limited}"
+    );
+}
+
 /// 进程内调用一次 MCP 工具（未知工具名直接 panic）。
 async fn invoke(mcp: &WebctlMcp, name: &str, args: Value) -> Value {
     mcp.invoke(name, args)
