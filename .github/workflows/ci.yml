@@ -58,6 +58,18 @@ jobs:
       - name: 报错定位器自检（证明注解机制有判别力）
         shell: bash
         run: scripts/ci-report.sh --selftest
+      - name: 注解形式对照实验（临时，PR 用）
+        if: always()
+        shell: bash
+        run: |
+          P=crates/webctl-web/tests/parse.rs
+          echo "::error file=$P,line=727,col=5,title=T1 全属性::msg1 全属性"
+          echo "::error file=$P,line=727,title=T2 无 col::msg2 无 col"
+          echo "::error file=$P,line=727,col=5::msg3 无 title"
+          echo "::error::msg4 无任何属性"
+          echo "::warning file=$P,line=727,col=5,title=T5 warning::msg5 warning 级"
+          echo "::notice file=$P,line=727,col=5,title=T6 notice::msg6 notice 级"
+          echo "::error file=src/nonexistent.rs,line=9999,col=1,title=T7 路径不存在::msg7 路径不存在"
       - name: 判断是否需要校验 cargo-dist 生成物
         id: dist-need
         shell: bash
