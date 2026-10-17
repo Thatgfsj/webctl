@@ -26,6 +26,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 | **L1** | 真站 smoke（需要网络，可跳过） | `./tests/e2e/run-real.sh` |
 | **L2** | 基线：发布物体积 | `cargo build --release`（glibc；musl 暂缓，见 [#90](https://github.com/Thatgfsj/webctl/issues/90)） |
 | **L3** | 安全负面：在**默认配置**下跑（不加任何放宽开关） | 并入 L0/L1 |
+| **L4** | 解析/抽取**性能基线**：相对基线 + 宽 tolerance，抓**量级级退化**（正是单测 30s 挂死守卫抓不到的 `[~5s, 30s)` 档，议题 [#83](https://github.com/Thatgfsj/webctl/issues/83)） | `scripts/perf-baseline.sh --check` |
 
 **通用断言（每条用例都隐含，不再逐行重复）**
 
@@ -538,6 +539,26 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 
 **植入实验**（证明断言可失败，非恒真）：临时令 `redact_log_line` 变为恒等 → SEC-07/08 两侧失败并回显 `SUPER_SECRET_TOKEN`；临时跳过 `resolve_file_argument` 的 `ensure_contained` → SEC-11 两侧失败。两次均 `git checkout` 还原并复跑通过；证据见 PR 描述。
 
+### 6.11 L4 性能基线（议题 #83）
+
+单测的墙钟断言已被放宽为 30s「挂死守卫」（PARSE-14 / EXTRACT-14 / EXTRACT-17），
+`[~5s, 30s)` 一档因此**没有门禁**；绝对墙钟不是单测该用的工具。本小节把它交给 **L4 通道**：
+`crates/webctl-web/examples/perf_probe.rs`（确定性输入，自生成，不落盘 fixture）+
+`scripts/perf-baseline.sh`（相对基线 + 宽 tolerance，`--record`/`--check`），基线存 `docs/perf-baseline.json`。
+
+| 编号 | 用例 | 输入 | 期望 |
+|---|---|---|---|
+| PERF-01 | 解析 100KiB 嵌套 HTML（`parse::select`） | 自生成 ~100KiB | p50 ≤ max(基线×5, 50ms) |
+| PERF-02 | 抽取 1MiB **多命中**（`select_matches`，放开输出上限） | 自生成 ~1MiB | p50 ≤ max(基线×5, 50ms) |
+| PERF-03 | 抽取 1MiB **零命中全量扫描**（PR 06 缺陷路径） | 自生成 ~1MiB | p50 ≤ max(基线×5, 50ms) |
+| PERF-04 | 深嵌套（2000 层）抽取 | 自生成 | p50 ≤ max(基线×5, 50ms) |
+
+**门槛语义（诚实声明）**：本通道抓**量级级退化**（如 2.1s → 19.7s），**不**抓 20% 级别抖动
+（抖动由 5× tolerance 吸收）；它**不替代**单测的挂死守卫，两者互补。
+首次记录（2026-10-17，commit `a6edc00`）：PERF-01 3.20ms、PERF-02 2088.05ms、PERF-03 63.99ms、PERF-04 9.52ms。
+
+**判别力验证**（作者提供，可复现）：把 PERF-02 的抽取人为重复 6 次 → 实测 19,757.96ms > 上限 10,440.27ms，
+`--check` 报 FAIL 并退出码 1；还原后全部 OK。
 ## 7. 维护规则
 
 1. 新增用例必须同时写 **通道** 与 **归属 PR**，否则不合并。
