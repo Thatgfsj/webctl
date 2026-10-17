@@ -19,9 +19,15 @@
 机械口径：
 
 - **计入** = `git diff --shortstat <base>...HEAD` 的 `additions + deletions`。
-- **不计入**：`docs/` 纯文档、测试 fixture 数据文件。（生成产物如 `Cargo.lock` 的归属见议题 #41，尚未定案。）
-- **不计入 ≠ 不申报**：PR 描述必须写明这些文件的实际行数，避免其成为后门。
-- 越线需在关联 issue 中显式批准；批准记录随 PR 保留。
+- **不计入**（机械规则，见 `scripts/pr-size.sh` 的 `is_excluded`）：
+  1. `docs/**` —— 纯文档；
+  2. `crates/*/tests/fixtures/**` —— 测试 fixture 数据文件；
+  3. `Cargo.lock` —— cargo 生成的锁文件（**不可手写、不可评审、随依赖自动重写**，见议题 [#41](https://github.com/Thatgfsj/webctl/issues/41)）；
+  4. `.github/workflows/release.yml` —— 由 `cargo-dist` 的 `dist generate` 生成；
+  5. `CHANGELOG.md` —— 由发布流程写入条目。
+- **不计入 ≠ 不申报**：PR 描述必须写明这些文件的实际行数（`scripts/pr-size.sh` 会逐文件打印），避免其成为后门。
+- **越线与放行**：计入行数 >1000 时，CI 的 `pr-size` 作业**失败**；维护者在关联 issue 中显式批准后，给 PR 打 `lines: exempt` 标签即可放行（批准记录随 PR 保留）。
+- **单一实现**：口径由 [`scripts/pr-size.sh`](scripts/pr-size.sh) 唯一实现，CI 与人类都用它；改排除规则时必须同步改本文件与该脚本（议题 [#24](https://github.com/Thatgfsj/webctl/issues/24)）。
 
 两点已知事实（见 [docs/SURVEY.md §1.2](docs/SURVEY.md)）：
 

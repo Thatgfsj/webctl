@@ -35,3 +35,33 @@ jobs:
         run: cargo test --features offline
       - name: build (release)
         run: cargo build --release
+  pr-size:
+    name: pr-size (行数口径)
+    # 只在 PR 上跑：口径是相对 base 的差分
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: 计算计入 / 不计入行数（CONTRIBUTING §2）
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          set -uo pipefail
+          git fetch --no-tags origin "$BASE_REF"
+          BASELINE="origin/$BASE_REF"
+          ALLOW=""
+          if printf '%s' "$PR_LABELS" | tr ',' '\n' | grep -qx 'lines: exempt'; then
+            echo "::notice::PR 带 lines: exempt 标签 ⇒ 越线放行（批准记录应在关联 issue 中）"
+            ALLOW="--allow-over"
+          fi
+          bash scripts/pr-size.sh "$BASELINE" $ALLOW > /tmp/pr-size.txt 2>&1
+          code=$?
+          cat /tmp/pr-size.txt
+          { echo "### PR 行数口径（CONTRIBUTING §2）"; echo '```'; cat /tmp/pr-size.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $code
