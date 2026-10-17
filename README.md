@@ -162,7 +162,7 @@ crates/
 - **Capabilities shipped (PR 03–14 all merged):** fetch (PR 02/08), parsing (PR 03), extraction (PR 06), document/data (PR 07), politeness (PR 08), degradation semantics (PR 09), CLI and config (PR 10), MCP server with 16 tools (PR 11 built 15; #114 added `embedded_data`), security hardening (PR 12), packaging (PR 14). The README table above is the source of truth.
 - **Commands available today:** `webctl caps`, `webctl fetch <url>`, `webctl config`, `webctl cookies`, `webctl mcp` (the 16-tool surface).
 - **Build:** `cargo build --release` (requires cmake, a C/C++ toolchain, and libclang at build time only). Rust 1.98.1, pinned in `rust-toolchain.toml`.
-- **Docs:** [PLAN](docs/PLAN.md) · [RELEASE](docs/RELEASE.md) · [TESTING](docs/TESTING.md) · [CONTRIBUTING](CONTRIBUTING.md).
+- **Docs:** [PLAN](docs/PLAN.md) · [RELEASE](docs/RELEASE.md) · [TESTING](docs/TESTING.md) · [SPA baseline](docs/SPA-BASELINE.md) · [CI](docs/CI.md) · [CONTRIBUTING](CONTRIBUTING.md).
 - **License:** MIT.
 
 ## 许可证

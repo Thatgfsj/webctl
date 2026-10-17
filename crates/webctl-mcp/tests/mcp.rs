@@ -704,6 +704,37 @@ async fn paginate_propagates_actionable_from_upstream() {
     }
 }
 
+/// #119 复审补的覆盖缺口：`paginate` **正常收尾**分支（不触发翻页失败）也要带 actionable。
+///
+/// #123 第 3 轮复审发现：原用例走的是 `pagination-fetch-failed` 早返回，
+/// 正常收尾分支（真站 max_pages=1 那条）没有测试钉住（变异 M3 不会变红）。
+#[tokio::test]
+async fn paginate_normal_finish_keeps_actionable() {
+    let server =
+        http_fixture::Server::start_with(vec![("/js", http_fixture::Response::html(JS_SHELL))])
+            .await;
+    let mcp = WebctlMcp::new(in_process_context("paginate-finish"));
+    // max_pages=1：只取第一页，不会去翻不存在的第 2 页 → 走正常收尾分支。
+    let paged = invoke(
+        &mcp,
+        "paginate",
+        json!({"url": server.url("/js"), "max_pages": 1}),
+    )
+    .await;
+    assert_degraded(&paged, "paginate /js max_pages=1");
+    assert!(
+        paged["meta"]["degraded_from"]
+            .as_str()
+            .expect("from")
+            .contains("js-render"),
+        "正常收尾也应记录 js-render：{paged}"
+    );
+    assert!(
+        paged["meta"]["actionable"].is_object(),
+        "正常收尾分支同样不得丢 actionable：{paged}"
+    );
+}
+
 /// 进程内调用一次 MCP 工具（未知工具名直接 panic）。
 async fn invoke(mcp: &WebctlMcp, name: &str, args: Value) -> Value {
     mcp.invoke(name, args)

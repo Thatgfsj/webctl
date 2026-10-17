@@ -482,6 +482,14 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 - SESS-10 由既有 `crates/webctl-web/tests/session.rs::sess_10_spa_degrades`（连同 `sess_15_paginate_spa_stays_degraded`）覆盖；接入守卫后仍全绿。
 - **L1（可跳过、不作 CI 门禁）**：`crates/webctl-web/tests/e2e/run-real.sh` 承载 DEGRADE-01/02 与 E2E-01/02——静态锚点计数 10 条、JS 页断言降级码非 OK 且 `degraded_from` 非空；`WEBCTL_REAL!=1` 或无网络/缺 curl/cargo 时显式 SKIP。
 
+### 6.8c #119 SPA 样本集与基线（`tests/spa_baseline.rs`）
+
+`crates/webctl-web/tests/spa_baseline.rs` **2 条**：5 类 SPA 形态的**可执行基线**（正文字符数、内嵌条数、
+是否判为依赖 JS、RSS 线索、`obtained` 分级）+ 分级函数本身的区分性用例。
+
+样本在 `crates/webctl-web/tests/fixtures/spa/`（nextjs / nuxt / 纯 CSR 空壳 / 静态文章+JSON-LD / 静态博客+RSS）。
+数字与口径见 [docs/SPA-BASELINE.md](SPA-BASELINE.md)；**改行为必须同时更新该文件与本节基线**。
+
 ### 6.8b #114 内嵌结构化数据（EMBED-01…EMBED-13）
 
 `crates/webctl-web/tests/embedded.rs` **13 条**（离线；只读内存里的 HTML 字符串，不联网、不执行 JS）：
