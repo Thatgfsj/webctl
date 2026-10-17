@@ -5,22 +5,22 @@
   "cold_start_limit_ms": 50,
   "entries": {
     "x86_64-unknown-linux-gnu": {
-      "bytes": 22859144,
-      "cold_start_ms_p50": 5,
+      "bytes": 22867752,
+      "cold_start_ms_p50": 6,
       "linkage": "dynamic",
       "source": "release-asset",
       "recorded_at": "2026-10-17",
-      "commit": "f50ce69",
-      "note": "取自 v0.1.0 真实发布资产（CI 的 dist profile，22859144 B）；冷启动 p50 5ms。相比 2026-10-17 早先基线 7978256（commit 5f10aa6，PR 09/11/12 合并前）增长约 2.9x，来自 MCP(rmcp+schemars)/降级语义/安全层，非打包异常；本机同提交 release profile 21067504、dist profile 22891304。"
+      "commit": "569acb9",
+      "note": "取自 v0.1.1 真实发布资产 webctl-x86_64-unknown-linux-gnu.tar.xz（tag v0.1.1，commit 569acb9，Release run 39025412524）；sha256 校验通过后解压测得。相比 2026-10-17 更早的 v0.1.0 基线 22,859,144 B 变化 <0.1%（属噪声/工具链差异），与\"PR 09/11/12 带来的 2.9x 增长\"无关（那次是从 PR 14 时期的 7,978,256 B 起算）。"
     },
     "x86_64-unknown-linux-musl": {
-      "bytes": null,
-      "cold_start_ms_p50": null,
+      "bytes": 22612520,
+      "cold_start_ms_p50": 4,
       "linkage": "static",
-      "source": "pending-release-asset",
-      "recorded_at": null,
-      "commit": "79545b3",
-      "note": "构建已通过 CI：musl-static 作业（run 39019246132）用固定 Bootlin 2026.08-1 工具链构建，file/ldd/readelf 断言静态；v0.1.0 无 musl release 资产，bytes 待下一次 tag 的真实资产用 scripts/size-baseline.sh --record 回填，不用本机构建值代替。"
+      "source": "release-asset",
+      "recorded_at": "2026-10-17",
+      "commit": "569acb9",
+      "note": "取自 v0.1.1 真实发布资产 webctl-x86_64-unknown-linux-musl.tar.xz（tag v0.1.1，commit 569acb9）；sha256 校验通过、ldd = statically linked、release-e2e.sh --static PASS 后测得。诚实边界：未在 Alpine/容器里运行（构建机无 Docker）。"
     }
   }
 }

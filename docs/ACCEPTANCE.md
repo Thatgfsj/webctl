@@ -33,7 +33,7 @@
 |---|---|---|
 | **L0 离线** | `cargo test --features offline` | 取回/解析/会话/文档/抽取用例全绿；**不访问外网**（fixture 只绑 127.0.0.1） |
 | **L1 真站 smoke** | `./tests/e2e/run-real.sh` | 可跳过；静态锚点取到 10 条；JS 页 `DEGRADED`。**不作 CI 门禁** |
-| **L2 体积/静态** | `cargo build --release` + `scripts/size-baseline.sh --check`；musl 由 CI `musl-static` 作业验证 | 体积基线记录在案（PKG-05）；musl 静态构建/断言已达成（release 资产待下一次 tag，#90） |
+| **L2 体积/静态** | `cargo build --release` + `scripts/size-baseline.sh --check`；musl 由 CI `musl-static` 作业与**发布资产**双重验证 | 体积基线记录在案（PKG-05，glibc + musl 两条）；musl 静态**已达成**（v0.1.1 资产 + `release-e2e.sh --static` PASS） |
 | **L3 安全负面** | 默认配置下跑安全用例 | 越权/越界/协议滥用全部被拒（SEC-01…15） |
 
 ## 3. 三条验收锚点（PLAN §5.3）
@@ -49,7 +49,7 @@
 - [x] 服务器指令 2222 字节 ≤ 32768（MCP-05）；配置不写 `toolOrder`（MCP-08）
 - [x] Release 资产在**干净环境**可下载即用（PKG-06）：v0.1.0 资产下载 + `sha256sum -c` 校验通过 + `scripts/release-e2e.sh` PASS（见 §7）
 - [x] README 双语；安装命令已改为 **v0.1.0 真实资产**的 URL（不再声明「尚无发布版」）；无虚构徽章（PKG-07）
-- [x] 体积基线已从**真实发布资产**回填（PKG-05）：22,859,144 字节 / 冷启动 p50 5ms（见 `docs/size-baseline.json`）
+- [x] 体积基线已从**v0.1.1 真实发布资产**回填（PKG-05）：glibc **22,867,752** 字节 / p50 6ms；musl 静态 **22,612,520** 字节 / p50 4ms（见 `docs/size-baseline.json`）
 
 ## 5. 硬约束（全仓审计，收尾时各跑一次）
 
@@ -74,7 +74,7 @@
 | extract 的 `links`/`tables`/`forms`/`form_by_index` 未纳入 `max_elapsed_ms` 兜底 | PR #71 复审登记：`links` 只在过滤循环查预算（解析耗时不计入、零链接时循环体不执行）；`tables`/`forms`/`form_by_index` 完全不读取预算 | 建议随 #73（PR 09 会重写 `links`/`structured`）或后续议题一并收口 |
 | `download` / `doc_text` 的 URL 路径仅支持文本类响应 | PR 02 的 `Fetched.content` 不暴露二进制原始字节；二进制返回 `UNSUPPORTED` 降级信封 | 需在 webctl-web 加原始字节接口（PR 11 正文已登记） |
 | 解析/抽取性能 `[~5s, 30s)` 档 | **已由 L4 通道接手**：`scripts/perf-baseline.sh --check`（相对基线 + 5× tolerance，抓**量级级退化**，TESTING §6.11）。诚实边界：**不抓 20% 级抖动**，也不替代单测挂死守卫 | 议题 [#83](https://github.com/Thatgfsj/webctl/issues/83)（本轮落地） |
-| musl 静态目标（PKG-02 / PKG-08） | **构建侧已达成（CI）**：`musl-static` 作业用固定 Bootlin 2026.08-1 工具链构建 `webctl`/`webctl-mcp`，`file=static-pie linked`、`ldd=statically linked`、`readelf -d` 无 NEEDED；v0.1.0 尚无 musl release 资产，体积待真实资产回填 | 议题 [#90](https://github.com/Thatgfsj/webctl/issues/90)：待下一次 tag 产出资产后回填 PKG-05 |
+| musl 静态目标（PKG-02 / PKG-08） | **已达成（v0.1.1）**：发布矩阵产出 `webctl-x86_64-unknown-linux-musl.tar.xz`（22,612,520 字节）与 `webctl-mcp` 同款；下载后 `sha256sum -c` 通过、`ldd` = `statically linked`、`scripts/release-e2e.sh --static` **PASS**。诚实边界：**未在 Alpine/容器里跑**（构建机无 Docker），见 §7 | 议题 [#90](https://github.com/Thatgfsj/webctl/issues/90)（已收口） |
 
 ## 7. 验收记录
 
@@ -116,3 +116,10 @@
   - CI run [39019246132](https://github.com/Thatgfsj/webctl/actions/runs/39019246132)（commit `79545b3`）**musl-static success**：构建 3m53s；两个二进制均 `file=static-pie linked`、`ldd=statically linked`、`readelf -d` 无 NEEDED；`webctl --version` = 0.1.0、`caps --json` 可运行；
   - 本机同工具链实测（Debian 13）：`webctl` 20,492,720 B、`webctl-mcp` 19,395,664 B（未 strip；**不写入体积基线**）；
   - **仍未达成**：v0.1.0 没有 musl release 资产，PKG-05 musl 数字仍为 null；下一次 tag 由维护者执行后回填。
+
+- 2026-10-17（Lead）**v0.1.1 发布 E2E（musl 静态资产首次产出）**：
+  - 打 tag `v0.1.1`（annotated，含发布说明）→ Release 流水线 run `39025412524` **全绿**：plan / build-local-artifacts ×**5**（gnu、**musl**、aarch64-apple、x86_64-apple、windows-msvc）/ build-global-artifacts / host / **announce** 均 success；
+  - Release 已创建：[https://github.com/Thatgfsj/webctl/releases/tag/v0.1.1](https://github.com/Thatgfsj/webctl/releases/tag/v0.1.1)，**26 个资产**（5 个目标 × `webctl`/`webctl-mcp` + 各自 `.sha256`、shell/PowerShell 安装器、源码包与 `sha256.sum`）；
+  - **musl 静态验证（#90 的验收核心）**：下载 `webctl-x86_64-unknown-linux-musl.tar.xz` → `sha256sum -c` **成功** → `file`/`ldd` 报 **statically linked** → `scripts/release-e2e.sh --static` **PASS**（PKG-04 版本 == tag；PKG-06 干净环境 `caps --json`；**PKG-08 静态链接**）；
+  - **体积/冷启动基线回填（真实资产）**：musl **22,612,520** 字节 / p50 **4ms**（static）；glibc **22,867,752** 字节 / p50 6ms（dynamic）——两条 `source` 均为 `release-asset`；
+  - **未做（如实登记）**：**Alpine / 容器干净环境 E2E** —— 构建机无 Docker/podman；静态性的等价证据为 `ldd` + `readelf -d` 无 NEEDED + `env -i` 冒烟。
