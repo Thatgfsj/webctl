@@ -112,7 +112,9 @@
     for (var k in node.attrs) { if (Object.prototype.hasOwnProperty.call(node.attrs, k)) out += " " + k + "=\"" + esc(node.attrs[k]) + "\""; }
     if (VOID[node.tagName]) return out + ">";
     out += ">";
-    for (var i = 0; i < node.children.length; i++) out += serialize(node.children[i]);
+    // RAWTEXT 元素（script/style/textarea/title）的内容按**原文**输出，与浏览器 outerHTML 一致。
+    var raw = RAWTEXT[node.tagName];
+    for (var i = 0; i < node.children.length; i++) out += raw ? String(node.children[i]) : serialize(node.children[i]);
     return out + "</" + node.tagName + ">";
   }
 
