@@ -13,13 +13,13 @@
   `dist generate --check` 可机械确认二者一致（本 PR 已通过，退出码 0）。
 - `.github/workflows/release.yml`：cargo-dist 自动生成。触发条件为 push tag（形如 `**[0-9]+.[0-9]+.[0-9]+*`）或 pull request
   （PR 上只跑 `dist plan`，不发布、不建 release）。
-- `.github/workflows/ci.yml`：**完全未改动**，每 PR 门禁不变。
+- `.github/workflows/ci.yml`：每 PR 三平台门禁 + `musl-static` 作业（固定 Bootlin musl C++ 工具链，构建并断言静态）。
 
 目标平台（`dist-workspace.toml` 的 `targets`）：
 
 | target | 说明 |
 |---|---|
-| `x86_64-unknown-linux-musl` | Linux 静态 —— **暂缓**：BoringSSL(C++) 需要面向 musl 的 libstdc++，而 musl-dev 只带 C 侧（见 [#90](https://github.com/Thatgfsj/webctl/issues/90)） |
+| `x86_64-unknown-linux-musl` | Linux 静态 —— CI 每次 PR 验证；发布矩阵已恢复，待下一次 tag 产出资产（[#90](https://github.com/Thatgfsj/webctl/issues/90)） |
 | `x86_64-unknown-linux-gnu` | Linux glibc 回退 |
 | `aarch64-apple-darwin` / `x86_64-apple-darwin` | macOS（Apple Silicon / Intel） |
 | `x86_64-pc-windows-msvc` | Windows |
@@ -27,13 +27,14 @@
 安装器：`shell` + `powershell`；`install-path = CARGO_HOME`；`install-updater = false`。
 
 `dist plan` 为 CI 计算的构建矩阵：`macos-14`（aarch64-apple）、`macos-15-intel`（x86_64-apple）、`windows-2022`、
-`ubuntu-22.04`（**gnu**；musl 目标已暂缓，见 [#90](https://github.com/Thatgfsj/webctl/issues/90)）。以上均为 2026-10-17 在本机用 cargo-dist 0.33.0 实测输出。
+`ubuntu-22.04`（gnu）、`ubuntu-22.04`（musl）。以上为 2026-10-17 在本机用 cargo-dist 0.33.0 实测输出；musl 作业的
+`packages_install` 仍会装 `musl-tools`，但实际编译器来自 `scripts/install-musl-toolchain.sh`。
 
 ## 2. 发布物（`dist plan` 实测，2026-10-17，`webctl 0.1.0`）
 
 | 资产 | 类型 | 内容 / 目标 |
 |---|---|---|
-| ~~`webctl-x86_64-unknown-linux-musl.tar.xz`~~ | 压缩包 | **暂缓**（见 [#90](https://github.com/Thatgfsj/webctl/issues/90)）；Linux 资产当前为 `webctl-x86_64-unknown-linux-gnu.tar.xz` |
+| `webctl-x86_64-unknown-linux-musl.tar.xz` (+ `.sha256`) | 压缩包 | **待下一次 tag 产出**：CI 已构建并断言静态；v0.1.0 无此资产（[#90](https://github.com/Thatgfsj/webctl/issues/90)） |
 | `webctl-x86_64-unknown-linux-gnu.tar.xz` (+ `.sha256`) | 压缩包 | 同上（glibc） |
 | `webctl-aarch64-apple-darwin.tar.xz` (+ `.sha256`) | 压缩包 | 同上 |
 | `webctl-x86_64-apple-darwin.tar.xz` (+ `.sha256`) | 压缩包 | 同上 |
@@ -87,7 +88,7 @@ git tag -d v0.1.0                    # 删本地 tag
 |---|---|---|
 | PKG-04 版本 | `./webctl --version` | 与 tag 一致（如 `webctl 0.1.0`） |
 | PKG-06 干净环境 | 无 Rust、无浏览器的容器/新用户里跑 `./webctl caps --json` | `ok=true`、退出码 0 |
-| PKG-08 无动态依赖 | `ldd ./webctl` | **未达成**：当前只有 glibc 动态产物；musl 静态见 [#90](https://github.com/Thatgfsj/webctl/issues/90) |
+| PKG-08 无动态依赖 | `ldd ./webctl` | **构建侧已达成（CI）**：`musl-static` 作业断言 `file`/`ldd`/`readelf` 无动态依赖；release 资产待下一次 tag（[#90](https://github.com/Thatgfsj/webctl/issues/90)） |
 | PKG-05 体积 | `scripts/size-baseline.sh --binary ./webctl --target x86_64-unknown-linux-gnu --record` | 回填 glibc 基线 |
 | PKG-07 文档一致 | 对照 README 安装段与本文件 §2 | README 不出现尚不存在的资产或命令 |
 
@@ -95,14 +96,14 @@ git tag -d v0.1.0                    # 删本地 tag
 
 ~~~bash
 scripts/release-e2e.sh ./webctl 0.1.0          # glibc 资产
-# 若将来恢复 musl 静态目标：scripts/release-e2e.sh ./webctl 0.1.0 --static
+# musl 静态资产（下一次 tag 起）：scripts/release-e2e.sh ./webctl 0.1.0 --static
 ~~~
 
 干净环境示例（本机无 Docker 时可用新用户 / `env -i` 模拟；脚本本身不依赖 Rust）：
 
 ~~~bash
 docker run --rm -v "$PWD:/w" -w /w debian:stable-slim ./webctl --version
-#（musl 静态资产恢复后可用 alpine 验证干净环境，见 [#90](https://github.com/Thatgfsj/webctl/issues/90)）
+#（musl 静态资产发布后（下一次 tag）可用 alpine 验证干净环境，见 [#90](https://github.com/Thatgfsj/webctl/issues/90)）
 ~~~
 
 ## 5. Release note 模板
@@ -149,7 +150,7 @@ docker run --rm -v "$PWD:/w" -w /w debian:stable-slim ./webctl --version
 - 脚本：`scripts/size-baseline.sh`；记录：`docs/size-baseline.json`。
 - **本机实测（glibc release，2026-10-17，commit 5f10aa6）**：**7,978,256 字节（约 7.61 MiB）**；
   `--version` 冷启动 p50 实测在 **10–24 ms** 之间波动（每轮 10 次采样；min 9 / max 179 为首次冷缓存），全部 **< 50 ms，CLI-12 本地通过**（基线文件记录 p50 = 24 ms）。
-- **musl 数字：无** —— 该目标暂缓（见 [#90](https://github.com/Thatgfsj/webctl/issues/90)）。
+- **musl 数字：无** —— CI 已能构建静态二进制（run [39019246132](https://github.com/Thatgfsj/webctl/actions/runs/39019246132)），但 v0.1.0 没有 musl release 资产；体积必须等真实资产回填，不以本机构建值代替（见 [#90](https://github.com/Thatgfsj/webctl/issues/90)）。
 - 比较方法（体积超过基线 10% 或冷启动 p50 > 50 ms 时退出码 1）：
 
 ~~~bash
@@ -166,9 +167,9 @@ scripts/size-baseline.sh --binary ./webctl --target x86_64-unknown-linux-gnu --r
 
 | 项 | 状态 | 接手 |
 |---|---|---|
-| musl 静态构建 | **已确认当前工具链不可达**：三次 release 实测——缺 `x86_64-linux-musl-g++` → 链接用宿主 cc → 最后 `openssl/base.h: memory: No such file`（musl-dev 无 C++ 头） | [#90](https://github.com/Thatgfsj/webctl/issues/90) |
+| musl 静态构建 | **CI 已达成**：`musl-static` 作业每次 PR 构建 `webctl`/`webctl-mcp` 并断言静态；发布矩阵已恢复。剩余：待下一次 tag 产出 release 资产 | [#90](https://github.com/Thatgfsj/webctl/issues/90) |
 | 发布 E2E（PKG-04/06/08） | **已执行（2026-10-17）**：下载 + `sha256sum -c` 校验 + `release-e2e.sh` **PASS**，见 ACCEPTANCE §7 | 完成 |
-| PKG-05 musl 体积数字 | 随 musl 目标一并暂缓 | [#90](https://github.com/Thatgfsj/webctl/issues/90) |
+| PKG-05 musl 体积数字 | 待真实 release 资产回填（CI 构建值不写入基线） | [#90](https://github.com/Thatgfsj/webctl/issues/90) |
 | PKG-07 文档-资产一致 | **已完成**：README 安装命令与资产名已按 v0.1.0 真实资产逐项核对 | 完成 |
 | `caps --json` 枚举 15 工具 | 由 PR 11 / 议题 #68 落地；README 已留回填标记 | PR 11 |
 | 代码签名 / macOS 公证 | 未配置（需 Apple Developer 凭据与 Windows 证书） | 后续议题 |

@@ -24,7 +24,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 |---|---|---|
 | **L0** | 离线：fixture HTTP 服务 + 本地文件，**不访问外网** | `cargo test --features offline` |
 | **L1** | 真站 smoke（需要网络，可跳过） | `./tests/e2e/run-real.sh` |
-| **L2** | 基线：发布物体积 | `cargo build --release`（glibc；musl 暂缓，见 [#90](https://github.com/Thatgfsj/webctl/issues/90)） |
+| **L2** | 基线：发布物体积 / 静态性 | `cargo build --release`（glibc）；musl 由 CI `musl-static` 作业构建并用 `file`/`ldd`/`readelf` 断言静态（[#90](https://github.com/Thatgfsj/webctl/issues/90)） |
 | **L3** | 安全负面：在**默认配置**下跑（不加任何放宽开关） | 并入 L0/L1 |
 
 **通用断言（每条用例都隐含，不再逐行重复）**
@@ -339,13 +339,13 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 | ID | 用例 | 期望（可机械判定） | 通道 | 归属 |
 |---|---|---|---|---|
 | PKG-01 | release 构建 | `cargo build --release` 成功 | L2 | PR 14 |
-| PKG-02 | musl 静态 | **暂缓**：`x86_64-unknown-linux-musl` 产物可运行（[#90](https://github.com/Thatgfsj/webctl/issues/90)） | L2 | 后续 |
+| PKG-02 | musl 静态 | **CI 已达成（构建侧）**：`x86_64-unknown-linux-musl` 产物可运行（`--version` / `caps --json`）；release 资产待下一次 tag（[#90](https://github.com/Thatgfsj/webctl/issues/90)） | L2 | PR #95 |
 | PKG-03 | 三平台 | linux/macos/windows 资产齐全 | L2 | PR 14 |
 | PKG-04 | 版本 | `--version` 与 tag 一致 | L2 | PR 14 |
 | PKG-05 | 体积基线 | 不超过 P0 定下的基线 | L2 | PR 14 |
 | PKG-06 | 干净环境 | 无 Rust/无浏览器的干净环境可直接运行 | L2 | PR 14 |
 | PKG-07 | 文档一致 | README 安装命令与实际资产一致（无虚构命令） | L2 | PR 14 |
-| PKG-08 | 无动态依赖 | **暂缓**：当前产物为 glibc 动态链接（[#90](https://github.com/Thatgfsj/webctl/issues/90)） | L2 | 后续 |
+| PKG-08 | 无动态依赖 | **CI 已达成（构建侧）**：musl 产物 `ldd=statically linked`、`readelf -d` 无 NEEDED；v0.1.0 的 glibc 资产仍为动态（[#90](https://github.com/Thatgfsj/webctl/issues/90)） | L2 | PR #95 |
 
 ### 2.17 E2E — 真实站点锚点（7）
 
@@ -395,7 +395,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 | **状态环境工具** | 临时 state dir、权限检查、并发进程编排、文件损坏注入 | STATE-*、SEC-03,12 |
 | **资源观测工具** | fd 计数、RSS 采样、子进程计数、CPU 空闲采样 | RES-*、SEC-10、MCP-14 |
 | **真站 smoke 脚本** | `tests/e2e/run-real.sh`，可跳过、遵守 robots | E2E-* |
-| **体积基线记录** | P0 定下的 release/musl 体积数字 | PKG-05 |
+| **体积基线记录** | P0 定下的 release 体积数字；musl 待真实发布资产回填（CI 构建值不写入） | PKG-05 |
 
 ## 5. 覆盖缺口（不假装能测）
 

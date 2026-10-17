@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "description": "webctl release 二进制体积与 --version 冷启动基线（TESTING PKG-05 / CLI-12）。bytes 为 release 二进制字节数；null 表示待回填；source=deferred 表示该目标暂缓（见 issue #90）；recorded_at 为记录时的本地日期。",
+  "description": "webctl release 二进制体积与 --version 冷启动基线（TESTING PKG-05 / CLI-12）。bytes 为 release 二进制字节数；null 表示待回填；source=deferred 表示该目标暂缓，source=pending-release-asset 表示构建已通过 CI、等待真实发布资产回填（见 issue #90）；recorded_at 为记录时的本地日期。",
   "tolerance_pct": 10,
   "cold_start_limit_ms": 50,
   "entries": {
@@ -17,10 +17,10 @@
       "bytes": null,
       "cold_start_ms_p50": null,
       "linkage": "static",
-      "source": "deferred",
+      "source": "pending-release-asset",
       "recorded_at": null,
-      "commit": null,
-      "note": "目标暂缓：BoringSSL(C++) 需要面向 musl 的 libstdc++，musl-dev 只带 C 侧；三次 release 实测，见 issue #90。恢复后由 scripts/size-baseline.sh --record 回填。"
+      "commit": "79545b3",
+      "note": "构建已通过 CI：musl-static 作业（run 39019246132）用固定 Bootlin 2026.08-1 工具链构建，file/ldd/readelf 断言静态；v0.1.0 无 musl release 资产，bytes 待下一次 tag 的真实资产用 scripts/size-baseline.sh --record 回填，不用本机构建值代替。"
     }
   }
 }
