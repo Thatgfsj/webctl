@@ -1,6 +1,6 @@
 ---
 name: webctl
-description: 纯内置的网页取回/解析/抽取 MCP server（零外部进程、零浏览器）。提供 15 个工具：取回、选择器抽取、页面内搜索、链接/表格/表单、填表、分页、会话、cookie、JSON 查询、文档文本、下载、robots 与能力自检。适用于需要让 agent 读写网页但不应执行 JavaScript 的场景。
+description: 纯内置的网页取回/解析/抽取 MCP server（零外部进程、零外部浏览器）。提供 15 个工具：取回、选择器抽取、页面内搜索、链接/表格/表单、填表、分页、会话、cookie、JSON 查询、文档文本、下载、robots 与能力自检。默认**不执行页面 JavaScript**（保持诚实降级）；可显式开启受限内置 JS 引擎（ADR-0005，默认关闭、带硬限）。
 ---
 
 # webctl SKILL.md

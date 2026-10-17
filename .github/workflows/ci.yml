@@ -230,6 +230,8 @@ jobs:
         run: cargo metadata --locked --format-version 1 > /dev/null && echo "Cargo.lock 与清单一致"
       - name: 构建 webctl（check-skill-tools.sh 需要真实二进制来读 tools/list）
         run: cargo build --locked -p webctl
+      - name: 依赖边界（scripts/check-dependency-boundary.sh，ADR-0005）
+        run: scripts/check-dependency-boundary.sh
       - name: SKILL.md 与工具面一致（scripts/check-skill-tools.sh）
         run: scripts/check-skill-tools.sh
       - name: 行数口径（仅 PR；CONTRIBUTING §2）

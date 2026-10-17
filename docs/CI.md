@@ -79,9 +79,10 @@ cargo test --locked --no-fail-fast
 cargo test --locked --features offline --no-fail-fast
 cargo build --release --locked
 
-# 与 guards 作业等价
+# 与 guards 作业等价（含依赖边界守卫）
 cargo metadata --locked --format-version 1 > /dev/null
 cargo build --locked -p webctl && scripts/check-skill-tools.sh
+scripts/check-dependency-boundary.sh   # ADR-0005：只允许 boa_engine
 ~~~
 
 构建前置（libclang / BoringSSL）见 [CONTRIBUTING.md §4](CONTRIBUTING.md) 的说明。

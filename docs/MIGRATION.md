@@ -3,7 +3,7 @@
 | 项 | 值 |
 |---|---|
 | 旧项目 | [Thatgfsj-easyRep/playwright-crawler-helper](https://github.com/Thatgfsj-easyRep/playwright-crawler-helper)（Python + Playwright，v3.0.0） |
-| 新项目 | webctl（纯 Rust 单二进制，零外部进程、零浏览器） |
+| 新项目 | webctl（纯 Rust 单二进制，零外部进程、零外部浏览器） |
 | 兼容层 | **不提供**（[PLAN §1 非目标](https://github.com/Thatgfsj/webctl/blob/main/docs/PLAN.md)）。本文是唯一的迁移指引 |
 | 依据 | 旧仓源码逐条读取：`ai_crawler.py`（593 行）的 8 个公开函数与其错误码表；webctl v0.4 的 15 个工具与 11 个错误码 |
 

@@ -2,7 +2,7 @@
 //!
 //! PR 01 只建立 crate 骨架；PR 02 落地取回层（`transport` / `encoding` / `content_type`）；
 //! PR 03 落地解析层（`parse`）。
-//! 硬约束：零外部进程、零浏览器（PLAN v0.4 §3.1）。
+//! 硬约束：零外部进程、零外部浏览器（PLAN v0.4 §3.1 / ADR-0001；唯一的进程内 JS 引擎见 ADR-0005）。
 //!
 //! # feature `offline`（议题 #22）
 //!

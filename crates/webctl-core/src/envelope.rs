@@ -12,7 +12,7 @@ use crate::error::ErrorCode;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Engine {
-    /// 进程内实现，零外部进程、零浏览器。
+    /// 进程内实现，零外部进程、零外部浏览器。
     #[default]
     Builtin,
 }

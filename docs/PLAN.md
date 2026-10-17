@@ -4,10 +4,10 @@
 |---|---|
 | 版本 | **草案 v0.4（2026-10-16）** |
 | 前身 | `Thatgfsj-easyRep/playwright-crawler-helper`（Python + Playwright，v4.0） |
-| 形态 | Rust workspace；发布 **2 个二进制**（`webctl` 主 CLI 含 `mcp` 子命令、`webctl-mcp` 独立 MCP 入口）；三平台（Linux 为 glibc 动态链接——musl 静态暂缓，见 [#90](https://github.com/Thatgfsj/webctl/issues/90)）；**零外部进程、零浏览器依赖** |
+| 形态 | Rust workspace；发布 **2 个二进制**（`webctl` 主 CLI 含 `mcp` 子命令、`webctl-mcp` 独立 MCP 入口）；三平台（Linux 为 glibc 动态链接——musl 静态暂缓，见 [#90](https://github.com/Thatgfsj/webctl/issues/90)）；**零外部进程、零外部浏览器依赖** |
 | 依据 | 历史硬数据见 [SURVEY.md](SURVEY.md)；**但 §0 的方向变更已作废其中的 T2/T3 相关结论** |
 | Spike | [wreq 验证报告](spikes/wreq.md)（HTTP 选型已定点） |
-| 决策记录 | [docs/adr/](adr/README.md)：ADR-0001 单层内置 · ADR-0002 不做 JS 引擎 · ADR-0003 选择器取代 ref · ADR-0004 礼貌与限速 |
+| 决策记录 | [docs/adr/](adr/README.md)：ADR-0001 单层内置 · ADR-0002 不做 JS 引擎（**被 ADR-0005 取代**）· ADR-0003 选择器取代 ref · ADR-0004 礼貌与限速 · **ADR-0005 引入受限内置 JS 引擎（0.1.2 起，默认关闭）** |
 | 工具面 | **已定稿**：15 个内置工具（§3.7），无截图、无坐标交互、无 JS 执行 |
 | 规范核实 | 「每 1000 行 PR 需审批」在现有仓库中**无成文依据**（SURVEY §1.2）；本计划把它作为**待写入的新项目规则**执行，措辞已落地在 [CONTRIBUTING.md](../CONTRIBUTING.md) §2 |
 
@@ -37,7 +37,7 @@
 4. **SURVEY 的 CDP 证据退化为历史记录。** §2.2 / §2.3 / §3 / §8 不再指导实现，保留以备将来复查。
 5. **反爬姿态变弱。** 没有真实浏览器指纹，只有 TLS 指纹（wreq）与请求头策略；不承诺绕过 Cloudflare/验证码，遇到即 `BLOCKED`。
 
-**可逆性（保留缝隙，本期不做）**：将来若要 JS 渲染，走**可选内置引擎**（Boa 纯 Rust / rquickjs + 自建最小 DOM/BOM），仍不引入外部进程与外部浏览器。按 capability-seam 纪律，**现在不为它预先拆包**。
+**可逆性（0.1.2 起启用此缝隙）**：JS 渲染走**可选内置引擎**（**已采用 Boa 纯 Rust**，见 [ADR-0005](adr/0005-embedded-js-engine.md)）+ 自建最小 DOM/BOM，**仍不引入外部进程与外部浏览器**（ADR-0001 有效）。引擎**默认关闭**、显式开启、带硬限（指令/时间/内存，无网络无文件）；默认行为与既有降级锚点不变。
 
 ---
 

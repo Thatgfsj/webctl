@@ -46,7 +46,7 @@ crates/
 ```
 
 - 依赖方向单向：`bin → mcp → core`、`bin → web → core`，`core` 不依赖任何上层。
-- **运行时零外部进程、零浏览器**：代码里不得出现子进程调用（`std::process::Command` 等），也不得引入 CDP/WebDriver 依赖。
+- **运行时零外部进程、零外部浏览器**：代码里不得出现子进程调用（`std::process::Command` 等），也不得引入 CDP/WebDriver 依赖；**唯一的例外是进程内 JS 引擎 `boa_engine`**（ADR-0005），且默认关闭、受硬限约束。
 - **不要为了"看起来模块化"新增 crate**：只有 (a) 变更来源或节奏明显不同、且 (b) 依赖方向单向无环时，才拆成独立 crate。
 - 每个 crate 稳定后自带一份 `CONTRIBUTING.md`，声明本模块的边界与验收（照搬 biome / ruff 的组织方式）。
 
