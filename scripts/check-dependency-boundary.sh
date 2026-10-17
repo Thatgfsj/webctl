@@ -30,19 +30,36 @@ else
 fi
 
 # 2b) 归属校验：boa_engine **只允许**被 webctl-js 依赖（ADR-0005 / 议题 #127）。
-#     否则渲染能力会散落各处，安全边界无法审查。
+#
+# 用 `cargo metadata` 的依赖图判定，而不是 grep Cargo.toml：
+# grep 会被 TOML 书写形式（缩进、[dependencies.boa_engine] 子表）与 package 重命名绕过。
 if grep -qx "name = \"boa_engine\"" "$lock"; then
-  offenders=""
-  for manifest in "$root"/crates/*/Cargo.toml; do
-    [ -f "$manifest" ] || continue
-    crate="$(basename "$(dirname "$manifest")")"
-    if grep -q "^boa_engine" "$manifest" && [ "$crate" != "webctl-js" ]; then
-      offenders="$offenders $crate"
-    fi
-  done
-  if [ -n "$offenders" ]; then
-    echo "::error file=Cargo.toml,title=依赖边界::只有 webctl-js 可以依赖 boa_engine，违规：$offenders"
+  if ! command -v cargo >/dev/null 2>&1; then
+    echo "::error file=Cargo.toml,title=依赖边界::需要 cargo 才能校验 boa_engine 归属" 
     fail=1
+  else
+    offenders="$(cargo metadata --locked --no-deps --format-version 1 2>/dev/null | python3 -c '
+import json, sys
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    print("__metadata_failed__")
+    raise SystemExit(0)
+bad = [
+    package["name"]
+    for package in data["packages"]
+    if package["name"] != "webctl-js"
+    and any(dep["name"] == "boa_engine" for dep in package.get("dependencies", []))
+]
+print(" ".join(sorted(bad)))
+')"
+    if [ "$offenders" = "__metadata_failed__" ]; then
+      echo "::error file=Cargo.toml,title=依赖边界::cargo metadata 失败，无法校验 boa_engine 归属"
+      fail=1
+    elif [ -n "$offenders" ]; then
+      echo "::error file=Cargo.toml,title=依赖边界::只有 webctl-js 可以依赖 boa_engine，违规：$offenders"
+      fail=1
+    fi
   fi
 fi
 

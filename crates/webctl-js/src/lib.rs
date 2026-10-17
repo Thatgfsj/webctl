@@ -15,6 +15,10 @@
 //! `boa_engine` 0.20 **没有抢占式中断**（无墙钟/指令数中断 API），只有 loop / recursion / stack 限值。
 //! 因此"任意脚本都在 X 毫秒内结束"**不是**本 crate 的承诺：直线型长脚本只受"脚本字节上限 + 引擎吞吐"约束。
 //! CPU/内存的硬隔离由进程级手段（如 `ulimit`）承担，不由本 crate 冒充。
+//!
+//! **具体一点**：`boa_engine` 0.20 **没有堆内存/GC 上限 API**，因此本 crate **不限制堆分配**——
+//! 实测 `new Uint8Array(256 * 1024 * 1024)` 会成功（约 0.9 s）。真要卡内存，请配合进程级限制
+//! （`ulimit -v` 等），或等 [#130](https://github.com/Thatgfsj/webctl/issues/130) 的宿主侧方案。
 
 use std::rc::Rc;
 use std::time::{Duration, Instant};
