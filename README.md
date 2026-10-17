@@ -2,7 +2,7 @@
 
 # webctl
 
-**给 AI agent 用的网页控制层：纯 Rust 单二进制（Linux / macOS / Windows），零外部进程、零浏览器，内置取回/解析/会话/文档能力，提供 CLI 与 MCP server。**
+**给 AI agent 用的网页控制层：纯 Rust、自包含的二进制（Linux / macOS / Windows），零外部进程、零浏览器，内置取回/解析/会话/文档能力，提供 CLI 与 MCP server。**
 
 [![CI](https://img.shields.io/github/actions/workflow/status/Thatgfsj/webctl/ci.yml?label=CI&style=flat-square)](https://github.com/Thatgfsj/webctl/actions/workflows/ci.yml)
 [![状态](https://img.shields.io/badge/status-pre--release-orange?style=flat-square)](#项目状态)
@@ -11,7 +11,7 @@
 
 [项目状态](#项目状态) · [安装](#安装) · [快速开始](#快速开始) · [能力与现状](#能力与现状) · [English](#english) · [计划](docs/PLAN.md) · [发布流程](docs/RELEASE.md) · [贡献指南](CONTRIBUTING.md) · [议题](https://github.com/Thatgfsj/webctl/issues)
 
-> **尚无可用发布版。** 本仓库还没有任何 tag / release，因此没有可用的下载或安装命令（[诚实安装说明](#安装)）。
+> **v0.1.0 已发布**（[https://github.com/Thatgfsj/webctl/releases/tag/v0.1.0](https://github.com/Thatgfsj/webctl/releases/tag/v0.1.0)）：三平台压缩包 + shell / PowerShell 安装器；Linux 为 glibc 动态链接（musl 静态见议题 [#90](https://github.com/Thatgfsj/webctl/issues/90)）。
 > 首个版本将由 [cargo-dist 发布流水线](docs/RELEASE.md)产出；当前请从源码构建（[快速开始](#快速开始)）。进度见 [PLAN §5.2.1](docs/PLAN.md)。
 
 ---
@@ -27,7 +27,7 @@
 | 形态 | Rust workspace，4 个 crate；发布 **2 个二进制**：`webctl`（主 CLI，含 `mcp` 子命令）与 `webctl-mcp`（独立 MCP server 入口）。三平台；Linux 为 glibc 动态链接 |
 | 接口 | CLI（`caps` / `fetch` / `config` / `cookies` / `mcp`）+ MCP server（`mcp__webctl__*`，15 个工具） |
 | 外部依赖 | **运行时零外部进程、零浏览器**；不调用 `curl`/`jq`/`pdftotext` 等系统命令 |
-| 发布物 | cargo-dist 生成的三平台压缩包 + shell/PowerShell 安装器（[清单](docs/RELEASE.md)）；**当前尚未发布** |
+| 发布物 | cargo-dist 生成的三平台压缩包（`webctl` 与 `webctl-mcp` 各一）+ shell/PowerShell 安装器（[清单](docs/RELEASE.md)）；**v0.1.0 已发布** |
 | 前身 | [playwright-crawler-helper](https://github.com/Thatgfsj-easyRep/playwright-crawler-helper)（Python + Playwright，不再兼容维护） |
 | 许可证 | [MIT](LICENSE) |
 
@@ -65,9 +65,17 @@ v0.4 **取消了外部浏览器与外部 CLI**（[计划 §0](docs/PLAN.md)）�
 
 ## 安装
 
-> ⚠️ **尚无发布版。** 本仓库没有任何 tag / release，所以**现在没有**可用的下载 / 安装命令，README 也不编造这些命令。
-> 首个 release 之后，安装方式将是 cargo-dist 生成的 `webctl-installer.sh`（Linux/macOS）、`webctl-installer.ps1`（Windows）
-> 与三平台压缩包；精确资产名与安装命令见 [docs/RELEASE.md §2](docs/RELEASE.md)。**当前唯一方式是[从源码构建](#快速开始)。**
+**安装命令取自 v0.1.0 的真实资产**（见 [https://github.com/Thatgfsj/webctl/releases/tag/v0.1.0](https://github.com/Thatgfsj/webctl/releases/tag/v0.1.0)、清单见 [docs/RELEASE.md §2](docs/RELEASE.md)）：
+
+~~~bash
+# Linux / macOS（安装 webctl；另有 webctl-mcp-installer.sh）
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/Thatgfsj/webctl/releases/tag/v0.1.0/download/webctl-installer.sh | sh
+
+# Windows PowerShell
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/Thatgfsj/webctl/releases/tag/v0.1.0/download/webctl-installer.ps1 | iex"
+~~~
+
+也可以直接下载平台压缩包（如 `webctl-x86_64-unknown-linux-gnu.tar.xz`）并用其 `.sha256` 校验；本地验证方式见 [docs/RELEASE.md §4](docs/RELEASE.md)。
 
 ## 快速开始
 
@@ -150,7 +158,7 @@ crates/
 
 **webctl is a web-control layer for AI agents** — a single pure-Rust binary with everything built in: no external processes, no browser, no JS engine. It provides an HTTP fetch engine, HTML/JSON/XML/PDF extraction, a protocol-level session engine, and a CLI plus an MCP server.
 
-- **Status:** pre-release. There are no tags or releases yet, so no install command is advertised here. The release pipeline (cargo-dist, Linux/macOS/Windows) is in place — see [docs/RELEASE.md](docs/RELEASE.md); build from source in the meantime.
+- **Status:** **v0.1.0 released** (https://github.com/Thatgfsj/webctl/releases/tag/v0.1.0) for Linux (glibc), macOS (aarch64 / x86_64) and Windows, with shell/PowerShell installers; see [docs/RELEASE.md](docs/RELEASE.md). The musl static target is deferred (issue #90).
 - **Runtime:** zero subprocesses, zero browser, zero JS execution. JS-heavy pages degrade explicitly to `DEGRADED`/`UNSUPPORTED` instead of silently returning "success with 0 results".
 - **Capabilities shipped (PR 03–14 all merged):** fetch (PR 02/08), parsing (PR 03), extraction (PR 06), document/data (PR 07), politeness (PR 08), degradation semantics (PR 09), CLI and config (PR 10), MCP server with 15 tools (PR 11), security hardening (PR 12), packaging (PR 14). The README table above is the source of truth.
 - **Commands available today:** `webctl caps`, `webctl fetch <url>`, `webctl config`, `webctl cookies`, `webctl mcp` (the 15-tool surface).
