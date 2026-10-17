@@ -24,7 +24,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 |---|---|---|
 | **L0** | 离线：fixture HTTP 服务 + 本地文件，**不访问外网** | `cargo test --features offline` |
 | **L1** | 真站 smoke（需要网络，可跳过） | `./tests/e2e/run-real.sh` |
-| **L2** | 基线：发布物体积 | `cargo build --release --target x86_64-unknown-linux-musl` |
+| **L2** | 基线：发布物体积 | `cargo build --release`（glibc；musl 暂缓，见 [#90](https://github.com/Thatgfsj/webctl/issues/90)） |
 | **L3** | 安全负面：在**默认配置**下跑（不加任何放宽开关） | 并入 L0/L1 |
 
 **通用断言（每条用例都隐含，不再逐行重复）**

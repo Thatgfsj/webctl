@@ -17,10 +17,10 @@
       "bytes": null,
       "cold_start_ms_p50": null,
       "linkage": "static",
-      "source": "ci-pending",
+      "source": "deferred",
       "recorded_at": null,
       "commit": null,
-      "note": "待 CI 回填：本机未安装 x86_64-unknown-linux-musl target，首个 release 产物出来后由维护者 --record"
+      "note": "目标暂缓：BoringSSL(C++) 需要面向 musl 的 libstdc++，musl-dev 只带 C 侧；三次 release 实测，见 issue #90。恢复后由 scripts/size-baseline.sh --record 回填。"
     }
   }
 }

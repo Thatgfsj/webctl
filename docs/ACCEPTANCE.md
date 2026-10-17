@@ -33,7 +33,7 @@
 |---|---|---|
 | **L0 离线** | `cargo test --features offline` | 取回/解析/会话/文档/抽取用例全绿；**不访问外网**（fixture 只绑 127.0.0.1） |
 | **L1 真站 smoke** | `./tests/e2e/run-real.sh` | 可跳过；静态锚点取到 10 条；JS 页 `DEGRADED`。**不作 CI 门禁** |
-| **L2 体积/静态** | `cargo build --release --target x86_64-unknown-linux-musl` | musl 静态产物可运行；体积基线记录在案（PKG-05） |
+| **L2 体积/静态** | `cargo build --release` + `scripts/size-baseline.sh --check` | 体积基线记录在案（PKG-05）；**musl 静态暂缓**（[#90](https://github.com/Thatgfsj/webctl/issues/90)） |
 | **L3 安全负面** | 默认配置下跑安全用例 | 越权/越界/协议滥用全部被拒（SEC-01…15） |
 
 ## 3. 三条验收锚点（PLAN §5.3）
@@ -76,6 +76,7 @@
 | MCP 侧 SEC-09 的 `redact_fetched` 接入未做 | PR 12 在 `crates/webctl-mcp/src/lib.rs` 留 TODO；PR 11 自身只对敏感头/cookie 值脱敏 | 建议随 #82 一并补，并加 MCP 侧断言 |
 | `download` / `doc_text` 的 URL 路径仅支持文本类响应 | PR 02 的 `Fetched.content` 不暴露二进制原始字节；二进制返回 `UNSUPPORTED` 降级信封 | 需在 webctl-web 加原始字节接口（PR 11 正文已登记） |
 | 解析/抽取存在性能盲区 `[~5s, 30s)` | #80 把绝对墙钟改成 30s 挂死守卫后该区间无自动门禁（TESTING §1 的 L2 是发布物体积，不含解析性能） | 议题 [#83](https://github.com/Thatgfsj/webctl/issues/83)：建解析/抽取基准 |
+| musl 静态目标（PKG-02 / PKG-08） | **三次 release 实测确认当前工具链不可达**：缺 `x86_64-linux-musl-g++` → 链接用宿主 `cc` → BoringSSL C++ 编译 `fatal error: memory: No such file`（musl-dev 只带 C 侧）；复审另指出 btls-sys 在 unix 无条件链接 `stdc++`，而 musl libc 不提供 `__*_chk` | 议题 [#90](https://github.com/Thatgfsj/webctl/issues/90)：需额外工具链（musl-cross / cargo-zigbuild）或 patch 上游 |
 
 ## 7. 验收记录
 
@@ -103,4 +104,4 @@
   - **工具面**：`webctl mcp --list-tools` → **恰好 15 个**且与 §3.7 逐字同序；`webctl caps --json` → 5 个域 available 且**枚举 15 个工具**；`scripts/check-skill-tools.sh` → 「SKILL.md 与 tools/list 一致（15 个工具）」；
   - **硬约束全仓审计**：`crates/*/src/` 内 `Command::new`/`.spawn(` **0**、unsafe 实质命中 **0**、浏览器/JS 引擎依赖 **0**、错误码 **11** 个；
   - **收口**：DOC-09（#59）与 caps 诚实性（#68）已关闭；state_02/state_03 计时 flake 修复（#85 → #86）。
-  - 尚待：**release E2E**（打 tag → 下载资产 → 干净环境运行）与 musl 体积回填，见 §4。
+  - 尚待：**release E2E**（打 tag → 下载资产 → 干净环境运行），见 §4。

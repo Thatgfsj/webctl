@@ -19,7 +19,7 @@
 
 | target | 说明 |
 |---|---|
-| `x86_64-unknown-linux-musl` | Linux 静态，**首发主推**（PKG-02 / PKG-08） |
+| `x86_64-unknown-linux-musl` | Linux 静态 —— **暂缓**：BoringSSL(C++) 需要面向 musl 的 libstdc++，而 musl-dev 只带 C 侧（见 [#90](https://github.com/Thatgfsj/webctl/issues/90)） |
 | `x86_64-unknown-linux-gnu` | Linux glibc 回退 |
 | `aarch64-apple-darwin` / `x86_64-apple-darwin` | macOS（Apple Silicon / Intel） |
 | `x86_64-pc-windows-msvc` | Windows |
@@ -33,7 +33,7 @@
 
 | 资产 | 类型 | 内容 / 目标 |
 |---|---|---|
-| `webctl-x86_64-unknown-linux-musl.tar.xz` (+ `.sha256`) | 压缩包 | `webctl` + `LICENSE` + `README.md`（静态） |
+| ~~`webctl-x86_64-unknown-linux-musl.tar.xz`~~ | 压缩包 | **暂缓**（见 [#90](https://github.com/Thatgfsj/webctl/issues/90)）；Linux 资产当前为 `webctl-x86_64-unknown-linux-gnu.tar.xz` |
 | `webctl-x86_64-unknown-linux-gnu.tar.xz` (+ `.sha256`) | 压缩包 | 同上（glibc） |
 | `webctl-aarch64-apple-darwin.tar.xz` (+ `.sha256`) | 压缩包 | 同上 |
 | `webctl-x86_64-apple-darwin.tar.xz` (+ `.sha256`) | 压缩包 | 同上 |
@@ -66,7 +66,7 @@ git push origin v0.1.0
 ~~~
 
 6. 观察 **Actions → Release** 流水线：`plan` → `build-local-artifacts` → `build-global-artifacts` → `host` → `announce`。
-7. 按 §4 跑发布 E2E，回填 musl 体积基线（§7）。
+7. 按 §4 跑发布 E2E，并回填体积基线（§7）。
 8. 失败时回滚后重来：
 
 ~~~bash
@@ -85,22 +85,22 @@ git tag -d v0.1.0                    # 删本地 tag
 |---|---|---|
 | PKG-04 版本 | `./webctl --version` | 与 tag 一致（如 `webctl 0.1.0`） |
 | PKG-06 干净环境 | 无 Rust、无浏览器的容器/新用户里跑 `./webctl caps --json` | `ok=true`、退出码 0 |
-| PKG-08 无动态依赖 | `ldd ./webctl`（musl 资产） | `not a dynamic executable` 或 `statically linked` |
-| PKG-05 体积 | `scripts/size-baseline.sh --binary ./webctl --target x86_64-unknown-linux-musl --record` | 回填 musl 基线 |
+| PKG-08 无动态依赖 | `ldd ./webctl` | **未达成**：当前只有 glibc 动态产物；musl 静态见 [#90](https://github.com/Thatgfsj/webctl/issues/90) |
+| PKG-05 体积 | `scripts/size-baseline.sh --binary ./webctl --target x86_64-unknown-linux-gnu --record` | 回填 glibc 基线 |
 | PKG-07 文档一致 | 对照 README 安装段与本文件 §2 | README 不出现尚不存在的资产或命令 |
 
 一键脚本（本地即可跑，自动覆盖 PKG-04/06/08）：
 
 ~~~bash
 scripts/release-e2e.sh ./webctl 0.1.0          # glibc 资产
-scripts/release-e2e.sh ./webctl 0.1.0 --static # musl 资产（要求静态）
+# 若将来恢复 musl 静态目标：scripts/release-e2e.sh ./webctl 0.1.0 --static
 ~~~
 
 干净环境示例（本机无 Docker 时可用新用户 / `env -i` 模拟；脚本本身不依赖 Rust）：
 
 ~~~bash
 docker run --rm -v "$PWD:/w" -w /w debian:stable-slim ./webctl --version
-docker run --rm -v "$PWD:/w" -w /w alpine:latest ./webctl caps --json   # musl 静态资产
+#（musl 静态资产恢复后可用 alpine 验证干净环境，见 [#90](https://github.com/Thatgfsj/webctl/issues/90)）
 ~~~
 
 ## 5. Release note 模板
@@ -147,7 +147,7 @@ docker run --rm -v "$PWD:/w" -w /w alpine:latest ./webctl caps --json   # musl �
 - 脚本：`scripts/size-baseline.sh`；记录：`docs/size-baseline.json`。
 - **本机实测（glibc release，2026-10-17，commit 5f10aa6）**：**7,978,256 字节（约 7.61 MiB）**；
   `--version` 冷启动 p50 实测在 **10–24 ms** 之间波动（每轮 10 次采样；min 9 / max 179 为首次冷缓存），全部 **< 50 ms，CLI-12 本地通过**（基线文件记录 p50 = 24 ms）。
-- **musl 数字：待 CI 回填**（本机未安装 `x86_64-unknown-linux-musl` target，主体验证只能在 CI）。
+- **musl 数字：无** —— 该目标暂缓（见 [#90](https://github.com/Thatgfsj/webctl/issues/90)）。
 - 比较方法（体积超过基线 10% 或冷启动 p50 > 50 ms 时退出码 1）：
 
 ~~~bash
@@ -157,16 +157,16 @@ scripts/size-baseline.sh --binary ./webctl --target x86_64-unknown-linux-gnu --c
 - 回填方法（重写 bytes / cold_start_ms_p50 / linkage / recorded_at / commit）：
 
 ~~~bash
-scripts/size-baseline.sh --binary ./webctl --target x86_64-unknown-linux-musl --record
+scripts/size-baseline.sh --binary ./webctl --target x86_64-unknown-linux-gnu --record
 ~~~
 
 ## 8. 交接点与未做项（不假装完成）
 
 | 项 | 状态 | 接手 |
 |---|---|---|
-| musl 静态构建 | **未在本地验证**：本机无 `x86_64-unknown-linux-musl` target，主体只能在 CI 验证 | 首个 release 的 CI |
+| musl 静态构建 | **已确认当前工具链不可达**：三次 release 实测——缺 `x86_64-linux-musl-g++` → 链接用宿主 cc → 最后 `openssl/base.h: memory: No such file`（musl-dev 无 C++ 头） | [#90](https://github.com/Thatgfsj/webctl/issues/90) |
 | 发布 E2E（PKG-04/06/08） | **未执行**：无 tag（本 PR 明确不打 tag） | 维护者 |
-| PKG-05 musl 体积数字 | **待 CI 回填** | 维护者 |
+| PKG-05 musl 体积数字 | 随 musl 目标一并暂缓 | [#90](https://github.com/Thatgfsj/webctl/issues/90) |
 | PKG-07 文档-资产一致 | README 已按"尚无发布版"如实写；资产清单待首个 release 核对 | 维护者 |
 | `caps --json` 枚举 15 工具 | 由 PR 11 / 议题 #68 落地；README 已留回填标记 | PR 11 |
 | 代码签名 / macOS 公证 | 未配置（需 Apple Developer 凭据与 Windows 证书） | 后续议题 |

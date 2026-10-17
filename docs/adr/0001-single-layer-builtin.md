@@ -26,7 +26,7 @@ v0.3 的设计是四层能力阶梯：T0 内置解析、T1 协议级会话引擎
 
 ## 后果
 
-**得到**：分发为单个静态二进制；无浏览器依赖；无进程边界；能力矩阵不随机器的 PATH 变化；冷启动数量级更快；测试可以完全离线。
+**得到**：分发为单个二进制；无浏览器依赖；无进程边界；能力矩阵不随机器的 PATH 变化；冷启动数量级更快；测试可以完全离线。
 
 **失去（必须一直写在 PLAN §0，不许悄悄消失）**：
 
@@ -43,3 +43,6 @@ v0.3 的设计是四层能力阶梯：T0 内置解析、T1 协议级会话引擎
 - [SURVEY §2.1](https://github.com/Thatgfsj/webctl/blob/main/docs/SURVEY.md)：本机 CLI 可用性（tesseract / pandoc 缺失）。
 - [PLAN §0 方向变更与代价清单](https://github.com/Thatgfsj/webctl/blob/main/docs/PLAN.md)。
 - `probes/cdp/`：v0.3 时代的探针脚本，保留为可复查的历史证据。
+
+> **现状注记（2026-10-17）**：本条「静态」一项在 Linux 上**尚未成立** —— BoringSSL(btls-sys) 的 C++ 源需要面向 musl 的 libstdc++，而 Debian/Ubuntu 的 `musl-dev` 只提供 C 侧；三次真实 release 均失败（见 [#90](https://github.com/Thatgfsj/webctl/issues/90)）。
+> 当前 Linux 发布物为 glibc 动态链接；决策本身（单层内置、无进程边界）未变，仅分发包形态受限。
