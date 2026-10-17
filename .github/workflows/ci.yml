@@ -70,6 +70,18 @@ jobs:
           echo "::warning file=$P,line=727,col=5,title=T5 warning::msg5 warning 级"
           echo "::notice file=$P,line=727,col=5,title=T6 notice::msg6 notice 级"
           echo "::error file=src/nonexistent.rs,line=9999,col=1,title=T7 路径不存在::msg7 路径不存在"
+          # 8) 让"报告器自己"发一条（模拟 test 作业里的调用路径）
+          cat > "$RUNNER_TEMP/exp.log" <<'EOF'
+running 1 test
+test probe_case ... FAILED
+thread 'probe::case' panicked at crates/webctl-web/tests/parse.rs:727:5:
+planted
+test result: FAILED. 0 passed; 1 failed; 0 ignored
+EOF
+          scripts/ci-report.sh --lane "exp-reporter" --log "$RUNNER_TEMP/exp.log"
+          # 9) 同上，但这一步随后以非零退出（模拟 test 作业的失败步）
+          echo "::error file=crates/webctl-web/tests/parse.rs,line=728,col=1,title=T9 失败步里的注解::msg9 失败步"
+          echo "step9 之后不退出（这是静态作业，保持成功）"
       - name: 判断是否需要校验 cargo-dist 生成物
         id: dist-need
         shell: bash
