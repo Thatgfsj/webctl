@@ -512,6 +512,7 @@ PR 11 留下的 `#[ignore]` 交接哨兵及其常量已随 #82 删除；`cargo t
 议题 #68（caps 诚实性）：`crates/webctl-core/src/caps.rs` 新增 `missing_tools_never_report_interface_available`、`unavailable_tools_do_not_light_up_interface`、`registered_tools_light_up_interface`；`webctl caps --json` 现枚举 §3.7 的 15 个工具并逐项给 state/reason，`interface` 只在工具真注册且可用时 available。
 
 服务 ENV-06、STATE-06、MCP-01…14、SEC-09。
+| MCP-SEC09-ISO | MCP 侧脱敏接入的**隔离**用例：手工构造仍含明文凭据的 `Fetched`，**只**调 `dispatch::redact_fetched_envelope`，断言明文消失且非敏感头保留 | `crates/webctl-mcp/src/dispatch.rs`（`sec_09_mcp_dispatcher_is_the_one_that_redacts`） | 删掉该函数里的 `redact_fetched` 调用则**必须失败**（反向对照已实测） |
 
 ### 6.10 PR 12 安全与凭据（议题 #21）
 

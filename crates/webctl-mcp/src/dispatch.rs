@@ -724,3 +724,80 @@ async fn tool_caps(ctx: &McpContext, args: &Value) -> Value {
     let report = CapsReport::detect_with(&ctx.config, tools);
     to_value(Envelope::ok(report, Trust::TrustedLocal, 0))
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use webctl_web::content_type::ContentKind;
+    use webctl_web::transport::{Body, Fetched, RedirectHop};
+
+    const SECRET: &str = "SUPER_SECRET_TOKEN";
+
+    /// 手工构造**仍含明文凭据**的 `Fetched`。
+    ///
+    /// 刻意**不经过** `webctl_web::transport::finish`（那里也会脱敏）——
+    /// 否则本用例就会退化成"系统整体会脱敏"，证明不了 MCP 侧这次接入是否还有效。
+    fn plaintext_fetched() -> Fetched {
+        Fetched {
+            status: 200,
+            version: "http/1.1".to_owned(),
+            final_url: format!("https://example.test/z?access_token={SECRET}&user=bob"),
+            headers: vec![
+                ("set-cookie".to_owned(), format!("sid={SECRET}; Path=/")),
+                ("authorization".to_owned(), format!("Bearer {SECRET}")),
+                ("content-type".to_owned(), "text/html".to_owned()),
+            ],
+            redirects: vec![RedirectHop {
+                url: format!("https://example.test/a?token={SECRET}"),
+                status: 302,
+                location: format!("https://example.test/z?access_token={SECRET}"),
+            }],
+            content: Body {
+                kind: ContentKind::Text,
+                content_type: Some("text/html".to_owned()),
+                byte_len: 0,
+                declared_len: Some(0),
+                truncated: false,
+                text: Some("ok".to_owned()),
+                charset: Some("UTF-8".to_owned()),
+                charset_source: None,
+                decode_had_errors: false,
+            },
+            elapsed_ms: 1,
+        }
+    }
+
+    /// SEC-09 **隔离用例**：直接打 MCP 侧的接入点，不经过取回层。
+    ///
+    /// 反向对照（复核者必做）：把 `redact_fetched_envelope` 里的
+    /// `webctl_web::redact::redact_fetched(data)` 删掉，本用例**必须失败**。
+    /// 若它仍然通过，说明用例没有隔离住 MCP 侧接入。
+    #[test]
+    fn sec_09_mcp_dispatcher_is_the_one_that_redacts() {
+        // 1) 先证明夹具里**确实**有明文（否则整条用例是空转）。
+        let raw = plaintext_fetched();
+        let raw_json = serde_json::to_string(&raw).expect("serialize raw");
+        assert!(
+            raw_json.contains(SECRET),
+            "夹具构造有误：未脱敏数据里本应出现明文 SECRET"
+        );
+
+        // 2) 只调用 MCP 侧的接入点。
+        let mut envelope = Envelope::ok(raw, Trust::UntrustedPageContent, 0);
+        redact_fetched_envelope(&mut envelope);
+        let data = envelope.data.expect("data");
+        let json = serde_json::to_string(&data).expect("serialize redacted");
+
+        // 3) 明文必须消失，而**非敏感头必须原样保留**（证明是定向脱敏，不是整段抹掉）。
+        assert!(
+            !json.contains(SECRET),
+            "MCP 侧脱敏未生效，仍可见明文：{json}"
+        );
+        assert!(
+            data.headers
+                .iter()
+                .any(|(name, value)| name == "content-type" && value == "text/html"),
+            "非敏感头必须保持原样"
+        );
+        assert_eq!(envelope.meta.trust, Trust::UntrustedPageContent);
+    }
+}
