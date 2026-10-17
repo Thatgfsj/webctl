@@ -37,7 +37,17 @@ norm() {
   p="${p//\\//}"
   p="${p#./}"
   case "$p" in
-    *"$REPO_NAME"/*) p="${p##*"$REPO_NAME"/}" ;;   # ## 最长匹配才能剥掉嵌套的仓库名
+    # 主路径：锚定在 crates/ 上，**与检出目录叫什么无关**（夹具/CI 都不会因为目录名而误判）
+    */crates/*) p="crates/${p##*/crates/}" ;;
+    *)
+      top="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+      top="${top//\\//}"
+      if [ -n "$top" ] && [ "$p" != "${p#"$top"/}" ]; then
+        p="${p#"$top"/}"
+      else
+        case "$p" in *"$REPO_NAME"/*) p="${p##*"$REPO_NAME"/}" ;; esac
+      fi
+      ;;
   esac
   printf '%s' "$p"
 }
@@ -194,6 +204,8 @@ EOF
     esac
   }
 
+  # 关键：显式用一个**不叫 webctl** 的工作区，证明定位与检出目录名无关
+  WS=/tmp/definitely-not-webctl
   out="$(report "$tmp/clippy.log" clippy)"
   expect "clippy 定位到 file:line:col" "$out" "file=crates/webctl-web/src/parse.rs,line=42,col=9"
   expect "clippy 错误码带出" "$out" "E0308"
@@ -206,6 +218,10 @@ EOF
 
   out="$(report "$tmp/clean.log" test)"
   reject "干净日志零误报" "$out" "::error"
+
+  WS=/tmp/another-name-entirely
+  out="$(report "$tmp/test.log" test)"
+  expect "定位与检出目录名解耦（换工作区名仍正确）" "$out" "file=crates/webctl-mcp/src/dispatch.rs,line=791,col=9"
 
   sed 's/791:9/999:1/' "$tmp/test.log" > "$tmp/test2.log"
   out="$(report "$tmp/test2.log" test)"

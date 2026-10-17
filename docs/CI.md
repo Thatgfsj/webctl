@@ -8,8 +8,8 @@
 | 作业名（GitHub 上就是这个字符串） | 平台 | 覆盖什么 | 超时 | 为什么单独一个作业 |
 |---|---|---|---|---|
 | `static · fmt / scripts / config` | ubuntu | 格式、`scripts/*.sh` 语法、**报错定位器自检**、cargo-dist 生成物一致性 | 20 min | 最便宜的错误最先挡住；不需要编译 |
-| `clippy (ubuntu-latest` / macos / windows)` | 三平台 | `clippy --all-targets -D warnings`（默认 + offline 两条通道） | 40 min | 不同平台的 cfg / 依赖解析差异只有矩阵能暴露 |
-| `test (ubuntu-latest` / macos / windows)` | 三平台 | **默认门禁 + L0 离线通道 + release 构建**；忽略测试零容忍；工作区洁净 | 60 min | 主体（工具/套件测试都在这里） |
+| `clippy (ubuntu-latest / macos / windows)` | 三平台 | `clippy --all-targets -D warnings`（默认 + offline 两条通道） | 40 min | 不同平台的 cfg / 依赖解析差异只有矩阵能暴露 |
+| `test (ubuntu-latest / macos / windows)` | 三平台 | **默认门禁 + L0 离线通道 + release 构建**；忽略测试零容忍；工作区洁净 | 60 min | 主体（工具/套件测试都在这里） |
 | `guards · 锁文件 / 工具面 / 行数口径` | ubuntu | `cargo metadata --locked`、SKILL.md ↔ tools/list 一致、PR 行数口径 | 20 min | 与"能不能编译"正交的合并安全项 |
 | `musl-static (x86_64-unknown-linux-musl)` | ubuntu | Bootlin 工具链构建 + `file`/`ldd`/`readelf` 静态断言 | 60 min | 议题 [#90](https://github.com/Thatgfsj/webctl/issues/90) |
 
@@ -45,8 +45,8 @@
 - **`concurrency` 取消同 ref 的旧运行**：避免"旧的绿掩盖新的红"；
 - **最小权限**：workflow 级 `contents: read`，只有 `guards` 额外要 `pull-requests: read`；
 - **每个作业都有 `timeout-minutes`**：挂死不会占满 runner；
-- **忽略测试零容忍**：出现 `#[ignore]` 即红，并逐条给出 `file`/[line]` 注解；
-- **测试后工作区必须洁净**：`git status --porcelain` 非空即红（防止测试往仓库里写文件）；
+- **忽略测试零容忍**：出现 `#[ignore]` 即红，并逐条给出 `file:line` 注解；
+- **测试后工作区必须洁净**：与**跑测试前记录的状态做对比**，只判"测试过程新增"的未跟踪/被修改文件（不要求绝对为空——否则 Windows 上可能因换行符设置产生假脏）；
 - **生成物不许漂移**：触及 `dist-workspace.toml` / `.github/build-setup.yml` / `.github/workflows/release.yml` 时跑 `cargo dist generate --mode ci --check`；
 - **分支保护**：`main` 上把下面这些检查设为必需（见 §5）。
 

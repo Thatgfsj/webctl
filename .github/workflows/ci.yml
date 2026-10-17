@@ -281,6 +281,7 @@ jobs:
       - name: Build webctl + webctl-mcp (musl, release)
         shell: bash
         run: |
+          set +e   # GitHub 的 shell 是 bash -eo pipefail：不关掉 errexit，下面三行根本跑不到
           cargo build --release --locked --target x86_64-unknown-linux-musl -p webctl -p webctl-mcp 2>&1 | tee "$RUNNER_TEMP/musl-build.log"
           rc=$?
           scripts/ci-report.sh --lane "musl build" --log "$RUNNER_TEMP/musl-build.log"
