@@ -81,35 +81,20 @@ fn offline_guard(ctx: &McpContext) -> Option<Value> {
         .then(|| fail(ErrorCode::Blocked, "offline 模式已启用：拒绝任何网络访问"))
 }
 
-/// 显式交接点：JS 降级传播（DEGRADE-*）由 PR 09 交付。
+/// SEC-09：把 PR 12 的脱敏入口显式接到 MCP 自己拿到的取回结果上。
 ///
-/// PR 11 **只**保证 MCP 协议面与信封语义。页面是否为 JS 依赖、以及 DEGRADED 如何
-/// 从取回层传播到 MCP 结果，必须在 PR 09 合并后接上；现在不假装已覆盖。
-pub const DEGRADE_HANDOFF_PENDING_PR09: &str = "js-render/degrade-propagation-pending-pr09";
-
-const SENSITIVE_HEADERS: [&str; 4] = [
-    "set-cookie",
-    "cookie",
-    "authorization",
-    "proxy-authorization",
-];
-
-fn redact_fetch_headers(envelope: &mut Envelope<Fetched>) {
+/// 取回层（`transport::finish`）本身已调用 `redact_fetched`；这里再显式接一次，
+/// 让 **MCP 自己**对任何进入信封 / 序列化 / 落盘的 `Fetched` 负责，而不是依赖
+/// 「上游记得脱敏」。脱敏幂等：重复调用只是把占位符再脱敏一次。
+fn redact_fetched_envelope(envelope: &mut Envelope<Fetched>) {
     if let Some(data) = &mut envelope.data {
-        for (name, value) in &mut data.headers {
-            if SENSITIVE_HEADERS
-                .iter()
-                .any(|header| name.eq_ignore_ascii_case(header))
-            {
-                *value = "<redacted>".to_owned();
-            }
-        }
+        webctl_web::redact::redact_fetched(data);
     }
 }
 
 async fn fetch_target(ctx: &McpContext, url: &str) -> Envelope<Fetched> {
     let mut envelope = fetch(url, &ctx.fetch_options()).await;
-    redact_fetch_headers(&mut envelope);
+    redact_fetched_envelope(&mut envelope);
     envelope
 }
 
@@ -169,7 +154,7 @@ async fn tool_fetch(ctx: &McpContext, args: &Value) -> Value {
         options.timeout = Duration::from_millis(timeout_ms.max(1));
     }
     let mut envelope = fetch(&params.url, &options).await;
-    redact_fetch_headers(&mut envelope);
+    redact_fetched_envelope(&mut envelope);
     to_value(envelope)
 }
 

@@ -10,14 +10,14 @@
 //! 依赖方向：本 crate 依赖 core 与 web；core 不反向依赖本 crate。
 //! 运行期零子进程：rmcp 只启用 server + stdio 传输，不引入任何子进程能力。
 //!
-//! # PR 12 → PR 11 交接点（SEC-09 脱敏）—— 仍未完成，后续 PR 补齐
+//! # SEC-09（MCP 侧脱敏与信任标记）—— 已接入
 //!
-//! PR 12 提供 `webctl_core::security::redact` / `webctl_web::redact` 原语，并声明
-//! SEC-09 的 MCP 侧接入（对工具结果调用 `webctl_web::redact::redact_fetched`，
-//! 在序列化/内联/落盘前对 cookie 值、`Authorization`、URL query token、表单密码字段脱敏）
-//! 归 PR 11。本 PR 的信封路径已对敏感响应头与 cookie 值做脱敏
-//! （见 `dispatch::redact_fetch_headers`、`mask_state`、`write_cookie_export`），
-//! 但**未**改接 PR 12 的 `redact_fetched`，也不宣称该交接点已完成。
+//! 页面/网络内容一律 `trust = untrusted_page_content`；只有 caps 这种本地自检
+//! 数据用 `trusted_local`。取回结果在进入信封 / 序列化 / 落盘前经
+//! `webctl_web::redact::redact_fetched` 脱敏（cookie 值、`Authorization`、
+//! URL query token、重定向链）。取回层（`transport::finish`）与本层
+//! （`dispatch::redact_fetched_envelope`）各显式接一次；会话状态与 cookie 导出
+//! 另有 `dispatch::mask_state` / `write_cookie_export`。
 
 pub mod caps;
 pub mod context;

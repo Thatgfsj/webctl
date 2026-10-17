@@ -2435,6 +2435,7 @@ dependencies = [
 name = "webctl-mcp"
 version = "0.1.0"
 dependencies = [
+ "encoding_rs",
  "rmcp",
  "schemars",
  "serde",

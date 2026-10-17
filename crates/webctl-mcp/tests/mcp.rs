@@ -6,6 +6,8 @@
 //!
 //! 硬约束：只访问本地文件与回环地址；运行期零子进程（仅测试夹具启动本仓二进制）。
 
+#[path = "../../webctl-web/tests/support/http_fixture.rs"]
+mod http_fixture;
 #[path = "../../webctl-web/tests/support/resources.rs"]
 mod resources;
 
@@ -17,6 +19,14 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use serde_json::{Value, json};
 use webctl_core::Config;
 use webctl_mcp::{McpContext, TOOL_NAMES, WebctlMcp, qualified_name};
+
+/// PR 09 的判据样本：JS 壳（内容只在内联脚本里）与静态对照页（正文充分）。
+///
+/// 直接复用 webctl-web 的 fixture，避免 MCP 侧出现第二套判定样本。
+const JS_SHELL: &str =
+    include_str!("../../webctl-web/tests/fixtures/degrade/js_data_script_shell.html");
+const STATIC_QUOTES: &str =
+    include_str!("../../webctl-web/tests/fixtures/degrade/static_quotes_10.html");
 
 fn temp_dir(tag: &str) -> PathBuf {
     let nanos = SystemTime::now()
@@ -457,16 +467,225 @@ fn all_tools_are_dispatchable() {
     assert!(!webctl_mcp::dispatch::is_known_tool("screenshot"));
 }
 
-/// DEGRADE-*（显式交接点）：JS 页的降级传播归 PR 09，PR 11 不假装已覆盖。
-///
-/// 依赖：PR 09（SPA/JS 降级语义）尚未合并。合并后在此断言「JS 页的 MCP 结果必须是
-/// DEGRADED 且 meta.degraded_from 非空」，并移除本 #[ignore]。
-#[test]
-#[ignore = "pending PR 09：JS 降级传播（DEGRADE-*）尚未落地，无真实调用点可断言"]
-fn mcp_js_degradation_pending_pr09() {
-    assert!(
-        !webctl_mcp::dispatch::DEGRADE_HANDOFF_PENDING_PR09.is_empty(),
-        "交接点常量必须存在"
+/// 进程内调用一次 MCP 工具（未知工具名直接 panic）。
+async fn invoke(mcp: &WebctlMcp, name: &str, args: Value) -> Value {
+    mcp.invoke(name, args)
+        .await
+        .unwrap_or_else(|| panic!("工具 {name} 未注册"))
+}
+
+/// 信封 code 的字符串形式。
+fn code_of(envelope: &Value) -> &str {
+    envelope["code"].as_str().unwrap_or("<missing>")
+}
+
+/// 信封 code 的 JSON 形式（与 [`code_of`] 对齐比较）。
+fn code_value(code: webctl_core::ErrorCode) -> Value {
+    serde_json::to_value(code).expect("code")
+}
+
+/// 断言信封是「显式降级」：ok=true（data 仍可用）+ code 非 OK + degraded_from 非空。
+fn assert_degraded(envelope: &Value, context: &str) {
+    assert_eq!(
+        envelope["ok"], true,
+        "{context}: 降级不是失败，data 仍须可用：{envelope}"
     );
-    panic!("DEGRADE-* 尚未实现：PR 09 合并后在此断言 MCP 结果的 DEGRADED 传播");
+    assert_ne!(
+        code_of(envelope),
+        "OK",
+        "{context}: 禁止「成功但 0 条」：{envelope}"
+    );
+    assert!(
+        envelope["meta"]["degraded_from"]
+            .as_str()
+            .is_some_and(|from| !from.is_empty()),
+        "{context}: meta.degraded_from 必须非空：{envelope}"
+    );
+}
+
+/// DEGRADE-* / #82 转正：JS 页在 MCP 路径必须传播降级，静态页零命中仍是 OK 空数组。
+///
+/// 本用例是原 `mcp_js_degradation_pending_pr09`（#[ignore] panic 哨兵）转正后的真实验收：
+/// - fetch：原始 HTML 在 data 里，但 code 非 OK、degraded_from 非空；
+/// - extract：零命中不是「成功但 0 条」，而是 DEGRADED/UNSUPPORTED；
+/// - paginate：SPA 分页继承库层守卫，不得被吞成 OK；
+/// - 静态对照页零命中：ok=true + code=OK + 空数组（EXTRACT-06 不被误伤）。
+#[tokio::test]
+async fn mcp_js_degradation_propagates() {
+    let server = http_fixture::Server::start_with(vec![
+        ("/js", http_fixture::Response::html(JS_SHELL)),
+        ("/static", http_fixture::Response::html(STATIC_QUOTES)),
+    ])
+    .await;
+    let mcp = WebctlMcp::new(in_process_context("deg-propagate"));
+
+    let fetched = invoke(&mcp, "fetch", json!({"url": server.url("/js")})).await;
+    assert_degraded(&fetched, "fetch /js");
+    assert_eq!(fetched["meta"]["trust"], "untrusted_page_content");
+
+    let extracted = invoke(
+        &mcp,
+        "extract",
+        json!({"url": server.url("/js"), "selector": "div.quote"}),
+    )
+    .await;
+    assert_degraded(&extracted, "extract /js");
+    assert!(
+        extracted["data"]["matches"]
+            .as_array()
+            .expect("matches")
+            .is_empty(),
+        "不得编造命中：{extracted}"
+    );
+
+    let paginated = invoke(
+        &mcp,
+        "paginate",
+        json!({"url": server.url("/js"), "max_pages": 2}),
+    )
+    .await;
+    assert_degraded(&paginated, "paginate /js");
+
+    let static_zero = invoke(
+        &mcp,
+        "extract",
+        json!({"url": server.url("/static"), "selector": "div.never-matches"}),
+    )
+    .await;
+    assert_eq!(static_zero["ok"], true, "{static_zero}");
+    assert_eq!(code_of(&static_zero), "OK", "{static_zero}");
+    assert!(
+        static_zero["meta"]["degraded_from"].is_null(),
+        "{static_zero}"
+    );
+    assert!(
+        static_zero["data"]["matches"]
+            .as_array()
+            .expect("matches")
+            .is_empty(),
+        "{static_zero}"
+    );
+}
+
+/// #82：所有返回页面内容的 MCP 路径都遵守 PR 09——JS 页零结果不允许 OK。
+#[tokio::test]
+async fn mcp_deg_search_and_listing_paths_follow_pr09() {
+    let server = http_fixture::Server::start_with(vec![
+        ("/js", http_fixture::Response::html(JS_SHELL)),
+        ("/static", http_fixture::Response::html(STATIC_QUOTES)),
+    ])
+    .await;
+    let mcp = WebctlMcp::new(in_process_context("deg-paths"));
+
+    for (tool, args) in [
+        (
+            "search",
+            json!({"url": server.url("/js"), "query": "no-such-needle"}),
+        ),
+        (
+            "links",
+            json!({"url": server.url("/js"), "domains": ["never.example"]}),
+        ),
+        ("tables", json!({"url": server.url("/js")})),
+        ("forms", json!({"url": server.url("/js")})),
+    ] {
+        let envelope = invoke(&mcp, tool, args).await;
+        assert_degraded(&envelope, tool);
+    }
+
+    // 静态页 search 零命中：合法空结果，仍是 OK。
+    let static_zero = invoke(
+        &mcp,
+        "search",
+        json!({"url": server.url("/static"), "query": "no-such-needle"}),
+    )
+    .await;
+    assert_eq!(static_zero["ok"], true, "{static_zero}");
+    assert_eq!(code_of(&static_zero), "OK", "{static_zero}");
+    assert!(
+        static_zero["data"]["matches"]
+            .as_array()
+            .expect("matches")
+            .is_empty(),
+        "{static_zero}"
+    );
+}
+
+/// #82：同一输入下 MCP 路径与库路径的 `code` 必须一致（不得各自为政）。
+#[tokio::test]
+async fn mcp_deg_code_matches_library_on_same_input() {
+    let server = http_fixture::Server::start_with(vec![
+        ("/js", http_fixture::Response::html(JS_SHELL)),
+        ("/static", http_fixture::Response::html(STATIC_QUOTES)),
+    ])
+    .await;
+    let mcp = WebctlMcp::new(in_process_context("deg-consistency"));
+    let fetch_options = webctl_web::transport::FetchOptions::default();
+    let extract_options = webctl_web::extract::ExtractOptions::default();
+    let search_options = webctl_web::extract::SearchOptions::default();
+    let selector = "div.quote";
+    let query = "no-such-needle";
+
+    for path in ["/js", "/static"] {
+        let url = server.url(path);
+
+        let mcp_fetch = invoke(&mcp, "fetch", json!({"url": url})).await;
+        let library_fetch = webctl_web::transport::fetch(&url, &fetch_options).await;
+        assert_eq!(
+            mcp_fetch["code"],
+            code_value(library_fetch.code),
+            "fetch {path}: MCP 与库必须同码"
+        );
+        let text = library_fetch
+            .data
+            .expect("库取回 data")
+            .content
+            .text
+            .expect("HTML 文本");
+
+        let mcp_extract = invoke(&mcp, "extract", json!({"url": url, "selector": selector})).await;
+        let library_extract =
+            webctl_web::extract::select_matches(&text, selector, &extract_options);
+        assert_eq!(
+            mcp_extract["code"],
+            code_value(library_extract.code),
+            "extract {path}: MCP 与库必须同码"
+        );
+
+        let mcp_search = invoke(&mcp, "search", json!({"url": url, "query": query})).await;
+        let library_search = webctl_web::extract::search(&text, query, &search_options);
+        assert_eq!(
+            mcp_search["code"],
+            code_value(library_search.code),
+            "search {path}: MCP 与库必须同码"
+        );
+    }
+}
+
+/// SEC-09：MCP 路径的页面内容标 untrusted，且信封不含凭据明文（接入 `redact_fetched`）。
+#[tokio::test]
+async fn sec_09_mcp_fetch_redacts_credentials() {
+    const SECRET: &str = "SUPER_SECRET_TOKEN";
+    let server = http_fixture::Server::start_with(vec![(
+        "/login",
+        http_fixture::Response::html("<html><body><main>login placeholder</main></body></html>")
+            .header("set-cookie", &format!("sid={SECRET}; Path=/; HttpOnly"))
+            .header("authorization", &format!("Bearer {SECRET}")),
+    )])
+    .await;
+    let mcp = WebctlMcp::new(in_process_context("sec09-redact"));
+    let url = format!("{}?access_token={SECRET}&user=bob", server.url("/login"));
+    let envelope = invoke(&mcp, "fetch", json!({"url": url})).await;
+
+    assert_eq!(envelope["meta"]["trust"], "untrusted_page_content");
+    let serialized = serde_json::to_string(&envelope).expect("serialize");
+    assert!(
+        !serialized.contains(SECRET),
+        "MCP 信封不得含凭据明文：{serialized}"
+    );
+    assert!(serialized.contains("<redacted>"), "{serialized}");
+    assert!(
+        serialized.contains("user=bob"),
+        "非敏感 query 参数必须保留：{serialized}"
+    );
 }
