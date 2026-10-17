@@ -1,0 +1,16 @@
+[package]
+name = "webctl-js"
+description = "受限内置 JS 引擎（boa_engine）的沙箱核心：零宿主能力、可中断、确定性（ADR-0005 / #127）"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+# ADR-0005：唯一被允许的 JS 引擎；本 crate 是**唯一**依赖它的地方（依赖边界守卫校验）。
+boa_engine.workspace = true
+
+[lints]
+workspace = true

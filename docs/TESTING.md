@@ -514,6 +514,30 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 样本在 `crates/webctl-web/tests/fixtures/spa/`（nextjs / nuxt / 纯 CSR 空壳 / 静态文章+JSON-LD / 静态博客+RSS）。
 数字与口径见 [docs/SPA-BASELINE.md](SPA-BASELINE.md)；**改行为必须同时更新该文件与本节基线**。
 
+### 6.8d #127 沙箱核心 `crates/webctl-js`（ADR-0005 第 1 片）
+
+`crates/webctl-js` **9 条**（离线，纯内存；**不联网、不执行外部进程**）：
+
+- 同一上下文共享全局：两段脚本依次求值，`acc*21` → `42`；
+- **限值可中断**：`while(true){}` → `Limit`（实测默认限值下 **609 ms** 被中断）；深递归 → `Limit`（实测 **3.4 ms**）；
+- **输入预算**：单段超尺寸、脚本段数超限 → `Rejected`（**不进入引擎**）；
+- **零宿主能力**：`typeof` 逐项断言 `fetch` / `XMLHttpRequest` / `require` / `process` / `Deno` / `WebSocket` / `setTimeout` / `setInterval` / `Buffer` **全部 `undefined`**；
+- **动态 `import()` fail-closed**（安全回归，见下）：模块文件**存在**也不会被加载——断言拿到 "module resolution is disabled" 且宿主全局未被设置；
+- **确定性（有边界）**：不注入**宿主**时间/随机源；ECMAScript 自带的 `Date`/`Math.random` 仍在，依赖它们的脚本可能不同；
+- 语法错误归类为 `Syntax`。
+
+> 诚实边界：`boa_engine` 无抢占式中断，故**不承诺**"任意脚本 X 毫秒内结束"；死循环/深递归靠 loop/recursion 限值中断，直线型长脚本只受字节上限约束。
+>
+> **安全教训（独立审阅实证的真实逃逸）**：boa 0.20 的 `Context::default()` 会装上以**进程 CWD 为根**的
+> `SimpleModuleLoader`，于是 `import('相对路径.js')` 会真的 open/read 宿主文件（审阅用 FIFO 阻塞 2.000 s 证明）。
+> 修复是显式装 `IdleModuleLoader`（fail-closed）。**结论：用第三方引擎时，"默认上下文"本身就是攻击面，必须逐项确认它默认装了什么。**
+
+依赖边界守卫新增归属校验：`boa_engine` **只允许**被 `webctl-js` 依赖（`scripts/check-dependency-boundary.sh`）。
+
+> **已知边界（不许含糊）**：boa 0.20 无指令数/墙钟/堆内存上限 API，故本片**不限制堆分配**
+> （实测 `new Uint8Array(256 MB)` 成功、约 0.9 s）；`safe` 的 CPU 防护只有 loop/recursion/stack 限值 + 输入预算，
+> 内存需配合进程级 `ulimit`。归属校验用 `cargo metadata` 依赖图（不 grep 清单，避免缩进/子表/重命名绕过）。
+
 ### 6.9 PR 11 MCP server（议题 #19）
 
 `crates/webctl-mcp/src/` 单元 **13 条**（含本版新增的 MCP 侧脱敏隔离用例）：`registry_is_exactly_the_plan_list`、`definitions_match_the_static_specs`、`qualified_names_follow_the_dsh_contract`、`all_plan_tools_are_registered_and_available`、`capabilities_mirror_the_dispatch_table`、`instructions_stay_under_limit`、`dsh_snippet_has_no_tool_order_and_no_tool_names`、`bound_session_accepts_only_itself`、`cross_session_error_is_readable_and_mentions_both`、`unbound_defaults_to_default_and_validates`、`small_result_stays_inline`、`large_result_is_spilled_and_keeps_degradation`、`sec_09_mcp_dispatcher_is_the_one_that_redacts`（[#82](https://github.com/Thatgfsj/webctl/issues/82) 补的隔离用例，详见本节末尾）。
