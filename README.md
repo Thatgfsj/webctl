@@ -11,7 +11,7 @@
 
 [项目状态](#项目状态) · [安装](#安装) · [快速开始](#快速开始) · [能力与现状](#能力与现状) · [English](#english) · [计划](docs/PLAN.md) · [发布流程](docs/RELEASE.md) · [贡献指南](CONTRIBUTING.md) · [议题](https://github.com/Thatgfsj/webctl/issues)
 
-> **v0.1.0 已发布**（[Release v0.1.0](https://github.com/Thatgfsj/webctl/releases/tag/v0.1.0)）：三平台资产（`webctl` 与 `webctl-mcp`）+ shell / PowerShell 安装器；Linux 为 glibc 动态链接（musl 静态见议题 [#90](https://github.com/Thatgfsj/webctl/issues/90)）。安装见[安装](#安装)，进度见 [PLAN §5.2.1](docs/PLAN.md)。
+> **v0.1.0 已发布**（[Release v0.1.0](https://github.com/Thatgfsj/webctl/releases/tag/v0.1.0)）：三平台资产（`webctl` 与 `webctl-mcp`）+ shell / PowerShell 安装器；v0.1.0 的 Linux 资产为 glibc 动态链接。musl 静态目标已恢复进 CI 与发布矩阵，将在下一次 tag 产出资产（[#90](https://github.com/Thatgfsj/webctl/issues/90)）。安装见[安装](#安装)，进度见 [PLAN §5.2.1](docs/PLAN.md)。
 
 ---
 
@@ -23,7 +23,7 @@
 | 发布 | **v0.1.0**（首个 release）：三平台资产 + 安装器；下载、sha256 校验与干净环境 E2E 均已实测（[docs/RELEASE.md](docs/RELEASE.md)）（PKG-06/07） |
 | 计划文档 | [docs/PLAN.md](docs/PLAN.md)（**v0.4**，含 2026-10-16 的方向变更） |
 | 事实依据 | [docs/SURVEY.md](docs/SURVEY.md)（本机实测 + 公开仓库核对；其中 CDP 部分已成历史记录） |
-| 形态 | Rust workspace，4 个 crate；发布 **2 个二进制**：`webctl`（主 CLI，含 `mcp` 子命令）与 `webctl-mcp`（独立 MCP server 入口）。三平台；Linux 为 glibc 动态链接 |
+| 形态 | Rust workspace，4 个 crate；发布 **2 个二进制**：`webctl`（主 CLI，含 `mcp` 子命令）与 `webctl-mcp`（独立 MCP server 入口）。三平台；v0.1.0 的 Linux 资产为 glibc 动态链接；musl 静态由 CI 每次 PR 验证（[#90](https://github.com/Thatgfsj/webctl/issues/90)） |
 | 接口 | CLI（`caps` / `fetch` / `config` / `cookies` / `mcp`）+ MCP server（`mcp__webctl__*`，15 个工具） |
 | 外部依赖 | **运行时零外部进程、零浏览器**；不调用 `curl`/`jq`/`pdftotext` 等系统命令 |
 | 发布物 | cargo-dist 生成的三平台压缩包（`webctl` 与 `webctl-mcp` 各一）+ shell/PowerShell 安装器（[清单](docs/RELEASE.md)）；**v0.1.0 已发布** |
@@ -124,7 +124,7 @@ webctl --offline caps
 - 发布步骤、release note 模板、变更日志约定与发布 E2E 清单：[docs/RELEASE.md](docs/RELEASE.md)。
 - 体积 / 冷启动基线工具：`scripts/size-baseline.sh`；记录：[docs/size-baseline.json](docs/size-baseline.json)。
   - glibc release **本机实测** 7,978,256 字节（约 7.61 MiB），`--version` 冷启动 p50 约 10–24 ms（全部 < 50 ms，CLI-12 本地通过）。
-  - **musl 静态目标暂缓**：BoringSSL 的 C++ 源需要面向 musl 的 libstdc++，而 musl-dev 只提供 C 侧（三次 release 实测，见 [#90](https://github.com/Thatgfsj/webctl/issues/90)）；Linux 产物为 glibc 动态链接。
+  - **musl 静态目标**：`musl-static` CI 作业每次 PR 用固定版本 Bootlin musl C++ 工具链构建，并以 `file`/`ldd`/`readelf` 断言无动态依赖；发布矩阵已恢复，下一次 tag 产出资产。v0.1.0 的 Linux 资产仍是 glibc 动态链接，musl 体积待真实发布资产回填（[#90](https://github.com/Thatgfsj/webctl/issues/90)）。
 - 发布资产 E2E 冒烟：`scripts/release-e2e.sh`（PKG-04 / PKG-06 / PKG-08）。
 
 ## 架构
@@ -157,7 +157,7 @@ crates/
 
 **webctl is a web-control layer for AI agents** — a single pure-Rust binary with everything built in: no external processes, no browser, no JS engine. It provides an HTTP fetch engine, HTML/JSON/XML/PDF extraction, a protocol-level session engine, and a CLI plus an MCP server.
 
-- **Status:** **v0.1.0 released** (https://github.com/Thatgfsj/webctl/releases/tag/v0.1.0) for Linux (glibc), macOS (aarch64 / x86_64) and Windows, with shell/PowerShell installers; see [docs/RELEASE.md](docs/RELEASE.md). The musl static target is deferred (issue #90).
+- **Status:** **v0.1.0 released** (https://github.com/Thatgfsj/webctl/releases/tag/v0.1.0) for Linux (glibc), macOS (aarch64 / x86_64) and Windows, with shell/PowerShell installers; see [docs/RELEASE.md](docs/RELEASE.md). The musl static target is now built and statically asserted on every PR (pinned Bootlin musl C++ toolchain); it is back in the release matrix and the next tag will publish the asset (issue #90).
 - **Runtime:** zero subprocesses, zero browser, zero JS execution. JS-heavy pages degrade explicitly to `DEGRADED`/`UNSUPPORTED` instead of silently returning "success with 0 results".
 - **Capabilities shipped (PR 03–14 all merged):** fetch (PR 02/08), parsing (PR 03), extraction (PR 06), document/data (PR 07), politeness (PR 08), degradation semantics (PR 09), CLI and config (PR 10), MCP server with 15 tools (PR 11), security hardening (PR 12), packaging (PR 14). The README table above is the source of truth.
 - **Commands available today:** `webctl caps`, `webctl fetch <url>`, `webctl config`, `webctl cookies`, `webctl mcp` (the 15-tool surface).

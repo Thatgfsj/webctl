@@ -35,6 +35,7 @@ jobs:
         run: cargo test --features offline
       - name: build (release)
         run: cargo build --release
+
   pr-size:
     name: pr-size (行数口径)
     # 只在 PR 上跑：口径是相对 base 的差分
@@ -65,3 +66,38 @@ jobs:
           cat /tmp/pr-size.txt
           { echo "### PR 行数口径（CONTRIBUTING §2）"; echo '```'; cat /tmp/pr-size.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           exit $code
+
+  # 每次 PR 都验证 musl 静态目标（议题 #90）。
+  # 之前的 release 失败根因：Ubuntu 的 musl-tools 只带 C 侧，没有面向 musl 的
+  # libstdc++；BoringSSL(btls-sys) 的 C++ 源码无法编译/链接。这里改用 Bootlin
+  # 的 musl C++ 交叉工具链（固定版本 + SHA256），并用 file/ldd/readelf 硬断言静态。
+  musl-static:
+    name: musl-static (x86_64-unknown-linux-musl)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.98.1
+          targets: x86_64-unknown-linux-musl
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: musl-static
+      - name: Cache pinned musl C++ toolchain
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/webctl-musl-toolchain
+          key: musl-toolchain-bootlin-2026.08-1-${{ runner.os }}-${{ runner.arch }}
+      - name: Install BoringSSL build dependency (libclang for bindgen)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev
+      - name: Install pinned musl C++ toolchain
+        run: scripts/install-musl-toolchain.sh
+      - name: Build webctl + webctl-mcp (musl, release)
+        run: cargo build --release --target x86_64-unknown-linux-musl -p webctl -p webctl-mcp
+      - name: Assert static linkage (file / ldd / readelf)
+        run: |
+          scripts/check-static-binary.sh target/x86_64-unknown-linux-musl/release/webctl
+          scripts/check-static-binary.sh target/x86_64-unknown-linux-musl/release/webctl-mcp --no-smoke
