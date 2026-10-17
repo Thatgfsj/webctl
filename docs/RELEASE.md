@@ -28,6 +28,12 @@
 
 `dist plan` 为 CI 计算的构建矩阵：`macos-14`（aarch64-apple）、`macos-15-intel`（x86_64-apple）、`windows-2022`、
 `ubuntu-22.04`（gnu）、`ubuntu-22.04`（musl）。以上为 2026-10-17 在本机用 cargo-dist 0.33.0 实测输出；musl 作业的
+**未纳入的目标（裁决，议题 [#106](https://github.com/Thatgfsj/webctl/issues/106)）**：`aarch64-unknown-linux-musl` 与 `aarch64-unknown-linux-gnu` **均未纳入 v0.1.x** —— 即 **ARM64 Linux 目前没有发布资产**。
+
+- **为什么现在不做**：本仓 0 个 ARM64 需求证据；新增 1 个目标会把资产从 28 抬到 30+、多一个含 BoringSSL C++ 交叉编译的 CI 作业；`ubuntu-24.04-arm` runner 的可用性与配额尚未实测。
+- **纳入条件（任一成立即开工）**：有真实 ARM64 使用诉求；或需要 Docker 多架构 / 边缘部署场景。
+- **纳入时要做的**（避免将来重新论证）：① 扩展 `scripts/install-musl-toolchain.sh` 使其按三元组选择 Bootlin 工具链（同样 pin 版本 + SHA256）；② 把 `ci.yml` 的 `musl-static` 作业扩为矩阵；③ 在 `dist-workspace.toml` 加目标并使 `cargo dist generate --mode ci --check` = 0；④ tag 后回填体积基线；⑤ README 中英 / 本文件 / ACCEPTANCE 同步。
+
 `packages_install` 仍会装 `musl-tools`，但实际编译器来自 `scripts/install-musl-toolchain.sh`。
 
 ## 2. 发布物（`dist plan` 实测，2026-10-17，`webctl 0.1.1`）

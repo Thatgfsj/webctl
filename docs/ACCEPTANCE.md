@@ -130,3 +130,10 @@
   - `webctl fetch https://quotes.toscrape.com/` → **HTTP/2 200**（TLS 在 musl 用户态可用）；
   - MCP over stdio（`webctl mcp`）→ `serverInfo={webctl, 0.1.1}`、**15 个工具**；**L1 锚点 1**：`extract` 静态页 → `code=OK`、**matched 10 element(s)**；**L1 锚点 2**：`extract` JS 页 → `code=DEGRADED`（诚实降级，不返回"成功但 0 条"）；
   - 失败路径也记一笔：不绑定 `/etc/resolv.conf` 时 Alpine rootfs 无解析配置 ⇒ `fetch` 返回 `NETWORK`；这是**环境**缺文件，不是 webctl 缺陷。
+
+- 2026-10-17（Lead）**安装命令端到端实测（PKG-06 / PKG-07）**：
+  - 用 README 里那条真实命令下载官方安装器（60,752 字节，首行 `#!/bin/sh`）：
+    `curl -fsSL -o webctl-installer.sh https://github.com/Thatgfsj/webctl/releases/download/v0.1.1/webctl-installer.sh`；
+  - 隔离目录安装：`CARGO_HOME=<tmp>/home sh webctl-installer.sh --no-modify-path` → 输出 `installing to <tmp>/home/bin`、`everything's installed!`；
+  - 装出来的二进制实测：`--version` → `webctl 0.1.1`；`caps --json` → `ok=true`；
+  - 结论：README 文档化的**安装路径真的可用**，不只是"URL 返回了一个脚本"。
