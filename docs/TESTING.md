@@ -516,7 +516,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 
 ### 6.8d #127 沙箱核心 `crates/webctl-js`（ADR-0005 第 1 片）
 
-`crates/webctl-js` **17 条**（离线，纯内存；**不联网、不执行外部进程**）：
+`crates/webctl-js` **20 条**（离线，纯内存；**不联网、不执行外部进程**）：
 
 **沙箱核心（10 条）**：
 
@@ -534,7 +534,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 > `SimpleModuleLoader`，于是 `import('相对路径.js')` 会真的 open/read 宿主文件（审阅用 FIFO 阻塞 2.000 s 证明）。
 > 修复是显式装 `IdleModuleLoader`（fail-closed）。**结论：用第三方引擎时，"默认上下文"本身就是攻击面，必须逐项确认它默认装了什么。**
 
-**最小 DOM 渲染（7 条，议题 #128 第 1 半）**：
+**最小 DOM 渲染（10 条，议题 #128 第 1 半）**：
 
 - `renders_document_write_page`：仓库自己的 JS 空壳样本（`js_data_script_shell.html`）渲染后，
   DOM 里出现 **10 条** `class="quote"`（原本只在 `document.write` 的脚本里）；
@@ -544,12 +544,17 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
   写进 DOM，断言全是 `undefined`；
 - `render_respects_script_budget`：脚本段数超限直接拒绝；
 - `render_is_deterministic`：同一页面两次渲染结果一致；
-- `render_limits_apply_to_page_scripts`：**页面脚本也受限值约束**（脚本里 `while(true){}` → `Limit`，不会挂住渲染）。
+- `render_limits_apply_to_page_scripts`：**页面脚本也受限值约束**（脚本里 `while(true){}` → `Limit`，不会挂住渲染）；
+- `page_cannot_overwrite_serializer`：页面**不能**改写/删除序列化函数（`writable: false, configurable: false, enumerable: false`），否则可伪造渲染结果；
+- `renders_document_write_page` **额外钉住**：完整输出（不剥脚本）里 `class="quote"` 也必须**正好 10 次**——否则说明解析器又把脚本正文当成了 DOM；
+- `script_inside_rawtext_is_not_executed`：`<title>`/`<style>`/`<textarea>` 里的 `<script>` **不是脚本**（浏览器不执行），Rust 提取器同样跳过；
+- `rawtext_serializes_verbatim`：RAWTEXT 元素内容**按原文**序列化（不转义），与浏览器 `outerHTML` 一致。
 
 > 垫片是**纯 JS 字符串**（`src/dom_shim.js`），不注册任何 Rust 宿主函数；实现子集：解析、`document.write`、
 > `createElement`/`appendChild`、属性、`textContent`、`innerHTML`（读+写）、`querySelector(All)`（`#id`/`.class`/`tag`）、序列化。
 > **不提供**：定时器（`setTimeout` 永不触发是"静默省略"，不如直接不提供）、网络/存储、真实事件语义（`addEventListener` 空实现）、布局。
-> 渲染结果**忠实保留**原始 `<script>` 元素（与浏览器一致），所以统计"页面内容"时要先剥掉脚本正文。
+> 渲染结果**忠实保留**原始 `<script>` 元素（与浏览器一致），**且脚本正文按原文保留**（RAWTEXT：`script`/`style`/`textarea`/`title` 的内容不再被当 DOM 解析）。
+> 因此统计"页面内容"时要先剥掉脚本正文——本节的用例都遵守这条。
 
 依赖边界守卫新增归属校验：`boa_engine` **只允许**被 `webctl-js` 依赖（`scripts/check-dependency-boundary.sh`）。
 

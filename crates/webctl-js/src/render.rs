@@ -96,32 +96,66 @@ fn classify(message: String) -> JsFailure {
 }
 
 /// 把 HTML 里的 `<script>` 逐段取出来（大小写不敏感；只读内联正文）。
+///
+/// **按浏览器口径**处理 RAWTEXT（`title` / `style` / `textarea`）：它们里面的 `<script>` 不是脚本，
+/// 不能执行——否则我们会跑一段浏览器不会跑的代码（复审实测过这种注入形态）。
 fn extract_scripts(html: &str) -> Vec<ScriptBlock> {
+    const RAWTEXT: [&str; 3] = ["title", "style", "textarea"];
     let lowered = html.to_ascii_lowercase();
     let mut blocks = Vec::new();
     let mut cursor = 0usize;
-    while let Some(rel) = lowered[cursor..].find("<script") {
-        let start = cursor + rel;
-        let Some(gt_rel) = lowered[start..].find('>') else {
+    while let Some(lt_rel) = lowered[cursor..].find('<') {
+        let lt = cursor + lt_rel;
+        let rest = &lowered[lt + 1..];
+        if rest.starts_with('/') || rest.starts_with('!') || rest.starts_with('?') {
+            match lowered[lt..].find('>') {
+                Some(gt) => cursor = lt + gt + 1,
+                None => break,
+            }
+            continue;
+        }
+        let name: String = rest
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric())
+            .collect();
+        let Some(gt_rel) = lowered[lt..].find('>') else {
             break;
         };
-        let open_end = start + gt_rel;
-        let attrs = &lowered[start + "<script".len()..open_end];
-        let Some(close_rel) = lowered[open_end + 1..].find("</script") else {
-            break;
-        };
-        let body_start = open_end + 1;
-        let body_end = body_start + close_rel;
-        let body = html[body_start..body_end].to_owned();
-        blocks.push(ScriptBlock {
-            runnable: is_runnable(attrs) && !body.trim().is_empty(),
-            body,
-        });
-        cursor = body_end;
+        let open_end = lt + gt_rel;
+        let attrs = &lowered[lt + 1 + name.len()..open_end];
+        if name == "script" {
+            let body_start = open_end + 1;
+            let Some(close_rel) = lowered[body_start..].find("</script") else {
+                break;
+            };
+            let body_end = body_start + close_rel;
+            let body = html[body_start..body_end].to_owned();
+            blocks.push(ScriptBlock {
+                runnable: is_runnable(attrs) && !body.trim().is_empty(),
+                body,
+            });
+            let Some(close_gt) = lowered[body_end..].find('>') else {
+                break;
+            };
+            cursor = body_end + close_gt + 1;
+            continue;
+        }
+        if RAWTEXT.contains(&name.as_str()) {
+            // 跳到匹配的结束标签之后：里面的 `<script>` 不是脚本。
+            let needle = format!("</{name}");
+            match lowered[open_end + 1..].find(&needle) {
+                Some(rel) => match lowered[open_end + 1 + rel..].find('>') {
+                    Some(gt) => cursor = open_end + 1 + rel + gt + 1,
+                    None => break,
+                },
+                None => break,
+            }
+            continue;
+        }
+        cursor = open_end + 1;
     }
     blocks
 }
-
 /// 只有内联、非模块脚本才执行：外链（`src`）会引入网络依赖，`module` 需要模块加载器（已 fail-closed）。
 fn is_runnable(attrs: &str) -> bool {
     if attrs.contains("src") {
@@ -188,27 +222,32 @@ mod tests {
     const JS_SHELL: &str =
         include_str!("../../webctl-web/tests/fixtures/degrade/js_data_script_shell.html");
 
-    /// 去掉 `<script>…</script>` 正文：渲染结果**忠实保留**原始脚本元素，
-    /// 计数"页面内容"时必须先把脚本正文剥掉（否则脚本里的模板字符串会被算进去）。
-    fn strip_scripts(html: &str) -> String {
-        let lowered = html.to_ascii_lowercase();
-        let mut out = String::new();
-        let mut cursor = 0usize;
-        while let Some(rel) = lowered[cursor..].find("<script") {
-            let start = cursor + rel;
-            out.push_str(&html[cursor..start]);
-            match lowered[start..].find("</script") {
-                Some(end_rel) => {
-                    let after = start + end_rel;
-                    match lowered[after..].find('>') {
-                        Some(gt) => cursor = after + gt + 1,
-                        None => break,
-                    }
-                }
-                None => break,
+    /// 去掉所有 RAWTEXT 元素的正文（`script`/`style`/`textarea`/`title`）。
+    ///
+    /// 渲染结果**忠实保留**这些元素的原文（与浏览器一致），所以判定"页面内容"
+    /// 必须先剥掉它们——否则脚本/样式里的模板字符串会被算进来（本文件踩过两次）。
+    fn strip_rawtext(html: &str) -> String {
+        let mut out = html.to_owned();
+        for tag in ["script", "style", "textarea", "title"] {
+            let mut cursor = 0usize;
+            loop {
+                let lowered = out.to_ascii_lowercase();
+                let Some(start_rel) = lowered[cursor..].find(&format!("<{tag}")) else {
+                    break;
+                };
+                let start = cursor + start_rel;
+                let Some(open_gt) = lowered[start..].find('>') else {
+                    break;
+                };
+                let body_start = start + open_gt + 1;
+                let Some(close_rel) = lowered[body_start..].find(&format!("</{tag}")) else {
+                    break;
+                };
+                let body_end = body_start + close_rel;
+                out.replace_range(body_start..body_end, "");
+                cursor = body_start;
             }
         }
-        out.push_str(&html[cursor..]);
         out
     }
 
@@ -217,7 +256,15 @@ mod tests {
     fn renders_document_write_page() {
         let outcome = render(JS_SHELL, &JsLimits::default()).expect("应能渲染");
         assert_eq!(outcome.executed_scripts, 1, "样本只有一段内联脚本");
-        let content = strip_scripts(&outcome.html);
+        // **钉住 RAWTEXT**：完整输出（不剥脚本）就必须正好 10 次——
+        // 若解析器把脚本正文里的字面量当 DOM，这里会数成 11（复审变异 A 曾证明旧断言抓不到）。
+        let overall = outcome.html.matches("class=\"quote\"").count();
+        assert_eq!(overall, 10, "完整输出里应正好 10 条（含脚本正文时）");
+        assert!(
+            outcome.html.contains("class='quote'"),
+            "脚本正文应按原文保留（RAWTEXT），不被解析成 DOM"
+        );
+        let content = strip_rawtext(&outcome.html);
         let quotes = content.matches("class=\"quote\"").count();
         assert_eq!(quotes, 10, "渲染后应有 10 条内容");
         assert!(content.contains("Quote number 10"), "第 10 条应进 DOM");
@@ -287,6 +334,65 @@ mod tests {
         let html = "<html><body><script>1</script><script>2</script></body></html>";
         let failure = render(html, &limits).expect_err("应被拒");
         assert_eq!(failure.kind, JsFailureKind::Rejected, "{failure}");
+    }
+
+    /// **保真**：`<title>`/`<style>`/`<textarea>` 里的 `<script>` 不是脚本（浏览器不执行）。
+    #[test]
+    fn script_inside_rawtext_is_not_executed() {
+        let html = concat!(
+            "<html><head><title>x<script>document.write('<i id=\"INJECTED\"></i>')</script>y</title></head>",
+            "<body>ok</body></html>"
+        );
+        let outcome = render(html, &JsLimits::default()).expect("应能渲染");
+        assert_eq!(
+            outcome.scripts_seen, 0,
+            "title 里的 script 不算脚本：{}",
+            outcome.html
+        );
+        assert_eq!(outcome.executed_scripts, 0);
+        // 源码里本来就有 INJECTED 字面量（title 原文），所以剥掉 RAWTEXT 内容后再查注入痕迹。
+        let content = strip_rawtext(&outcome.html);
+        assert!(
+            !content.contains("INJECTED"),
+            "不得执行 title 里的脚本：{content}"
+        );
+    }
+
+    /// **保真**：RAWTEXT 元素的内容按原文序列化（不做 HTML 转义），与浏览器 outerHTML 一致。
+    #[test]
+    fn rawtext_serializes_verbatim() {
+        let html = "<html><head><style>a{content:\"<b>x</b>\"}</style></head><body>t</body></html>";
+        let outcome = render(html, &JsLimits::default()).expect("应能渲染");
+        assert!(
+            outcome.html.contains("a{content:\"<b>x</b>\"}"),
+            "style 内容应原样输出：{}",
+            outcome.html
+        );
+    }
+
+    /// **安全**：页面脚本**不能**改写或删除序列化函数（否则可伪造渲染结果 / 让渲染失败）。
+    ///
+    /// 复审观察：初版把 `__webctl_serialize` 作为可写全局暴露。现改为 `writable: false,
+    /// configurable: false, enumerable: false`——只读调用允许（无副作用），改写与删除都无效。
+    #[test]
+    fn page_cannot_overwrite_serializer() {
+        let html = concat!(
+            "<html><body><div id=\"x\">真实内容</div><script>",
+            "globalThis.__webctl_serialize = function () { return 'PWNED' };",
+            "try { delete globalThis.__webctl_serialize; } catch (e) {}",
+            "</script></body></html>"
+        );
+        let outcome = render(html, &JsLimits::default()).expect("应能渲染");
+        // 判定"页面内容"前先剥掉脚本正文（RAWTEXT 会忠实保留脚本源码，里面就有 PWNED 字面量）。
+        let content = strip_rawtext(&outcome.html);
+        assert!(
+            content.contains("真实内容"),
+            "页面不得伪造渲染结果：{content}"
+        );
+        assert!(
+            !content.contains("PWNED"),
+            "被改写后的序列化函数不得生效：{content}"
+        );
     }
 
     /// **安全**：页面脚本同样受引擎限值约束（死循环被中断，不会挂住渲染）。
