@@ -71,13 +71,8 @@ jobs:
           echo "::notice file=$P,line=727,col=5,title=T6 notice::msg6 notice 级"
           echo "::error file=src/nonexistent.rs,line=9999,col=1,title=T7 路径不存在::msg7 路径不存在"
           # 8) 让"报告器自己"发一条（模拟 test 作业里的调用路径）
-          cat > "$RUNNER_TEMP/exp.log" <<'EOF'
-running 1 test
-test probe_case ... FAILED
-thread 'probe::case' panicked at crates/webctl-web/tests/parse.rs:727:5:
-planted
-test result: FAILED. 0 passed; 1 failed; 0 ignored
-EOF
+          L="$RUNNER_TEMP/exp.log"
+          printf '%s\n' "running 1 test" "test probe_case ... FAILED" "thread \'probe::case\' panicked at crates/webctl-web/tests/parse.rs:727:5:" "planted" "test result: FAILED. 0 passed; 1 failed; 0 ignored" > "$L"
           scripts/ci-report.sh --lane "exp-reporter" --log "$RUNNER_TEMP/exp.log"
           # 9) 同上，但这一步随后以非零退出（模拟 test 作业的失败步）
           echo "::error file=crates/webctl-web/tests/parse.rs,line=728,col=1,title=T9 失败步里的注解::msg9 失败步"
