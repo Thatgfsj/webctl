@@ -68,20 +68,21 @@ js_render = false     # 是否执行页面内联脚本；默认 false（ADR-0005
 
 - 只有**显式配置**才走代理：`WEBCTL_PROXY`、配置文件 `proxy`、CLI `--proxy`。
 
-### `js_render`（默认关闭，见 [ADR-0005](adr/0005-embedded-js-engine.md)）
-
-- 默认 **不执行**任何页面脚本；开启是显式的（配置文件 `js_render` 或 `WEBCTL_JS_RENDER`）。
-- **开关 ≠ 已接线**：`caps --json` 的 `data.js` 分开报告 `enabled`（调用方是否开启）与 `wired`（引擎是否真的接上了取回/抽取路径），并给出 `reason`。
-  这样不会出现"配置说开着、实际没执行"的假象。
-- 引擎是**进程内**的 `crates/webctl-js`（纯 Rust，`boa_engine`）：不启动外部进程、不碰网络与文件系统；
-  限值只有 loop / recursion / stack 与输入预算，**墙钟与堆内存不设限**（见 [#130](https://github.com/Thatgfsj/webctl/issues/130)）。
 - 未配置时固定直连：取回层在 `proxy = None` 时显式 `no_proxy()`，
   **不会**读取宿主 `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY`。
   这样离线测试与 CI 不会被开发机上的代理劫持。
 - 代理 URL 中的 `user:password@` 凭据在**任何输出**里都以 `***` 掩码；
   响应中的 `Set-Cookie` / `Authorization` 等敏感头在 CLI 输出里替换为 `<redacted>`。
 
-## 5. 输出格式与退出码
+## 5. 引擎开关（`js_render`，默认关闭，见 [ADR-0005](adr/0005-embedded-js-engine.md)）
+
+- 默认 **不执行**任何页面脚本；开启是显式的（配置文件 `js_render` 或 `WEBCTL_JS_RENDER`）。
+- **开关 ≠ 已接线**：`caps --json` 的 `data.js` 分开报告 `enabled`（调用方是否开启）与 `wired`（引擎是否真的接上了取回/抽取路径），并给出 `reason`。
+  这样不会出现"配置说开着、实际没执行"的假象。
+- 引擎是**进程内**的 `crates/webctl-js`（纯 Rust，`boa_engine`）：不启动外部进程、不碰网络与文件系统；
+  限值只有 loop / recursion / stack 与输入预算，**墙钟与堆内存不设限**（见 [#130](https://github.com/Thatgfsj/webctl/issues/130)）。
+
+## 6. 输出格式与退出码
 
 `--output json`（默认；`--json` 是等价别名，且显式给出时覆盖 `--output`）：
 单行紧凑 JSON 结果信封，可直接管道给下游解析器（CLI-09）。
@@ -106,7 +107,7 @@ js_render = false     # 是否执行页面内联脚本；默认 false（ADR-0005
 参数解析失败（未知参数、缺少必填参数）由 clap 以退出码 2 结束，并给出可读提示。
 `--help` / `--version` 退出码为 0。
 
-## 6. 子命令
+## 7. 子命令
 
 | 子命令 | 说明 |
 |---|---|
@@ -117,7 +118,7 @@ js_render = false     # 是否执行页面内联脚本；默认 false（ADR-0005
 `fetch` 是配置面（代理 / 离线 / 超时）的最小可验证载体：
 它在发出请求前检查 `offline`，并把解析后的代理与超时交给取回层。
 
-## 7. 越界说明
+## 8. 越界说明
 
 本文件描述的范围是 PR 10 落地的配置与 CLI 行为。会话状态持久化（state dir 文件锁、
 TTL、损坏恢复）属议题 #34；能力开关、MCP 工具面分别属其他议题。
