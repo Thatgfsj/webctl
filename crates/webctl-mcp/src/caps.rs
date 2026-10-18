@@ -17,8 +17,8 @@ pub const SUGGESTED_CHANNELS: [&str; 1] = ["embedded_data"];
 /// 构造内置 JS 引擎状态（#128 / ADR-0005）。
 ///
 /// **关键**：`wired` 反映"引擎是否真的接上了取回/抽取路径"，而不是"配置有没有开"。
-/// 本片（#128 第 1 步）只落了配置与状态，**尚未接线**，所以 `wired` 恒为 `false` 并给出原因——
-/// 不允许把"配置开着"说成"能执行"。
+/// 自 #128 步骤 2 起**已接线**（`resolve_source` + `extract` 的 URL 分支，条件：开关开启且内容为 HTML），
+/// 故 `wired = true`；`reason` 必须写清触发条件与能力边界（只执行内联脚本、最小 DOM 子集）。
 pub fn js_capability(config: &Config) -> JsCapability {
     JsCapability {
         enabled: config.js_render,

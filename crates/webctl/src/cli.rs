@@ -105,7 +105,7 @@ impl Cli {
             timeout_ms: self.timeout_ms,
             offline: self.offline.then_some(true),
             proxy: self.proxy.clone(),
-            // 本片（#128 第 1 步）不加 CLI 开关：开关要等引擎真正接线后才有意义。
+            // 本片（#128 第 1 步）不加 CLI 开关；步骤 2 已接线，逐调用开关见 #128 后续。
             js_render: None,
         }
     }

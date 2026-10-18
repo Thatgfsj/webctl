@@ -121,7 +121,8 @@ impl Default for JsCapability {
         Self {
             enabled: false,
             wired: false,
-            reason: "内置 JS 引擎尚未接线到取回/抽取路径（#128）".to_owned(),
+            // 默认值**不声称**任何接线状态：接线情况由接口层按实际填充（见 mcp/caps.rs）。
+            reason: "未提供引擎状态（由接口层按实际接线情况填充）".to_owned(),
         }
     }
 }
@@ -245,12 +246,15 @@ mod tests {
         }
     }
 
-    /// #128：`js` 的 `enabled` 与 `wired` 必须**分开**报告，且默认关闭、本片未接线。
+    /// #128：`js` 的 `enabled` 与 `wired` 必须**分开**报告；默认值不声称接线状态。
     #[test]
     fn js_capability_separates_enabled_from_wired() {
         let default_report = CapsReport::detect(&Config::default());
         assert!(!default_report.js.enabled, "默认必须关闭");
-        assert!(!default_report.js.wired, "本片（#128 第 1 步）尚未接线");
+        assert!(
+            !default_report.js.wired,
+            "默认值不得声称已接线（接线状态由接口层填）"
+        );
         assert!(!default_report.js.reason.is_empty(), "原因不得为空");
         let enabled_config = Config {
             js_render: true,
@@ -259,7 +263,7 @@ mod tests {
         let report = CapsReport::detect(&enabled_config).with_js(JsCapability {
             enabled: true,
             wired: false,
-            reason: "已开启但未接线".to_owned(),
+            reason: "已开启；接线状态由接口层填".to_owned(),
         });
         assert!(report.js.enabled);
         assert!(

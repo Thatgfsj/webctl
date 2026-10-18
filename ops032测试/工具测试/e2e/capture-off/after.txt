@@ -1,5 +1,0 @@
-. 4096
-./after.txt 0
-./before.txt 22
-./run.err 498
-./run.jsonl 797

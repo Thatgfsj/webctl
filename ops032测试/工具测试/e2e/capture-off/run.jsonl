@@ -1,6 +1,0 @@
-{"type":"session","sessionId":"session-581a341b-a01f-4135-86dd-288d9e365f29","cwd":"/home/thatgfsj/AIagent/webctl/ops032测试/工具测试/e2e/capture-off"}
-{"type":"status","phase":"turn_start","turn":1}
-{"type":"status","phase":"step_start","turn":1,"step":1}
-{"type":"status","phase":"step_end","turn":1,"step":1}
-{"type":"status","phase":"turn_end","turn":1,"reason":{"kind":"error","error":{"message":"llm-pi-ai: no credential for provider route \"opencode-go\"; its profile resolves OPENCODE_GO_API_KEY, which is not set — store OPENCODE_GO_API_KEY through the credentials service (the web Models page writes it) or export it, and remove apiKeyEnv only if this provider should authenticate from pi-ai's own environment discovery","code":"MISSING_CREDENTIAL"}}}
-{"type":"final","text":""}

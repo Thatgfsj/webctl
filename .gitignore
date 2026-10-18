@@ -18,3 +18,8 @@
 .vscode/
 .DS_Store
 Thumbs.db
+
+# DSH ops 工件与本地实验痕迹（不得进仓库：含会话转储与本地绝对路径）
+ops032测试/
+.dsh-ops/
+.dsh-ops-update-*.lock
