@@ -105,6 +105,8 @@ impl Cli {
             timeout_ms: self.timeout_ms,
             offline: self.offline.then_some(true),
             proxy: self.proxy.clone(),
+            // 本片（#128 第 1 步）不加 CLI 开关：开关要等引擎真正接线后才有意义。
+            js_render: None,
         }
     }
 }
@@ -271,7 +273,8 @@ fn output_hint(cli: &Cli) -> OutputFormat {
 fn run_caps(config: &Config, started: Instant) -> ExitCode {
     // 议题 #68：caps 的工具清单必须来自 MCP 的真实注册表，而不是硬编码 available。
     let report = CapsReport::detect_with(config, webctl_mcp::caps::tool_capabilities())
-        .with_spa(webctl_mcp::caps::spa_surface());
+        .with_spa(webctl_mcp::caps::spa_surface())
+        .with_js(webctl_mcp::caps::js_capability(config));
     // caps 是本地自检数据，因此 trust 为 trusted_local（页面内容才用 untrusted）。
     let envelope = Envelope::ok(report, Trust::TrustedLocal, elapsed(started));
     emit(envelope, config.output, render_caps)

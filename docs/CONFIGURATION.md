@@ -38,6 +38,7 @@ output = "json"       # json | text
 timeout_ms = 30000    # 单次请求预算（毫秒）
 offline = false       # true 时拒绝一切网络访问
 proxy = "http://127.0.0.1:8080"  # 显式代理；不写即直连
+js_render = false     # 是否执行页面内联脚本；默认 false（ADR-0005）
 ```
 
 语法错误或未知键会报“配置文件 <path> 解析失败：…”并以非零退出码结束；
@@ -56,6 +57,7 @@ proxy = "http://127.0.0.1:8080"  # 显式代理；不写即直连
 | `WEBCTL_TIMEOUT_MS` | 单次请求预算 | 非负整数（毫秒） |
 | `WEBCTL_OFFLINE` | 离线模式 | `1/true/yes/on` 或 `0/false/no/off` |
 | `WEBCTL_PROXY` | 显式代理 URL | 例 `http://user:pass@host:8080` |
+| `WEBCTL_JS_RENDER` | 是否执行页面内联脚本（**默认关闭**） | `1/true/yes/on` 或 `0/false/no/off` |
 | `XDG_CONFIG_HOME` | 配置文件目录基准 | 路径 |
 | `HOME` | 配置文件/状态目录基准 | 路径 |
 | `USERPROFILE` | Windows 上的 `HOME` 等价物 | 路径 |
@@ -65,6 +67,14 @@ proxy = "http://127.0.0.1:8080"  # 显式代理；不写即直连
 ## 4. 代理语义（CLI-03）
 
 - 只有**显式配置**才走代理：`WEBCTL_PROXY`、配置文件 `proxy`、CLI `--proxy`。
+
+### `js_render`（默认关闭，见 [ADR-0005](adr/0005-embedded-js-engine.md)）
+
+- 默认 **不执行**任何页面脚本；开启是显式的（配置文件 `js_render` 或 `WEBCTL_JS_RENDER`）。
+- **开关 ≠ 已接线**：`caps --json` 的 `data.js` 分开报告 `enabled`（调用方是否开启）与 `wired`（引擎是否真的接上了取回/抽取路径），并给出 `reason`。
+  这样不会出现"配置说开着、实际没执行"的假象。
+- 引擎是**进程内**的 `crates/webctl-js`（纯 Rust，`boa_engine`）：不启动外部进程、不碰网络与文件系统；
+  限值只有 loop / recursion / stack 与输入预算，**墙钟与堆内存不设限**（见 [#130](https://github.com/Thatgfsj/webctl/issues/130)）。
 - 未配置时固定直连：取回层在 `proxy = None` 时显式 `no_proxy()`，
   **不会**读取宿主 `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY`。
   这样离线测试与 CI 不会被开发机上的代理劫持。

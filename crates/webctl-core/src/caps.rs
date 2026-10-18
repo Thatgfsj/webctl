@@ -102,6 +102,30 @@ impl ToolCapability {
     }
 }
 
+/// 内置 JS 引擎的能力状态（议题 #128 / [ADR-0005](../../docs/adr/0005-embedded-js-engine.md)）。
+///
+/// `enabled` 与 `wired` **必须分开**：前者是调用方是否显式开启，后者是引擎是否真的接上了
+/// 取回/抽取路径。分开是为了消灭"配置说开着、实际没执行"这种假象。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct JsCapability {
+    /// 调用方是否显式开启（默认关闭）。
+    pub enabled: bool,
+    /// 引擎是否**已接线**（能真正执行页面脚本）。
+    pub wired: bool,
+    /// 诚实说明（不得为空，也不必与 `enabled` 一致）。
+    pub reason: String,
+}
+
+impl Default for JsCapability {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            wired: false,
+            reason: "内置 JS 引擎尚未接线到取回/抽取路径（#128）".to_owned(),
+        }
+    }
+}
+
 /// SPA / JS 页面的支持面（#115）。
 ///
 /// 两部分都是**机器可读**的：`detected_containers` 是引擎认得的容器类型，
@@ -128,6 +152,8 @@ pub struct CapsReport {
     pub tools: Vec<ToolCapability>,
     /// SPA / JS 页面的支持面（#115）。
     pub spa: SpaSurface,
+    /// 内置 JS 引擎状态（#128）。
+    pub js: JsCapability,
 }
 
 impl CapsReport {
@@ -172,12 +198,19 @@ impl CapsReport {
             capabilities,
             tools,
             spa: SpaSurface::default(),
+            js: JsCapability::default(),
         }
     }
 
     /// 附加 SPA 支持面（#115）：由接口层用真实容器类型与真实工具名填充。
     pub fn with_spa(mut self, spa: SpaSurface) -> Self {
         self.spa = spa;
+        self
+    }
+
+    /// 附加内置 JS 引擎状态（#128）：由接口层按**实际接线情况**填充。
+    pub fn with_js(mut self, js: JsCapability) -> Self {
+        self.js = js;
         self
     }
 
@@ -210,6 +243,29 @@ mod tests {
             state: CapabilityState::Available,
             reason: "stub".to_owned(),
         }
+    }
+
+    /// #128：`js` 的 `enabled` 与 `wired` 必须**分开**报告，且默认关闭、本片未接线。
+    #[test]
+    fn js_capability_separates_enabled_from_wired() {
+        let default_report = CapsReport::detect(&Config::default());
+        assert!(!default_report.js.enabled, "默认必须关闭");
+        assert!(!default_report.js.wired, "本片（#128 第 1 步）尚未接线");
+        assert!(!default_report.js.reason.is_empty(), "原因不得为空");
+        let enabled_config = Config {
+            js_render: true,
+            ..Config::default()
+        };
+        let report = CapsReport::detect(&enabled_config).with_js(JsCapability {
+            enabled: true,
+            wired: false,
+            reason: "已开启但未接线".to_owned(),
+        });
+        assert!(report.js.enabled);
+        assert!(
+            !report.js.wired,
+            "开启配置 ≠ 已接线：不得把两者混为一谈（否则就是假象）"
+        );
     }
 
     /// CAPS-01：五个能力域齐全且顺序固定。

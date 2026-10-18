@@ -58,6 +58,12 @@ pub struct Config {
     ///
     /// 可能带 user:password@ 凭据，任何对外输出都必须先经 Config::redacted。
     pub proxy: Option<String>,
+    /// 是否执行页面内联脚本（[ADR-0005](../../docs/adr/0005-embedded-js-engine.md)）。
+    ///
+    /// **默认关闭**：开启是显式的（配置文件 `js_render` 或 `WEBCTL_JS_RENDER`）。
+    /// 注意：开关只表示"调用方愿意"，引擎是否真的**已接线**由 `caps` 的 `js.wired` 如实报告
+    /// （两者分开，是为了不出现"配置说开着、实际没执行"这种假象）。
+    pub js_render: bool,
 }
 
 impl Default for Config {
@@ -70,6 +76,7 @@ impl Default for Config {
             max_concurrency_per_host: 2,
             min_interval_ms: 1_000,
             proxy: None,
+            js_render: false,
         }
     }
 }
@@ -105,6 +112,9 @@ pub struct ConfigLayer {
     /// 代理 URL。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub proxy: Option<String>,
+    /// 是否执行页面内联脚本（默认关闭）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub js_render: Option<bool>,
 }
 
 impl ConfigLayer {
@@ -121,6 +131,9 @@ impl ConfigLayer {
         }
         if let Some(value) = &self.proxy {
             config.proxy = Some(value.clone());
+        }
+        if let Some(value) = self.js_render {
+            config.js_render = value;
         }
     }
 
@@ -141,6 +154,9 @@ impl ConfigLayer {
         }
         if let Some(raw) = env_value(&get, ENV_OFFLINE) {
             layer.offline = Some(parse_bool(ENV_OFFLINE, &raw)?);
+        }
+        if let Some(raw) = env_value(&get, ENV_JS_RENDER) {
+            layer.js_render = Some(parse_bool(ENV_JS_RENDER, &raw)?);
         }
         // 只有 webctl 专用变量才开启代理；宿主 HTTP(S)_PROXY 一律忽略（见模块文档）。
         if let Some(raw) = env_value(&get, ENV_PROXY)
@@ -224,17 +240,20 @@ pub const ENV_TIMEOUT_MS: &str = "WEBCTL_TIMEOUT_MS";
 pub const ENV_OFFLINE: &str = "WEBCTL_OFFLINE";
 /// 环境变量名：显式代理 URL。
 pub const ENV_PROXY: &str = "WEBCTL_PROXY";
+/// 是否执行页面内联脚本（默认关闭）。
+pub const ENV_JS_RENDER: &str = "WEBCTL_JS_RENDER";
 
 /// webctl 读取的全部环境变量（CLI-11：必须在 --help 与文档中列出）。
 ///
 /// 注意不包含 HTTP_PROXY / HTTPS_PROXY / ALL_PROXY：宿主代理不会被采用。
-pub const ENV_VARS: [&str; 9] = [
+pub const ENV_VARS: [&str; 10] = [
     ENV_CONFIG,
     ENV_STATE_DIR,
     ENV_OUTPUT,
     ENV_TIMEOUT_MS,
     ENV_OFFLINE,
     ENV_PROXY,
+    ENV_JS_RENDER,
     "XDG_CONFIG_HOME",
     "HOME",
     "USERPROFILE",
@@ -387,6 +406,7 @@ mod tests {
         assert_eq!(config.timeout_ms, 30_000);
         assert_eq!(config.output, OutputFormat::Json);
         assert_eq!(config.proxy, None, "默认不使用代理");
+        assert!(!config.js_render, "默认不执行页面脚本（ADR-0005）");
         assert!(config.state_dir.is_absolute() || config.state_dir.ends_with(".webctl"));
     }
 
@@ -454,6 +474,25 @@ mod tests {
         assert_eq!(layer.timeout_ms, Some(1234));
         assert_eq!(layer.offline, Some(true));
         assert_eq!(layer.proxy, None);
+        assert_eq!(
+            layer.js_render, None,
+            "未给 WEBCTL_JS_RENDER 时不得擅自开启"
+        );
+    }
+
+    /// #128：`js_render` 的默认、env 与非法值（**默认关闭**是 ADR-0005 的硬约束）。
+    #[test]
+    fn js_render_defaults_off_and_comes_from_env() {
+        assert!(
+            !Config::default().js_render,
+            "默认必须关闭：不开启时不得执行任何页面脚本"
+        );
+        let on = ConfigLayer::from_env(env(&[("WEBCTL_JS_RENDER", "1")])).expect("env layer");
+        assert_eq!(on.js_render, Some(true));
+        let off = ConfigLayer::from_env(env(&[("WEBCTL_JS_RENDER", "false")])).expect("env layer");
+        assert_eq!(off.js_render, Some(false));
+        let bad = ConfigLayer::from_env(env(&[("WEBCTL_JS_RENDER", "也许")]));
+        assert!(bad.is_err(), "非法取值必须报错，不许静默忽略");
     }
 
     /// CLI-03：代理只认 WEBCTL_PROXY；宿主 HTTP(S)_PROXY 必须被忽略（直连）。
