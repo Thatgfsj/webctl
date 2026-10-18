@@ -23,6 +23,7 @@ serde_json = "1.0"
 webctl-core = { path = "crates/webctl-core" }
 webctl-web = { path = "crates/webctl-web" }
 webctl-mcp = { path = "crates/webctl-mcp" }
+webctl-js = { path = "crates/webctl-js" }
 # ADR-0005 / #127：受限内置 JS 引擎（纯 Rust）。只有 webctl-js 可以依赖它。
 boa_engine = "0.20"
 # PR 05 状态层：advisory 文件锁；fslock 在 Unix 上直接调用 flock(2)，

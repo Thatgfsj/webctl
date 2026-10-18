@@ -26,7 +26,7 @@ done
 if grep -qx "name = \"boa_engine\"" "$lock"; then
   echo "允许的 JS 引擎：boa_engine（纯 Rust，受限运行，ADR-0005）"
 else
-  echo "未引入 boa_engine（也可以：默认关闭的渲染能力尚未接线）"
+  echo "未引入 boa_engine（也可以：默认关闭的渲染能力，见 #128）"
 fi
 
 # 2b) 归属校验：boa_engine **只允许**被 webctl-js 依赖（ADR-0005 / 议题 #127）。

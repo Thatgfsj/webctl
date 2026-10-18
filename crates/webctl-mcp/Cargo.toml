@@ -17,6 +17,8 @@ serde.workspace = true
 serde_json.workspace = true
 webctl-core.workspace = true
 webctl-web.workspace = true
+# ADR-0005 / #128：受限内置 JS 引擎（沙箱 + 最小 DOM）。默认关闭，只有显式开启才执行页面脚本。
+webctl-js.workspace = true
 tokio.workspace = true
 url.workspace = true
 # rmcp 3.5.1：MCP 官方 Rust SDK（Apache-2.0）。仅启用 server + stdio 传输：

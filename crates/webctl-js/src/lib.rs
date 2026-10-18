@@ -25,6 +25,9 @@ use std::time::{Duration, Instant};
 
 pub mod render;
 
+// 方便调用方直接用 `webctl_js::render(...)`（函数在值命名空间，与模块名不冲突）。
+pub use render::{RenderOutcome, render};
+
 use boa_engine::module::IdleModuleLoader;
 use boa_engine::{Context, Source};
 

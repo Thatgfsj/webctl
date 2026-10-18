@@ -17,13 +17,17 @@ pub const SUGGESTED_CHANNELS: [&str; 1] = ["embedded_data"];
 /// 构造内置 JS 引擎状态（#128 / ADR-0005）。
 ///
 /// **关键**：`wired` 反映"引擎是否真的接上了取回/抽取路径"，而不是"配置有没有开"。
-/// 本片（#128 第 1 步）只落了配置与状态，**尚未接线**，所以 `wired` 恒为 `false` 并给出原因——
-/// 不允许把"配置开着"说成"能执行"。
+/// 自 #128 步骤 2 起**已接线**（`resolve_source` + `extract` 的 URL 分支，条件：开关开启且内容为 HTML），
+/// 故 `wired = true`；`reason` 必须写清触发条件与能力边界（只执行内联脚本、最小 DOM 子集）。
 pub fn js_capability(config: &Config) -> JsCapability {
     JsCapability {
         enabled: config.js_render,
-        wired: false,
-        reason: "引擎已内置（crates/webctl-js：沙箱 + 最小 DOM），但尚未接线到取回/抽取路径（#128 后半）".to_owned(),
+        wired: true,
+        reason: "已接线到 resolve_source 与 extract 的 URL 分支：开关开启且内容为 HTML 时才渲染；\
+                渲染失败不伪装成功而是降级（degraded_from=js-render-failed）。**只执行内联脚本**：外链 <script src> 不取，\
+                因此依赖 jQuery 等外部库的页面会如实降级（真站实测 ReferenceError: $ is not defined）。\
+                覆盖内容是**最小 DOM 子集**，复杂框架水合大概率仍取不到（boa ≠ 浏览器，见 ADR-0005）"
+            .to_owned(),
     }
 }
 

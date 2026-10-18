@@ -75,14 +75,20 @@ embedded_data {"url": <URL>}                       # 看 code / data.entries 条
 |---|---|
 | **新增内嵌数据通道** | 真站 5 个样本里 **2 个**（`nextjs.org` 的 `ld+json`、`nuxt.com` 的 `ld+json`+`__NUXT_DATA__`+`inline-state`）从"拿不到结构化数据"变为拿到；离线样本 2/5 靠这条通道拿到内容 |
 | **降级可行动**（#115） | JS 空壳页的降级信封现在带 `meta.actionable`（原因码 + 证据 + 建议通道），调用方知道"还能试 `embedded_data`" |
-| **JS 空壳仍然拿不到内容** | `quotes.toscrape.com/js/` 依旧 `none`——引擎尚未接线（ADR-0005），这一项要等 0.1.2 的引擎 PR |
+| **JS 空壳仍然拿不到内容** | 引擎**已接线**（#128 步骤 2，默认关闭）；开启后本页仍 `none`，原因是它依赖**外链** jQuery（`ReferenceError: $ is not defined`），见 §5；外链脚本的判定见 [#137](https://github.com/Thatgfsj/webctl/issues/137)。 |
 | **总体获取率未变** | 真站仍是 4/5：本版改善的是**通道覆盖**（内嵌数据通道 **0/5 → 2/5**），不是总数 |
 
-## 5. 0.1.2 完成后的对比（待填）
+## 5. 0.1.2 完成后的对比（引擎接线后实测，2026-10-18）
 
-引擎接线（ADR-0005）落地后，在本节记录：
+引擎已接线（`js_render` 开关，**默认关闭**；见 [CONFIGURATION §5](CONFIGURATION.md)）。实测：
 
-- `quotes.toscrape.com/js/` 是否从 `none` 变为 `content`（这是 EPIC #113 的核心锚点）；
+- **离线夹具（仓库自己的 JS 空壳样本）**：开关开启后 `extract div.quote` 命中 **10 条** ✓（内容原本只在 `document.write` 里）；
+- **真站 `quotes.toscrape.com/js/`**：开关开启后**仍未取到** ✗，但**原因明确且如实报告**：
+  该页的内联脚本依赖 **jQuery**，而 jQuery 是**外链脚本**（本版按设计不执行外链），
+  于是渲染失败并降级为 `degraded_from=js-render-failed`，`actionable.detected` 给出
+  `ReferenceError: $ is not defined`——**不是**"成功但空"；
+- 结论：本版让"内容由**内联**脚本生成"的页面可取；让"依赖外部 JS 库"的页面**如实失败**。
+  后者的处理（取同源外链脚本再执行）已立议题 [#137](https://github.com/Thatgfsj/webctl/issues/137)。
 - `tailwindcss.com` 是否仍为 `none`（若变，说明改变了什么）；
 - 离线样本基线的 diff（`spa_baseline.rs` 的断言必须显式更新）；
 - 引擎带来的体积/耗时变化（发布资产与 `ldd` 证据见 `docs/RELEASE.md`）。

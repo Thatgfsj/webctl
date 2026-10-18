@@ -101,18 +101,85 @@ async fn fetch_target(ctx: &McpContext, url: &str) -> Envelope<Fetched> {
 }
 
 /// 解析 html/text 输入：url 与 html 二选一。
+/// 页面 HTML 的来源结果。`render` 记录"是否尝试渲染、以及渲染失败的原因"。
+struct Source {
+    /// 供解析/抽取使用的 HTML（渲染成功时是渲染后的，失败时是原始 HTML）。
+    html: String,
+    /// 渲染失败的说明；`None` 表示没渲染或渲染成功。
+    render: Option<RenderNote>,
+}
+
+/// 渲染失败时写进信封的降级说明（A3：不许伪装成功）。
+struct RenderNote {
+    /// 降级来源标签。
+    degraded_from: String,
+    /// 机器可读原因（引擎给出的类别）。
+    reason: String,
+    /// 观察到的证据（原始错误文本）。
+    detected: Vec<String>,
+}
+
+/// 把渲染失败的降级**如实**写进工具自己的信封：置 `DEGRADED`、写 `degraded_from`，
+/// 并带上 `meta.actionable`（原因 + 证据 + 建议通道）。
+///
+/// 注意：**不**把原本可用的结果改成失败——原始 HTML 仍然可用，所以是降级而不是失败。
+fn apply_render_degradation(mut envelope: Value, note: Option<&RenderNote>) -> Value {
+    let Some(note) = note else {
+        return envelope;
+    };
+    if let Some(meta) = envelope.get_mut("meta") {
+        meta["degraded_from"] = json!(note.degraded_from);
+        meta["actionable"] = json!({
+            "reason": note.reason,
+            "detected": note.detected,
+            // 空数组 = 没有别的通道可试；不写不存在的通道名。
+            "next_steps": Vec::<String>::new(),
+        });
+    }
+    envelope["code"] = serde_json::to_value(ErrorCode::Degraded).unwrap_or(json!("DEGRADED"));
+    envelope["error"] = json!(note.reason);
+    envelope
+}
+
+/// 开关开启且内容像是 HTML 时，把页面内联脚本跑进沙箱，返回渲染后的 HTML。
+///
+/// 失败**不**静默：返回原始 HTML + 降级说明，由调用方写进信封。
+fn render_if_enabled(ctx: &McpContext, html: &str, is_html: bool) -> (String, Option<RenderNote>) {
+    if !ctx.config.js_render || !is_html {
+        return (html.to_owned(), None);
+    }
+    match webctl_js::render(html, &webctl_js::JsLimits::default()) {
+        Ok(outcome) => (outcome.html, None),
+        Err(failure) => (
+            html.to_owned(),
+            Some(RenderNote {
+                degraded_from: "js-render-failed".to_owned(),
+                reason: format!("{:?}", failure.kind).to_lowercase(),
+                detected: vec![failure.message.clone()],
+            }),
+        ),
+    }
+}
+
 async fn resolve_source(
     ctx: &McpContext,
     url: Option<&str>,
     html: Option<&str>,
-) -> Result<String, Value> {
+) -> Result<Source, Value> {
     match (url, html) {
         (Some(_), Some(_)) => Err(fail(
             ErrorCode::BadUrl,
             "url 与 html 只能给一个（两者同时给出无法判定内容来源）",
         )),
         (None, None) => Err(fail(ErrorCode::BadUrl, "必须给出 url 或 html 之一")),
-        (None, Some(html)) => Ok(html.to_owned()),
+        // 调用方自带 HTML：同样视为"一个页面"，开关开启时也渲染。
+        (None, Some(html)) => {
+            let (rendered, render) = render_if_enabled(ctx, html, true);
+            Ok(Source {
+                html: rendered,
+                render,
+            })
+        }
         (Some(url), None) => {
             if let Some(rejected) = offline_guard(ctx) {
                 return Err(rejected);
@@ -122,8 +189,15 @@ async fn resolve_source(
                 return Err(to_value(envelope));
             }
             let fetched = envelope.data.expect("ok envelope has data");
+            let is_html = matches!(fetched.content.kind, webctl_web::ContentKind::Html);
             match fetched.content.text {
-                Some(text) => Ok(text),
+                Some(text) => {
+                    let (rendered, render) = render_if_enabled(ctx, &text, is_html);
+                    Ok(Source {
+                        html: rendered,
+                        render,
+                    })
+                }
                 None => Err(to_value(Envelope::degraded(
                     json!({"content_kind": format!("{:?}", fetched.content.kind).to_lowercase()}),
                     format!("content-type:{:?}", fetched.content.kind).to_lowercase(),
@@ -185,13 +259,29 @@ async fn tool_extract(ctx: &McpContext, args: &Value) -> Value {
                 return to_value(envelope);
             }
             let fetched = envelope.data.expect("ok envelope has data");
+            let is_html = matches!(fetched.content.kind, webctl_web::ContentKind::Html);
+            // 开关关闭时**逐字**走原路径（硬要求：默认行为不变）。
+            if ctx.config.js_render && is_html {
+                let raw = fetched.content.text.clone().unwrap_or_default();
+                let (rendered, note) = render_if_enabled(ctx, &raw, true);
+                return apply_render_degradation(
+                    to_value(extract::extract(&rendered, &params.selector, &options)),
+                    note.as_ref(),
+                );
+            }
             to_value(extract::extract_body(
                 &fetched.content,
                 &params.selector,
                 &options,
             ))
         }
-        (None, Some(html)) => to_value(extract::extract(html, &params.selector, &options)),
+        (None, Some(html)) => {
+            let (rendered, note) = render_if_enabled(ctx, html, true);
+            apply_render_degradation(
+                to_value(extract::extract(&rendered, &params.selector, &options)),
+                note.as_ref(),
+            )
+        }
         (Some(_), Some(_)) | (None, None) => fail(
             ErrorCode::BadUrl,
             "url 与 html 只能给一个；extract 需要其中之一",
@@ -204,8 +294,8 @@ async fn tool_search(ctx: &McpContext, args: &Value) -> Value {
         Ok(params) => params,
         Err(value) => return value,
     };
-    let text = match resolve_source(ctx, params.url.as_deref(), params.html.as_deref()).await {
-        Ok(text) => text,
+    let source = match resolve_source(ctx, params.url.as_deref(), params.html.as_deref()).await {
+        Ok(source) => source,
         Err(value) => return value,
     };
     let mut options = SearchOptions::default();
@@ -221,7 +311,10 @@ async fn tool_search(ctx: &McpContext, args: &Value) -> Value {
     if let Some(value) = params.case_insensitive {
         options.case_insensitive = value;
     }
-    to_value(extract::search(&text, &params.query, &options))
+    apply_render_degradation(
+        to_value(extract::search(&source.html, &params.query, &options)),
+        source.render.as_ref(),
+    )
 }
 
 async fn tool_links(ctx: &McpContext, args: &Value) -> Value {
@@ -229,8 +322,8 @@ async fn tool_links(ctx: &McpContext, args: &Value) -> Value {
         Ok(params) => params,
         Err(value) => return value,
     };
-    let html = match resolve_source(ctx, params.url.as_deref(), params.html.as_deref()).await {
-        Ok(html) => html,
+    let source = match resolve_source(ctx, params.url.as_deref(), params.html.as_deref()).await {
+        Ok(source) => source,
         Err(value) => return value,
     };
     let filter = LinkFilter {
@@ -245,7 +338,10 @@ async fn tool_links(ctx: &McpContext, args: &Value) -> Value {
         options.max_results = value;
     }
     let base = params.base.as_deref().or(params.url.as_deref());
-    to_value(extract::links(&html, base, &filter, &options))
+    apply_render_degradation(
+        to_value(extract::links(&source.html, base, &filter, &options)),
+        source.render.as_ref(),
+    )
 }
 
 async fn tool_tables(ctx: &McpContext, args: &Value) -> Value {
@@ -253,15 +349,18 @@ async fn tool_tables(ctx: &McpContext, args: &Value) -> Value {
         Ok(params) => params,
         Err(value) => return value,
     };
-    let html = match resolve_source(ctx, params.url.as_deref(), params.html.as_deref()).await {
-        Ok(html) => html,
+    let source = match resolve_source(ctx, params.url.as_deref(), params.html.as_deref()).await {
+        Ok(source) => source,
         Err(value) => return value,
     };
     let mut options = ExtractOptions::default();
     if let Some(value) = params.max_results {
         options.max_results = value;
     }
-    to_value(extract::tables(&html, &options))
+    apply_render_degradation(
+        to_value(extract::tables(&source.html, &options)),
+        source.render.as_ref(),
+    )
 }
 
 async fn tool_forms(ctx: &McpContext, args: &Value) -> Value {
@@ -269,19 +368,25 @@ async fn tool_forms(ctx: &McpContext, args: &Value) -> Value {
         Ok(params) => params,
         Err(value) => return value,
     };
-    let html = match resolve_source(ctx, params.url.as_deref(), params.html.as_deref()).await {
-        Ok(html) => html,
+    let source = match resolve_source(ctx, params.url.as_deref(), params.html.as_deref()).await {
+        Ok(source) => source,
         Err(value) => return value,
     };
     let base = params.base.as_deref().or(params.url.as_deref());
     if let Some(index) = params.form_index {
-        return to_value(extract::form_by_index(&html, base, index));
+        return apply_render_degradation(
+            to_value(extract::form_by_index(&source.html, base, index)),
+            source.render.as_ref(),
+        );
     }
     let mut options = ExtractOptions::default();
     if let Some(value) = params.max_results {
         options.max_results = value;
     }
-    to_value(extract::forms(&html, base, &options))
+    apply_render_degradation(
+        to_value(extract::forms(&source.html, base, &options)),
+        source.render.as_ref(),
+    )
 }
 
 async fn tool_fill_form(ctx: &McpContext, args: &Value) -> Value {
@@ -613,8 +718,8 @@ async fn tool_embedded_data(ctx: &McpContext, args: &Value) -> Value {
         Ok(params) => params,
         Err(value) => return value,
     };
-    let html = match resolve_source(ctx, params.url.as_deref(), params.html.as_deref()).await {
-        Ok(html) => html,
+    let source = match resolve_source(ctx, params.url.as_deref(), params.html.as_deref()).await {
+        Ok(source) => source,
         Err(value) => return value,
     };
     let mut options = EmbeddedOptions::default();
@@ -627,7 +732,10 @@ async fn tool_embedded_data(ctx: &McpContext, args: &Value) -> Value {
     if let Some(value) = params.include_inline_state {
         options.include_inline_state = value;
     }
-    to_value(extract_embedded(&html, &options))
+    apply_render_degradation(
+        to_value(extract_embedded(&source.html, &options)),
+        source.render.as_ref(),
+    )
 }
 
 async fn tool_download(ctx: &McpContext, args: &Value) -> Value {

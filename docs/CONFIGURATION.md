@@ -79,6 +79,10 @@ js_render = false     # 是否执行页面内联脚本；默认 false（ADR-0005
 - 默认 **不执行**任何页面脚本；开启是显式的（配置文件 `js_render` 或 `WEBCTL_JS_RENDER`）。
 - **开关 ≠ 已接线**：`caps --json` 的 `data.js` 分开报告 `enabled`（调用方是否开启）与 `wired`（引擎是否真的接上了取回/抽取路径），并给出 `reason`。
   这样不会出现"配置说开着、实际没执行"的假象。
+- **已接线的范围（`wired: true`）**：`resolve_source`（所有以 URL 为输入的解析类工具）与 `extract` 的 URL 分支；
+  条件：**开关开启 且 内容是 HTML**。
+- **只执行内联脚本**：外链 `<script src>` **不取**（避免页面内容驱动网络请求）——因此依赖 jQuery 等外部库的页面会**如实降级**
+  （`js-render-failed`，附 `ReferenceError: $ is not defined` 这类原始证据），而不是"成功但空"。
 - 引擎是**进程内**的 `crates/webctl-js`（纯 Rust，`boa_engine`）：不启动外部进程、不碰网络与文件系统；
   限值只有 loop / recursion / stack 与输入预算，**墙钟与堆内存不设限**（见 [#130](https://github.com/Thatgfsj/webctl/issues/130)）。
 

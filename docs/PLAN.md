@@ -37,7 +37,7 @@
 4. **SURVEY 的 CDP 证据退化为历史记录。** §2.2 / §2.3 / §3 / §8 不再指导实现，保留以备将来复查。
 5. **反爬姿态变弱。** 没有真实浏览器指纹，只有 TLS 指纹（wreq）与请求头策略；不承诺绕过 Cloudflare/验证码，遇到即 `BLOCKED`。
 
-**可逆性（0.1.2 起启用此缝隙）**：JS 渲染走**可选内置引擎**（**已采用 Boa 纯 Rust**，见 [ADR-0005](adr/0005-embedded-js-engine.md)）。沙箱核心已落地为 `crates/webctl-js`（议题 #127 第 1 片：**零宿主能力**（含动态 `import` fail-closed，见安全复审实证的逃逸与修复）+ **可中断限值**（loop / recursion / stack）+ 输入预算；**尚无指令数 / 墙钟 / 堆内存上限**——boa 0.20 不提供这些 API，内存侧只能用进程级手段，见 [#130](https://github.com/Thatgfsj/webctl/issues/130)；**尚未接线到取回/抽取路径**）+ 自建最小 DOM/BOM，**仍不引入外部进程与外部浏览器**（ADR-0001 有效）。引擎**默认关闭**、显式开启、带硬限（loop / recursion / stack + 输入预算；无网络无文件）；默认行为与既有降级锚点不变。
+**可逆性（0.1.2 起启用此缝隙）**：JS 渲染走**可选内置引擎**（**已采用 Boa 纯 Rust**，见 [ADR-0005](adr/0005-embedded-js-engine.md)）。引擎已接线（议题 #128 步骤 2）：`js_render` 开关默认关闭；开启时对 HTML 页面执行**内联**脚本并序列化 DOM 后再解析。沙箱核心见 `crates/webctl-js`（议题 #127 第 1 片：**零宿主能力**（含动态 `import` fail-closed，见安全复审实证的逃逸与修复）+ **可中断限值**（loop / recursion / stack）+ 输入预算；**尚无指令数 / 墙钟 / 堆内存上限**——boa 0.20 不提供这些 API，内存侧只能用进程级手段，见 [#130](https://github.com/Thatgfsj/webctl/issues/130)）+ 自建最小 DOM/BOM，**仍不引入外部进程与外部浏览器**（ADR-0001 有效）。引擎**默认关闭**、显式开启、带硬限（loop / recursion / stack + 输入预算；无网络无文件）；默认行为与既有降级锚点不变。
 
 ---
 
@@ -128,7 +128,7 @@ v0.4 没有"层"了，只有一组**内置能力域**，全部在进程内：
 - `actionable.reason`：机器可读原因码；`detected`：观察到的证据；`next_steps`：建议的**通道（真实工具名）**。
 - 未降级时该字段**不出现**；"干净的成功"带 `actionable` 属于协议误用（`validate()` 会拒绝）。
 - **口径边界**：其余降级路径（`LIMIT` 截断、`extract` 的 max-results、会话分页、文档/PDF 等）
-  **尚未接线**，不带该字段——不要假设"降级就一定有 `actionable`"。补齐计划见 [#124](https://github.com/Thatgfsj/webctl/issues/124)。
+  **尚未全部接线**（指 `actionable` 的覆盖范围：#124 仍在补齐），不带该字段——不要假设"降级就一定有 `actionable`"。补齐计划见 [#124](https://github.com/Thatgfsj/webctl/issues/124)。
 
 - 错误码（封闭集）：`OK / TIMEOUT / NETWORK / BLOCKED / BAD_URL / PARSE / DEGRADED / UNSUPPORTED / SESSION_LOST / LIMIT / INTERNAL`。
   - 相对 v0.3：删除 `BROWSER_CRASH / NO_BROWSER / TOOL_MISSING / STALE_REF`，新增 `UNSUPPORTED`（能力不存在，如 JS 渲染、OCR）与 `LIMIT`（命中缓冲/尺寸上限）。
