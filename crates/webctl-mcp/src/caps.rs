@@ -3,7 +3,7 @@
 //! 唯一事实来源是 `crate::dispatch::is_known_tool`——也就是工具真的在派发表里；
 //! 不是把 16 个名字硬编码成 available。
 
-use webctl_core::{CapabilityState, SpaSurface, ToolCapability};
+use webctl_core::{CapabilityState, Config, JsCapability, SpaSurface, ToolCapability};
 
 use crate::dispatch;
 use crate::tools::TOOL_SPECS;
@@ -13,6 +13,19 @@ use crate::tools::TOOL_SPECS;
 /// 这些名字必须真实注册：`spa_surface()` 会用 `dispatch::is_known_tool` 过滤，
 /// 且测试断言候选表本身没写错（写错了就红，而不是悄悄少一个建议）。
 pub const SUGGESTED_CHANNELS: [&str; 1] = ["embedded_data"];
+
+/// 构造内置 JS 引擎状态（#128 / ADR-0005）。
+///
+/// **关键**：`wired` 反映"引擎是否真的接上了取回/抽取路径"，而不是"配置有没有开"。
+/// 本片（#128 第 1 步）只落了配置与状态，**尚未接线**，所以 `wired` 恒为 `false` 并给出原因——
+/// 不允许把"配置开着"说成"能执行"。
+pub fn js_capability(config: &Config) -> JsCapability {
+    JsCapability {
+        enabled: config.js_render,
+        wired: false,
+        reason: "引擎已内置（crates/webctl-js：沙箱 + 最小 DOM），但尚未接线到取回/抽取路径（#128 后半）".to_owned(),
+    }
+}
 
 /// 构造 SPA 支持面（#115）：认得的容器类型 + 真实可用的通道。
 pub fn spa_surface() -> SpaSurface {
