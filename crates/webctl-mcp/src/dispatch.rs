@@ -13,6 +13,7 @@ use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 use url::Url;
 use webctl_core::{CapsReport, Envelope, ErrorCode, Trust};
+use webctl_web::ContentKind;
 use webctl_web::doc::{DocOptions, doc_text, json_query};
 use webctl_web::extract::{self, ExtractOptions, LinkFilter, SearchOptions};
 use webctl_web::parse::{EmbeddedOptions, extract_embedded};
@@ -119,14 +120,19 @@ struct RenderNote {
     detected: Vec<String>,
 }
 
-/// 把渲染失败的降级**如实**写进工具自己的信封：置 `DEGRADED`、写 `degraded_from`，
+/// 把**渲染失败或上游降级**如实写进工具自己的信封：置 `DEGRADED`、写 `degraded_from`，
 /// 并带上 `meta.actionable`（原因 + 证据 + 建议通道）。
 ///
 /// 注意：**不**把原本可用的结果改成失败——原始 HTML 仍然可用，所以是降级而不是失败。
-fn apply_render_degradation(mut envelope: Value, note: Option<&RenderNote>) -> Value {
+fn apply_upstream_degradation(mut envelope: Value, note: Option<&RenderNote>) -> Value {
     let Some(note) = note else {
         return envelope;
     };
+    // **只标记"成功但信息受限"**：失败信封本来就把问题说清楚了（`ok=false` + 非空 `error`），
+    // 把它改成 `ok=false` + `DEGRADED` 会产出非法组合（降级码要求 `ok=true`）。
+    if envelope.get("ok").and_then(Value::as_bool) != Some(true) {
+        return envelope;
+    }
     if let Some(meta) = envelope.get_mut("meta") {
         meta["degraded_from"] = json!(note.degraded_from);
         meta["actionable"] = json!({
@@ -139,6 +145,19 @@ fn apply_render_degradation(mut envelope: Value, note: Option<&RenderNote>) -> V
     envelope["code"] = serde_json::to_value(ErrorCode::Degraded).unwrap_or(json!("DEGRADED"));
     envelope["error"] = json!(note.reason);
     envelope
+}
+
+/// 从取回信封里读出上游判定（例如 `js-render`：页面是 JS 空壳，取到的是未渲染 HTML）。
+///
+/// #125：`doc_text` / `json_query` / `download` 这类以 URL 为输入、自己重建信封的工具
+/// 曾把上游降级**丢掉**，在 JS 页上静默返回 `OK`——调用方会以为那就是页面内容。
+fn upstream_note(envelope: &Envelope<Fetched>) -> Option<RenderNote> {
+    let from = envelope.meta.degraded_from.clone()?;
+    Some(RenderNote {
+        degraded_from: from,
+        reason: "上游取回判定该页面未经渲染，返回的文本/字节不含 JS 注入的内容".to_owned(),
+        detected: vec!["transport".to_owned()],
+    })
 }
 
 /// 开关开启且内容像是 HTML 时，把页面内联脚本跑进沙箱，返回渲染后的 HTML。
@@ -264,7 +283,7 @@ async fn tool_extract(ctx: &McpContext, args: &Value) -> Value {
             if ctx.config.js_render && is_html {
                 let raw = fetched.content.text.clone().unwrap_or_default();
                 let (rendered, note) = render_if_enabled(ctx, &raw, true);
-                return apply_render_degradation(
+                return apply_upstream_degradation(
                     to_value(extract::extract(&rendered, &params.selector, &options)),
                     note.as_ref(),
                 );
@@ -277,7 +296,7 @@ async fn tool_extract(ctx: &McpContext, args: &Value) -> Value {
         }
         (None, Some(html)) => {
             let (rendered, note) = render_if_enabled(ctx, html, true);
-            apply_render_degradation(
+            apply_upstream_degradation(
                 to_value(extract::extract(&rendered, &params.selector, &options)),
                 note.as_ref(),
             )
@@ -311,7 +330,7 @@ async fn tool_search(ctx: &McpContext, args: &Value) -> Value {
     if let Some(value) = params.case_insensitive {
         options.case_insensitive = value;
     }
-    apply_render_degradation(
+    apply_upstream_degradation(
         to_value(extract::search(&source.html, &params.query, &options)),
         source.render.as_ref(),
     )
@@ -338,7 +357,7 @@ async fn tool_links(ctx: &McpContext, args: &Value) -> Value {
         options.max_results = value;
     }
     let base = params.base.as_deref().or(params.url.as_deref());
-    apply_render_degradation(
+    apply_upstream_degradation(
         to_value(extract::links(&source.html, base, &filter, &options)),
         source.render.as_ref(),
     )
@@ -357,7 +376,7 @@ async fn tool_tables(ctx: &McpContext, args: &Value) -> Value {
     if let Some(value) = params.max_results {
         options.max_results = value;
     }
-    apply_render_degradation(
+    apply_upstream_degradation(
         to_value(extract::tables(&source.html, &options)),
         source.render.as_ref(),
     )
@@ -374,7 +393,7 @@ async fn tool_forms(ctx: &McpContext, args: &Value) -> Value {
     };
     let base = params.base.as_deref().or(params.url.as_deref());
     if let Some(index) = params.form_index {
-        return apply_render_degradation(
+        return apply_upstream_degradation(
             to_value(extract::form_by_index(&source.html, base, index)),
             source.render.as_ref(),
         );
@@ -383,7 +402,7 @@ async fn tool_forms(ctx: &McpContext, args: &Value) -> Value {
     if let Some(value) = params.max_results {
         options.max_results = value;
     }
-    apply_render_degradation(
+    apply_upstream_degradation(
         to_value(extract::forms(&source.html, base, &options)),
         source.render.as_ref(),
     )
@@ -638,7 +657,7 @@ async fn read_source_bytes(
     json_text: Option<&str>,
     url: Option<&str>,
     path: Option<&str>,
-) -> Result<Vec<u8>, Value> {
+) -> Result<(Vec<u8>, Option<RenderNote>), Value> {
     let given = [json_text.is_some(), url.is_some(), path.is_some()]
         .iter()
         .filter(|present| **present)
@@ -650,10 +669,11 @@ async fn read_source_bytes(
         ));
     }
     if let Some(text) = json_text {
-        return Ok(text.as_bytes().to_vec());
+        return Ok((text.as_bytes().to_vec(), None));
     }
     if let Some(path) = path {
         return std::fs::read(path)
+            .map(|bytes| (bytes, None))
             .map_err(|error| fail(ErrorCode::BadUrl, format!("读取文件失败：{error}")));
     }
     let url = url.expect("checked above");
@@ -664,9 +684,15 @@ async fn read_source_bytes(
     if !envelope.ok {
         return Err(to_value(envelope));
     }
+    let upstream = upstream_note(&envelope);
     let fetched = envelope.data.expect("ok envelope has data");
+    let is_html = matches!(fetched.content.kind, ContentKind::Html);
     match fetched.content.text {
-        Some(text) => Ok(text.into_bytes()),
+        Some(text) => {
+            // #128：开关开启时同样渲染（与 extract 口径一致），失败则如实降级。
+            let (rendered, render) = render_if_enabled(ctx, &text, is_html);
+            Ok((rendered.into_bytes(), render.or(upstream)))
+        }
         None => Err(to_value(Envelope::degraded(
             json!({"content_kind": format!("{:?}", fetched.content.kind).to_lowercase()}),
             "transport:raw-bytes-unavailable",
@@ -681,7 +707,7 @@ async fn tool_json_query(ctx: &McpContext, args: &Value) -> Value {
         Ok(params) => params,
         Err(value) => return value,
     };
-    let bytes = match read_source_bytes(
+    let (bytes, note) = match read_source_bytes(
         ctx,
         params.json.as_deref(),
         params.url.as_deref(),
@@ -689,10 +715,13 @@ async fn tool_json_query(ctx: &McpContext, args: &Value) -> Value {
     )
     .await
     {
-        Ok(bytes) => bytes,
+        Ok(pair) => pair,
         Err(value) => return value,
     };
-    to_value(json_query(&bytes, &params.expression, &Default::default()))
+    apply_upstream_degradation(
+        to_value(json_query(&bytes, &params.expression, &Default::default())),
+        note.as_ref(),
+    )
 }
 
 async fn tool_doc_text(ctx: &McpContext, args: &Value) -> Value {
@@ -701,11 +730,14 @@ async fn tool_doc_text(ctx: &McpContext, args: &Value) -> Value {
         Err(value) => return value,
     };
     let (path, url) = (params.path.as_deref(), params.url.as_deref());
-    let bytes = match read_source_bytes(ctx, None, url, path).await {
-        Ok(bytes) => bytes,
+    let (bytes, note) = match read_source_bytes(ctx, None, url, path).await {
+        Ok(pair) => pair,
         Err(value) => return value,
     };
-    to_value(doc_text(&bytes, &DocOptions::default()))
+    apply_upstream_degradation(
+        to_value(doc_text(&bytes, &DocOptions::default())),
+        note.as_ref(),
+    )
 }
 
 /// embedded_data：抽取页面内嵌的结构化数据。
@@ -732,7 +764,7 @@ async fn tool_embedded_data(ctx: &McpContext, args: &Value) -> Value {
     if let Some(value) = params.include_inline_state {
         options.include_inline_state = value;
     }
-    apply_render_degradation(
+    apply_upstream_degradation(
         to_value(extract_embedded(&source.html, &options)),
         source.render.as_ref(),
     )
@@ -754,6 +786,7 @@ async fn tool_download(ctx: &McpContext, args: &Value) -> Value {
     if !envelope.ok {
         return to_value(envelope);
     }
+    let upstream = upstream_note(&envelope);
     let fetched = envelope.data.expect("ok envelope has data");
     let Some(text) = fetched.content.text.as_deref() else {
         return to_value(Envelope::degraded(
@@ -784,16 +817,19 @@ async fn tool_download(ctx: &McpContext, args: &Value) -> Value {
     if let Err(error) = std::fs::write(&path, text.as_bytes()) {
         return fail(ErrorCode::Internal, format!("写入文件失败：{error}"));
     }
-    to_value(Envelope::ok(
-        json!({
-            "saved_to": path.to_string_lossy(),
-            "bytes": text.len(),
-            "status": fetched.status,
-            "content_type": fetched.content.content_type,
-        }),
-        Trust::UntrustedPageContent,
-        0,
-    ))
+    apply_upstream_degradation(
+        to_value(Envelope::ok(
+            json!({
+                "saved_to": path.to_string_lossy(),
+                "bytes": text.len(),
+                "status": fetched.status,
+                "content_type": fetched.content.content_type,
+            }),
+            Trust::UntrustedPageContent,
+            0,
+        )),
+        upstream.as_ref(),
+    )
 }
 
 fn default_filename(url: &str) -> Option<String> {

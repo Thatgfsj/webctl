@@ -81,6 +81,9 @@ js_render = false     # 是否执行页面内联脚本；默认 false（ADR-0005
   这样不会出现"配置说开着、实际没执行"的假象。
 - **已接线的范围（`wired: true`）**：`resolve_source`（所有以 URL 为输入的解析类工具）与 `extract` 的 URL 分支；
   条件：**开关开启 且 内容是 HTML**。
+- **降级不会被下游丢掉**（#125）：`doc_text` / `json_query` / `download` 以 URL 为输入，同样会**继承**上游判定——
+  在 JS 页上它们要么 `DEGRADED` + `degraded_from=js-render`，要么显式失败，**不会**静默返回 `OK`；
+  普通页不受影响（有反向守卫用例）。
 - **只执行内联脚本**：外链 `<script src>` **不取**（避免页面内容驱动网络请求）——因此依赖 jQuery 等外部库的页面会**如实降级**
   （`js-render-failed`，附 `ReferenceError: $ is not defined` 这类原始证据），而不是"成功但空"。
 - 引擎是**进程内**的 `crates/webctl-js`（纯 Rust，`boa_engine`）：不启动外部进程、不碰网络与文件系统；

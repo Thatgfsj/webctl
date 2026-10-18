@@ -570,10 +570,14 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 
 `crates/webctl-mcp/src/` 单元 **13 条**（含本版新增的 MCP 侧脱敏隔离用例）：`registry_is_exactly_the_plan_list`、`definitions_match_the_static_specs`、`qualified_names_follow_the_dsh_contract`、`all_plan_tools_are_registered_and_available`、`capabilities_mirror_the_dispatch_table`、`instructions_stay_under_limit`、`dsh_snippet_has_no_tool_order_and_no_tool_names`、`bound_session_accepts_only_itself`、`cross_session_error_is_readable_and_mentions_both`、`unbound_defaults_to_default_and_validates`、`small_result_stays_inline`、`large_result_is_spilled_and_keeps_degradation`、`sec_09_mcp_dispatcher_is_the_one_that_redacts`（[#82](https://github.com/Thatgfsj/webctl/issues/82) 补的隔离用例，详见本节末尾）。
 
-`crates/webctl-mcp/tests/mcp.rs` **35 条通过 + 0 ignored**（#82 转正后 20 条，#114 增 3 条 + 2 条 schema 守卫，#115 增 5 条，#119 补 1 条，#128 接线增 4 条）：
+`crates/webctl-mcp/tests/mcp.rs` **39 条通过 + 0 ignored**（#82 转正后 20 条，#114 增 3 条 + 2 条 schema 守卫，#115 增 5 条，#119 补 1 条，#128 接线增 4 条，#125 增 4 条）：
 
 - **MCP-01**：`mcp_01_initialize_negotiates_protocol_version`
 - **embedded_data**（#114）：`embedded_data_extracts_json_ld_from_inline_html`、`embedded_data_empty_result_is_not_a_parse_failure`、`embedded_data_broken_payload_is_parse_error`、`embedded_data_schema_declares_only_wired_parameters`（**声明必须等于实现**）、`embedded_data_rejects_url_and_html_together`
+- **降级不得被丢掉**（#125）：`doc_text_on_js_shell_page_inherits_upstream_degradation`、
+  `json_query_on_js_shell_page_inherits_upstream_degradation`、`download_on_js_shell_page_inherits_upstream_degradation`
+  （三者都必须**显式说明**问题，不许静默 OK）、
+  `doc_text_on_plain_page_stays_ok`（**反向守卫**：普通页不得被误降级，否则降级信号失去意义）；
 - **引擎接线**（#128 步骤 2）：`js_render_off_keeps_existing_degradation`（**默认关闭**：脚本页仍 DEGRADED、0 命中）、
   `js_render_on_extracts_content_from_script_only_page`（**开启后**：内容只在 `document.write` 的页面抽出 **10 条**）、
   `js_render_failure_is_degraded_not_silent_success`（渲染失败 → `DEGRADED` + `degraded_from=js-render-failed` + `actionable`，**不是**成功空结果）、

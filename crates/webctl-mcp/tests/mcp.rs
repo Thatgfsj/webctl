@@ -844,6 +844,74 @@ fn caps_reports_js_wired_with_coverage() {
     assert!(on.wired);
 }
 
+/// #125：`doc_text` 在 JS 空壳页上**必须继承上游降级**，不许静默 `OK`。
+#[tokio::test]
+async fn doc_text_on_js_shell_page_inherits_upstream_degradation() {
+    let server =
+        http_fixture::Server::start_with(vec![("/js", http_fixture::Response::html(JS_SHELL))])
+            .await;
+    let mcp = WebctlMcp::new(in_process_context("doc-text-js"));
+    let envelope = invoke(&mcp, "doc_text", json!({"url": server.url("/js")})).await;
+    assert_eq!(envelope["ok"], true, "{envelope}");
+    assert_eq!(
+        code_of(&envelope),
+        "DEGRADED",
+        "JS 页上不得静默 OK：{envelope}"
+    );
+    assert_eq!(envelope["meta"]["degraded_from"], "js-render", "{envelope}");
+}
+
+/// #125：`json_query` 同理（同一个上游判定不能被丢掉）。
+#[tokio::test]
+async fn json_query_on_js_shell_page_inherits_upstream_degradation() {
+    let server =
+        http_fixture::Server::start_with(vec![("/js", http_fixture::Response::html(JS_SHELL))])
+            .await;
+    let mcp = WebctlMcp::new(in_process_context("json-js"));
+    let envelope = invoke(
+        &mcp,
+        "json_query",
+        json!({"url": server.url("/js"), "expression": "$.a"}),
+    )
+    .await;
+    // 该工具在 HTML 页上本身就是失败（不是 JSON），要求是"**不许静默 OK**"：
+    // 要么显式降级（ok=true + DEGRADED），要么显式失败（ok=false + 非空 error）。
+    assert_ne!(code_of(&envelope), "OK", "不得静默 OK：{envelope}");
+    let explicit = (envelope["ok"] == true && code_of(&envelope) == "DEGRADED")
+        || (envelope["ok"] == false
+            && envelope["error"]
+                .as_str()
+                .is_some_and(|error| !error.is_empty()));
+    assert!(explicit, "必须显式说明问题：{envelope}");
+}
+
+/// #125：`download` 同理（返回的是未渲染字节，必须如实说明）。
+#[tokio::test]
+async fn download_on_js_shell_page_inherits_upstream_degradation() {
+    let server =
+        http_fixture::Server::start_with(vec![("/js", http_fixture::Response::html(JS_SHELL))])
+            .await;
+    let mcp = WebctlMcp::new(in_process_context("download-js"));
+    let envelope = invoke(&mcp, "download", json!({"url": server.url("/js")})).await;
+    assert_eq!(envelope["ok"], true, "{envelope}");
+    assert_eq!(code_of(&envelope), "DEGRADED", "{envelope}");
+    assert_eq!(envelope["meta"]["degraded_from"], "js-render", "{envelope}");
+}
+
+/// #125 的反向守卫：**普通 HTML 页不得被误降级**（否则降级信号会失去意义）。
+#[tokio::test]
+async fn doc_text_on_plain_page_stays_ok() {
+    let page = "<html><body><article><p>普通正文</p></article></body></html>";
+    let server =
+        http_fixture::Server::start_with(vec![("/plain", http_fixture::Response::html(page))])
+            .await;
+    let mcp = WebctlMcp::new(in_process_context("doc-text-plain"));
+    let envelope = invoke(&mcp, "doc_text", json!({"url": server.url("/plain")})).await;
+    assert_eq!(envelope["ok"], true, "{envelope}");
+    assert_eq!(code_of(&envelope), "OK", "普通页不得降级：{envelope}");
+    assert!(envelope["meta"]["degraded_from"].is_null(), "{envelope}");
+}
+
 /// 进程内调用一次 MCP 工具（未知工具名直接 panic）。
 async fn invoke(mcp: &WebctlMcp, name: &str, args: Value) -> Value {
     mcp.invoke(name, args)
