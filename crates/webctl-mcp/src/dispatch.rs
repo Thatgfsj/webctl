@@ -133,6 +133,10 @@ fn apply_upstream_degradation(mut envelope: Value, note: Option<&RenderNote>) ->
     if envelope.get("ok").and_then(Value::as_bool) != Some(true) {
         return envelope;
     }
+    // 工具自己已经给了更具体的降级/失败判定时，不要覆盖它（例如 LIMIT、截断）。
+    if envelope.get("code").and_then(Value::as_str) != Some("OK") {
+        return envelope;
+    }
     if let Some(meta) = envelope.get_mut("meta") {
         meta["degraded_from"] = json!(note.degraded_from);
         meta["actionable"] = json!({
@@ -153,29 +157,43 @@ fn apply_upstream_degradation(mut envelope: Value, note: Option<&RenderNote>) ->
 /// 曾把上游降级**丢掉**，在 JS 页上静默返回 `OK`——调用方会以为那就是页面内容。
 fn upstream_note(envelope: &Envelope<Fetched>) -> Option<RenderNote> {
     let from = envelope.meta.degraded_from.clone()?;
+    // 理由必须与**实际来源**一致，不能一律说成"未渲染"。
+    let reason = if from == "js-render" {
+        "上游取回判定该页面未经渲染：返回的文本/字节不含 JS 注入的内容".to_owned()
+    } else {
+        format!("上游取回已判定降级（degraded_from={from}）：返回内容可能不完整")
+    };
     Some(RenderNote {
         degraded_from: from,
-        reason: "上游取回判定该页面未经渲染，返回的文本/字节不含 JS 注入的内容".to_owned(),
+        reason,
         detected: vec!["transport".to_owned()],
     })
 }
 
-/// 开关开启且内容像是 HTML 时，把页面内联脚本跑进沙箱，返回渲染后的 HTML。
-///
-/// 失败**不**静默：返回原始 HTML + 降级说明，由调用方写进信封。
-fn render_if_enabled(ctx: &McpContext, html: &str, is_html: bool) -> (String, Option<RenderNote>) {
+/// 渲染尝试的结果。**必须区分"未尝试"与"尝试失败"**：
+/// 前者应继承上游判定，后者要用渲染失败自己的判定（#125 复审指出的假话就在这里）。
+enum RenderAttempt {
+    /// 开关关闭或不是 HTML：没有尝试渲染。
+    NotAttempted(String),
+    /// 渲染成功：`html` 是渲染后的结果，**不继承任何上游降级**（与 extract 口径一致）。
+    Rendered(String),
+    /// 尝试了但失败：保留原始 HTML，并给出渲染失败自己的判定。
+    Failed(String, RenderNote),
+}
+
+fn render_if_enabled(ctx: &McpContext, html: &str, is_html: bool) -> RenderAttempt {
     if !ctx.config.js_render || !is_html {
-        return (html.to_owned(), None);
+        return RenderAttempt::NotAttempted(html.to_owned());
     }
     match webctl_js::render(html, &webctl_js::JsLimits::default()) {
-        Ok(outcome) => (outcome.html, None),
-        Err(failure) => (
+        Ok(outcome) => RenderAttempt::Rendered(outcome.html),
+        Err(failure) => RenderAttempt::Failed(
             html.to_owned(),
-            Some(RenderNote {
+            RenderNote {
                 degraded_from: "js-render-failed".to_owned(),
                 reason: format!("{:?}", failure.kind).to_lowercase(),
                 detected: vec![failure.message.clone()],
-            }),
+            },
         ),
     }
 }
@@ -193,7 +211,10 @@ async fn resolve_source(
         (None, None) => Err(fail(ErrorCode::BadUrl, "必须给出 url 或 html 之一")),
         // 调用方自带 HTML：同样视为"一个页面"，开关开启时也渲染。
         (None, Some(html)) => {
-            let (rendered, render) = render_if_enabled(ctx, html, true);
+            let (rendered, render) = match render_if_enabled(ctx, html, true) {
+                RenderAttempt::NotAttempted(html) | RenderAttempt::Rendered(html) => (html, None),
+                RenderAttempt::Failed(html, note) => (html, Some(note)),
+            };
             Ok(Source {
                 html: rendered,
                 render,
@@ -211,7 +232,11 @@ async fn resolve_source(
             let is_html = matches!(fetched.content.kind, webctl_web::ContentKind::Html);
             match fetched.content.text {
                 Some(text) => {
-                    let (rendered, render) = render_if_enabled(ctx, &text, is_html);
+                    let (rendered, render) = match render_if_enabled(ctx, &text, is_html) {
+                        RenderAttempt::NotAttempted(html) => (html, None),
+                        RenderAttempt::Rendered(html) => (html, None),
+                        RenderAttempt::Failed(html, note) => (html, Some(note)),
+                    };
                     Ok(Source {
                         html: rendered,
                         render,
@@ -282,7 +307,12 @@ async fn tool_extract(ctx: &McpContext, args: &Value) -> Value {
             // 开关关闭时**逐字**走原路径（硬要求：默认行为不变）。
             if ctx.config.js_render && is_html {
                 let raw = fetched.content.text.clone().unwrap_or_default();
-                let (rendered, note) = render_if_enabled(ctx, &raw, true);
+                let (rendered, note) = match render_if_enabled(ctx, &raw, true) {
+                    RenderAttempt::NotAttempted(html) | RenderAttempt::Rendered(html) => {
+                        (html, None)
+                    }
+                    RenderAttempt::Failed(html, note) => (html, Some(note)),
+                };
                 return apply_upstream_degradation(
                     to_value(extract::extract(&rendered, &params.selector, &options)),
                     note.as_ref(),
@@ -295,7 +325,10 @@ async fn tool_extract(ctx: &McpContext, args: &Value) -> Value {
             ))
         }
         (None, Some(html)) => {
-            let (rendered, note) = render_if_enabled(ctx, html, true);
+            let (rendered, note) = match render_if_enabled(ctx, html, true) {
+                RenderAttempt::NotAttempted(html) | RenderAttempt::Rendered(html) => (html, None),
+                RenderAttempt::Failed(html, note) => (html, Some(note)),
+            };
             apply_upstream_degradation(
                 to_value(extract::extract(&rendered, &params.selector, &options)),
                 note.as_ref(),
@@ -690,8 +723,16 @@ async fn read_source_bytes(
     match fetched.content.text {
         Some(text) => {
             // #128：开关开启时同样渲染（与 extract 口径一致），失败则如实降级。
-            let (rendered, render) = render_if_enabled(ctx, &text, is_html);
-            Ok((rendered.into_bytes(), render.or(upstream)))
+            // 关键（#125 复审阻断项）：
+            //   渲染成功 → **不继承上游降级**（否则说明与 data 冲突，且与 extract 不一致）；
+            //   未尝试   → 继承上游判定；
+            //   尝试失败 → 用渲染失败自己的判定。
+            let (rendered, render) = match render_if_enabled(ctx, &text, is_html) {
+                RenderAttempt::NotAttempted(text) => (text, upstream),
+                RenderAttempt::Rendered(text) => (text, None),
+                RenderAttempt::Failed(text, note) => (text, Some(note)),
+            };
+            Ok((rendered.into_bytes(), render))
         }
         None => Err(to_value(Envelope::degraded(
             json!({"content_kind": format!("{:?}", fetched.content.kind).to_lowercase()}),

@@ -87,6 +87,8 @@ pub enum EnvelopeViolation {
     FailureWithData,
     /// 未降级却带了可行动信息（actionable 只在降级时有意义）。
     ActionableWithoutDegradation,
+    /// `ok=false` 却用了降级码（降级码要求 `ok=true`）。
+    FailureWithDegradationCode,
 }
 
 /// 统一结果信封：ok / data / error / code / meta。
@@ -164,6 +166,10 @@ impl<T> Envelope<T> {
         if !self.ok && self.code.is_ok() {
             return Err(Violation::FailureWithOkCode);
         }
+        // #125 复审指出：降级码语义是"成功但信息受限"，`ok=false` + 降级码是非法组合。
+        if !self.ok && self.code.is_degradation() {
+            return Err(Violation::FailureWithDegradationCode);
+        }
         if !self.ok && self.error.is_empty() {
             return Err(Violation::FailureWithoutError);
         }
@@ -188,6 +194,20 @@ impl<T> Envelope<T> {
 
 #[cfg(test)]
 mod tests {
+    /// #125 复审：`ok=false` + 降级码必须被判为非法（降级码语义是"成功但信息受限"）。
+    #[test]
+    fn failure_with_degradation_code_is_a_violation() {
+        let mut envelope =
+            Envelope::degraded(serde_json::json!({}), "js-render", ErrorCode::Degraded, 0);
+        assert!(envelope.validate().is_ok(), "正常降级应合法");
+        envelope.ok = false;
+        assert_eq!(
+            envelope.validate(),
+            Err(EnvelopeViolation::FailureWithDegradationCode),
+            "ok=false + DEGRADED 必须被判非法"
+        );
+    }
+
     use super::*;
 
     /// ENV-01 / ENV-03：成功信封字段与 trust 标记。

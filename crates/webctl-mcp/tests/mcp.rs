@@ -883,6 +883,10 @@ async fn json_query_on_js_shell_page_inherits_upstream_degradation() {
                 .as_str()
                 .is_some_and(|error| !error.is_empty()));
     assert!(explicit, "必须显式说明问题：{envelope}");
+    assert!(
+        !(envelope["ok"] == false && code_of(&envelope) == "DEGRADED"),
+        "非法组合 ok=false + DEGRADED（降级码要求 ok=true）：{envelope}"
+    );
 }
 
 /// #125：`download` 同理（返回的是未渲染字节，必须如实说明）。
@@ -896,6 +900,32 @@ async fn download_on_js_shell_page_inherits_upstream_degradation() {
     assert_eq!(envelope["ok"], true, "{envelope}");
     assert_eq!(code_of(&envelope), "DEGRADED", "{envelope}");
     assert_eq!(envelope["meta"]["degraded_from"], "js-render", "{envelope}");
+}
+
+/// #125 复审阻断项：**渲染成功时不得再带上游降级**（否则说明与 data 冲突，且与 extract 不一致）。
+#[tokio::test]
+async fn doc_text_renders_and_stays_ok_when_switch_on() {
+    let server =
+        http_fixture::Server::start_with(vec![("/js", http_fixture::Response::html(JS_SHELL))])
+            .await;
+    let config = Config {
+        state_dir: temp_dir("doc-text-rendered"),
+        js_render: true,
+        ..Config::default()
+    };
+    let mcp = WebctlMcp::new(McpContext::unbound(config));
+    let envelope = invoke(&mcp, "doc_text", json!({"url": server.url("/js")})).await;
+    assert_eq!(envelope["ok"], true, "{envelope}");
+    assert_eq!(code_of(&envelope), "OK", "渲染成功应为 OK：{envelope}");
+    assert!(
+        envelope["meta"]["degraded_from"].is_null(),
+        "渲染成功后不得再带降级标记（说明会与 data 冲突）：{envelope}"
+    );
+    let text = envelope["data"]["text"].as_str().unwrap_or_default();
+    assert!(
+        text.contains("Quote number 10"),
+        "应含渲染后的内容：{envelope}"
+    );
 }
 
 /// #125 的反向守卫：**普通 HTML 页不得被误降级**（否则降级信号会失去意义）。
