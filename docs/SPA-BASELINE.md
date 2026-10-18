@@ -75,7 +75,7 @@ embedded_data {"url": <URL>}                       # 看 code / data.entries 条
 |---|---|
 | **新增内嵌数据通道** | 真站 5 个样本里 **2 个**（`nextjs.org` 的 `ld+json`、`nuxt.com` 的 `ld+json`+`__NUXT_DATA__`+`inline-state`）从"拿不到结构化数据"变为拿到；离线样本 2/5 靠这条通道拿到内容 |
 | **降级可行动**（#115） | JS 空壳页的降级信封现在带 `meta.actionable`（原因码 + 证据 + 建议通道），调用方知道"还能试 `embedded_data`" |
-| **JS 空壳仍然拿不到内容** | 引擎**已接线**（#128 步骤 2，默认关闭）；开启后本页仍 `none`，原因是它依赖**外链** jQuery（`ReferenceError: $ is not defined`），见 §5 与 #137。本条项要等 0.1.2 的引擎 PR |
+| **JS 空壳仍然拿不到内容** | 引擎**已接线**（#128 步骤 2，默认关闭）；开启后本页仍 `none`，原因是它依赖**外链** jQuery（`ReferenceError: $ is not defined`），见 §5；外链脚本的判定见 [#137](https://github.com/Thatgfsj/webctl/issues/137)。 |
 | **总体获取率未变** | 真站仍是 4/5：本版改善的是**通道覆盖**（内嵌数据通道 **0/5 → 2/5**），不是总数 |
 
 ## 5. 0.1.2 完成后的对比（引擎接线后实测，2026-10-18）
