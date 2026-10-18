@@ -398,7 +398,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 | **状态环境工具** | 临时 state dir、权限检查、并发进程编排、文件损坏注入 | STATE-*、SEC-03,12 |
 | **资源观测工具** | fd 计数、RSS 采样、子进程计数、CPU 空闲采样 | RES-*、SEC-10、MCP-14 |
 | **真站 smoke 脚本** | `tests/e2e/run-real.sh`，可跳过、遵守 robots | E2E-* |
-| **体积基线记录** | P0 定下的 release 体积数字；**glibc 与 musl 均已回填**（musl 22,612,520 B / p50 4ms，`source=release-asset`） | PKG-05 |
+| **体积基线记录** | **#128 引擎接线后重定**（`docs/size-baseline.json`）：glibc **32,692,728 B**（本地 release 实测，`source=local`，+43% vs v0.1.1，与 ADR-0005 预估一致）；musl **待真实发布资产回填**（`source=pending-release-asset`，本机缺 Bootlin 工具链，**不编造数字**）。v0.1.1 的原值（musl 22,612,520 B / p50 4ms、glibc 22,867,752 B）保留在 `docs/ACCEPTANCE.md §7` 的日期化记录里 |
 
 ## 5. 覆盖缺口（不假装能测）
 
@@ -570,10 +570,15 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 
 `crates/webctl-mcp/src/` 单元 **13 条**（含本版新增的 MCP 侧脱敏隔离用例）：`registry_is_exactly_the_plan_list`、`definitions_match_the_static_specs`、`qualified_names_follow_the_dsh_contract`、`all_plan_tools_are_registered_and_available`、`capabilities_mirror_the_dispatch_table`、`instructions_stay_under_limit`、`dsh_snippet_has_no_tool_order_and_no_tool_names`、`bound_session_accepts_only_itself`、`cross_session_error_is_readable_and_mentions_both`、`unbound_defaults_to_default_and_validates`、`small_result_stays_inline`、`large_result_is_spilled_and_keeps_degradation`、`sec_09_mcp_dispatcher_is_the_one_that_redacts`（[#82](https://github.com/Thatgfsj/webctl/issues/82) 补的隔离用例，详见本节末尾）。
 
-`crates/webctl-mcp/tests/mcp.rs` **31 条通过 + 0 ignored**（#82 转正后 20 条，#114 增 3 条 + 2 条 schema 守卫，#115 增 5 条，#119 补 1 条）：
+`crates/webctl-mcp/tests/mcp.rs` **35 条通过 + 0 ignored**（#82 转正后 20 条，#114 增 3 条 + 2 条 schema 守卫，#115 增 5 条，#119 补 1 条，#128 接线增 4 条）：
 
 - **MCP-01**：`mcp_01_initialize_negotiates_protocol_version`
 - **embedded_data**（#114）：`embedded_data_extracts_json_ld_from_inline_html`、`embedded_data_empty_result_is_not_a_parse_failure`、`embedded_data_broken_payload_is_parse_error`、`embedded_data_schema_declares_only_wired_parameters`（**声明必须等于实现**）、`embedded_data_rejects_url_and_html_together`
+- **引擎接线**（#128 步骤 2）：`js_render_off_keeps_existing_degradation`（**默认关闭**：脚本页仍 DEGRADED、0 命中）、
+  `js_render_on_extracts_content_from_script_only_page`（**开启后**：内容只在 `document.write` 的页面抽出 **10 条**）、
+  `js_render_failure_is_degraded_not_silent_success`（渲染失败 → `DEGRADED` + `degraded_from=js-render-failed` + `actionable`，**不是**成功空结果）、
+  `caps_reports_js_wired_with_coverage`（`caps.js.wired=true` 且 `reason` 说清触发条件与能力边界）；
+
 - **可行动降级**（#115）：`spa_surface_channels_are_registered_tools`（建议通道必须是真实工具）、`degraded_envelope_carries_actionable_next_steps`（降级信封带 reason/detected/next_steps，且 next_steps 用派发表反查）、`ok_envelope_has_no_actionable`（干净成功不得带 actionable）、`limit_degradation_has_no_actionable_yet`（**口径边界**：只有 JS 渲染降级带 actionable，其余见 #124）、`paginate_propagates_actionable_from_upstream`（**传播不丢信息**：复审实测 paginate 曾丢 actionable，此用例钉住修复）、`paginate_normal_finish_keeps_actionable`（#119 补：#123 复审发现原用例只覆盖 `pagination-fetch-failed` 早返回，**正常收尾**分支此前没被钉住）
 - **MCP-02**：`mcp_02_tools_list_is_exactly_the_plan_set`
 - **MCP-03**：`mcp_03_input_schemas_are_valid_json_schema`

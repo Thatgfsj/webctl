@@ -37,7 +37,7 @@
 4. **SURVEY 的 CDP 证据退化为历史记录。** §2.2 / §2.3 / §3 / §8 不再指导实现，保留以备将来复查。
 5. **反爬姿态变弱。** 没有真实浏览器指纹，只有 TLS 指纹（wreq）与请求头策略；不承诺绕过 Cloudflare/验证码，遇到即 `BLOCKED`。
 
-**可逆性（0.1.2 起启用此缝隙）**：JS 渲染走**可选内置引擎**（**已采用 Boa 纯 Rust**，见 [ADR-0005](adr/0005-embedded-js-engine.md)）。沙箱核心已落地为 `crates/webctl-js`（议题 #127 第 1 片：**零宿主能力**（含动态 `import` fail-closed，见安全复审实证的逃逸与修复）+ **可中断限值**（loop / recursion / stack）+ 输入预算；**尚无指令数 / 墙钟 / 堆内存上限**——boa 0.20 不提供这些 API，内存侧只能用进程级手段，见 [#130](https://github.com/Thatgfsj/webctl/issues/130)；**尚未接线到取回/抽取路径**）+ 自建最小 DOM/BOM，**仍不引入外部进程与外部浏览器**（ADR-0001 有效）。引擎**默认关闭**、显式开启、带硬限（loop / recursion / stack + 输入预算；无网络无文件）；默认行为与既有降级锚点不变。
+**可逆性（0.1.2 起启用此缝隙）**：JS 渲染走**可选内置引擎**（**已采用 Boa 纯 Rust**，见 [ADR-0005](adr/0005-embedded-js-engine.md)）。引擎已接线（议题 #128 步骤 2）：`js_render` 开关默认关闭；开启时对 HTML 页面执行**内联**脚本并序列化 DOM 后再解析。沙箱核心见 `crates/webctl-js`（议题 #127 第 1 片：**零宿主能力**（含动态 `import` fail-closed，见安全复审实证的逃逸与修复）+ **可中断限值**（loop / recursion / stack）+ 输入预算；**尚无指令数 / 墙钟 / 堆内存上限**——boa 0.20 不提供这些 API，内存侧只能用进程级手段，见 [#130](https://github.com/Thatgfsj/webctl/issues/130)；**尚未接线到取回/抽取路径**）+ 自建最小 DOM/BOM，**仍不引入外部进程与外部浏览器**（ADR-0001 有效）。引擎**默认关闭**、显式开启、带硬限（loop / recursion / stack + 输入预算；无网络无文件）；默认行为与既有降级锚点不变。
 
 ---
 

@@ -735,6 +735,115 @@ async fn paginate_normal_finish_keeps_actionable() {
     );
 }
 
+/// #128 步骤 2：**默认关闭**时，内容只在脚本里的页面仍走既有降级路径（零回归）。
+#[tokio::test]
+async fn js_render_off_keeps_existing_degradation() {
+    let server =
+        http_fixture::Server::start_with(vec![("/js", http_fixture::Response::html(JS_SHELL))])
+            .await;
+    let mcp = WebctlMcp::new(in_process_context("js-off"));
+    let extracted = invoke(
+        &mcp,
+        "extract",
+        json!({"url": server.url("/js"), "selector": "div.quote"}),
+    )
+    .await;
+    assert_degraded(&extracted, "extract /js（开关关闭）");
+    assert_eq!(
+        extracted["data"]["matches"]
+            .as_array()
+            .expect("matches")
+            .len(),
+        0,
+        "关闭时不得执行页面脚本：{extracted}"
+    );
+}
+
+/// #128 步骤 2 的核心验收：**开关开启**后，内容只在 `document.write` 里的页面能抽到内容。
+#[tokio::test]
+async fn js_render_on_extracts_content_from_script_only_page() {
+    let server =
+        http_fixture::Server::start_with(vec![("/js", http_fixture::Response::html(JS_SHELL))])
+            .await;
+    let config = Config {
+        state_dir: temp_dir("js-on"),
+        js_render: true,
+        ..Config::default()
+    };
+    let mcp = WebctlMcp::new(McpContext::unbound(config));
+    let extracted = invoke(
+        &mcp,
+        "extract",
+        json!({"url": server.url("/js"), "selector": "div.quote"}),
+    )
+    .await;
+    assert_eq!(extracted["ok"], true, "{extracted}");
+    let matches = extracted["data"]["matches"].as_array().expect("matches");
+    assert_eq!(matches.len(), 10, "渲染后应命中 10 条：{extracted}");
+}
+
+/// #128 步骤 2：渲染**失败**必须降级（A3），不许伪装成"成功但空"。
+#[tokio::test]
+async fn js_render_failure_is_degraded_not_silent_success() {
+    let loop_page = "<html><body><div class=\"quote\">静态一条</div>\
+                     <script>while (true) {}</script></body></html>";
+    let server =
+        http_fixture::Server::start_with(vec![("/loop", http_fixture::Response::html(loop_page))])
+            .await;
+    let config = Config {
+        state_dir: temp_dir("js-loop"),
+        js_render: true,
+        ..Config::default()
+    };
+    let mcp = WebctlMcp::new(McpContext::unbound(config));
+    let extracted = invoke(
+        &mcp,
+        "extract",
+        json!({"url": server.url("/loop"), "selector": "div.quote"}),
+    )
+    .await;
+    assert_eq!(
+        extracted["ok"], true,
+        "原始 HTML 仍可用，所以是降级不是失败：{extracted}"
+    );
+    assert_eq!(code_of(&extracted), "DEGRADED", "{extracted}");
+    assert_eq!(
+        extracted["meta"]["degraded_from"], "js-render-failed",
+        "{extracted}"
+    );
+    assert!(
+        extracted["meta"]["actionable"]["reason"]
+            .as_str()
+            .is_some_and(|s| !s.is_empty()),
+        "必须给出原因：{extracted}"
+    );
+    assert!(extracted["error"].as_str().is_some_and(|s| !s.is_empty()));
+}
+
+/// #128 步骤 2：`caps` 必须报告**已接线**，且说清覆盖范围（不能只说"支持 JS 渲染"）。
+#[test]
+fn caps_reports_js_wired_with_coverage() {
+    let off = webctl_mcp::caps::js_capability(&Config::default());
+    assert!(!off.enabled);
+    assert!(off.wired, "本步骤后应报告已接线");
+    assert!(
+        off.reason.contains("开关开启"),
+        "要说清触发条件：{}",
+        off.reason
+    );
+    assert!(
+        off.reason.contains("最小 DOM") || off.reason.contains("不是浏览器"),
+        "要说清能力边界：{}",
+        off.reason
+    );
+    let on = webctl_mcp::caps::js_capability(&Config {
+        js_render: true,
+        ..Config::default()
+    });
+    assert!(on.enabled);
+    assert!(on.wired);
+}
+
 /// 进程内调用一次 MCP 工具（未知工具名直接 panic）。
 async fn invoke(mcp: &WebctlMcp, name: &str, args: Value) -> Value {
     mcp.invoke(name, args)

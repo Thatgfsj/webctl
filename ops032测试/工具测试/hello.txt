@@ -1,0 +1,4 @@
+第一行：ops_write_file 创建成功
+第二行：tool test marker alpha
+第三行：待编辑目标 EDIT_DONE
+第四行：ops_edit_file 追加

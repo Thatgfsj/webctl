@@ -3141,6 +3141,7 @@ dependencies = [
  "tokio",
  "url",
  "webctl-core",
+ "webctl-js",
  "webctl-web",
 ]
 

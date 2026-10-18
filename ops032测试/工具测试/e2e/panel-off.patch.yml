@@ -1,0 +1,7 @@
+# 覆盖层：把 dsh-ops/panel 的 capture 显式关掉（用于验证「默认关闭=零写入」）
+- id: dsh-ops-panel
+  name: dsh-ops/panel
+  config:
+    capture: false
+    textLimit: 2000
+    maxSessionBytes: 8388608
