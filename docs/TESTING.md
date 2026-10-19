@@ -566,6 +566,22 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 > （实测 `new Uint8Array(256 MB)` 成功、约 0.9 s）；`safe` 的 CPU 防护只有 loop/recursion/stack 限值 + 输入预算，
 > 内存需配合进程级 `ulimit`。归属校验用 `cargo metadata` 依赖图（不 grep 清单，避免缩进/子表/重命名绕过）。
 
+### 6.8e #117 站点级通道与元数据（`parse/site_channels.rs`，第 1 步）
+
+- `crates/webctl-web/src/parse/site_channels.rs` 单元 **11 条**（议题 [#117](https://github.com/Thatgfsj/webctl/issues/117) 第 1 步，**尚未接线**）：
+  `metadata_carries_an_explicit_source`（**每条元数据带 `source`**，据此区分"元数据"与"正文"——验收要求）、
+  `channels_are_discovered_in_document_order`（rss/atom/oembed 保文档序）、
+  `empty_page_yields_empty_not_error`（找不到就是**空**，不是错误）、
+  `non_alternate_and_unknown_types_are_ignored`（`rel=stylesheet` 带 RSS MIME **不算**通道）、
+  `tag_boundary_prevents_false_matches`（`<metadata>` 不匹配 `<meta`）、
+  `attribute_values_tolerate_quoting_styles`（单/双引号与**无引号**值；曾把 `https://…` 截成 `https:` 的 bug 由它抓出）、
+  `fake_meta_in_comments_and_scripts_is_ignored` / `fake_title_in_comment_is_ignored`（注释、脚本、样式里的假标签**不得**被采信）、
+  `angle_bracket_inside_quotes_does_not_split_tag`（引号内的 `>` 不终止标签）、
+  `entities_are_decoded_exactly_once`（`&amp;lt;` 只解一次）、
+  `ignored_ranges_does_not_swallow_real_metadata`（[#148](https://github.com/Thatgfsj/webctl/pull/148) 复审的 **6 个误伤反例**：属性值/注释/样式/脚本里的 `<script>` 与未闭合引号，都**不得**吞掉真实元数据）。
+  > `PR #149`（未合并）另加 3 条洪泛/预算用例；合并后本节应为 **14 条**。
+
+
 ### 6.9 PR 11 MCP server（议题 #19）
 
 `crates/webctl-mcp/src/` 单元 **13 条**（含本版新增的 MCP 侧脱敏隔离用例）：`registry_is_exactly_the_plan_list`、`definitions_match_the_static_specs`、`qualified_names_follow_the_dsh_contract`、`all_plan_tools_are_registered_and_available`、`capabilities_mirror_the_dispatch_table`、`instructions_stay_under_limit`、`dsh_snippet_has_no_tool_order_and_no_tool_names`、`bound_session_accepts_only_itself`、`cross_session_error_is_readable_and_mentions_both`、`unbound_defaults_to_default_and_validates`、`small_result_stays_inline`、`large_result_is_spilled_and_keeps_degradation`、`sec_09_mcp_dispatcher_is_the_one_that_redacts`（[#82](https://github.com/Thatgfsj/webctl/issues/82) 补的隔离用例，详见本节末尾）。
