@@ -2,9 +2,9 @@
 
 | 项 | 值 |
 |---|---|
-| 适用 | v0.1.1（当前 release）及后续版本 |
+| 适用 | v0.1.1（当前 release）与 v0.1.2（版本已落地 main，**尚未打 tag**） |
 | 流水线 | cargo-dist 0.33.0：`dist-workspace.toml` + `.github/workflows/release.yml` |
-| 状态 | **v0.1.1 已发布**（[Release v0.1.1](https://github.com/Thatgfsj/webctl/releases/tag/v0.1.1)）：本文件是可执行的操作手册；发布 E2E 已于 2026-10-17 执行（见 §4 / ACCEPTANCE §7） |
+| 状态 | **v0.1.1 已发布**；**v0.1.2 准备中**：版本与 CHANGELOG 已在 main 落地（见 CHANGELOG `[0.1.2]`），**未打 tag、未发布**；本手册的安装命令在打 tag 前仍指 v0.1.1 真实资产（[Release v0.1.1](https://github.com/Thatgfsj/webctl/releases/tag/v0.1.1)）：本文件是可执行的操作手册；发布 E2E 已于 2026-10-17 执行（见 §4 / ACCEPTANCE §7） |
 | 相关 | [TESTING §2.16 PKG](TESTING.md) · [PLAN §5.2 PR 14](PLAN.md) · [体积基线](size-baseline.json) |
 
 ## 1. 流水线结构

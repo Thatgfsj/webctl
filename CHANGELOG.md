@@ -33,9 +33,10 @@
 - 最小 DOM：解析器补 RAWTEXT（`script`/`style`/`textarea`/`title` 按原文处理）、序列化函数防止被页面改写、垫片避开 Annex B 的 `substr`。
 - CI：`dist` 安装方式修正（`cargo-dist` 已更名 `dist`，crates.io 上无 0.33.0；改用官方脚本 + sha256 固定 + 版本断言），修掉 main 上长期红灯的 `static` 作业（[#140](https://github.com/Thatgfsj/webctl/pull/140)）。
 
-### 如实登记的未达成项（EPIC #113）
+### 达成与未达成（按 PLAN §5.3 的口径，逐条分清）
 
-- **核心锚点未达成**：`quotes.toscrape.com/js/` 在开启引擎后**仍取不到内容** ✗，原因是该页的内联脚本依赖**外链** jQuery
+- **验收锚点已达成**（PLAN §5.3 第 1 条：该页必须 `DEGRADED` 并说明原因，**不得**「成功但空」）：`quotes.toscrape.com/js/` 返回 `DEGRADED` + `degraded_from` + `meta.actionable` ✓。
+- **能力目标只对内联脚本页达成**：开启引擎后该页**仍取不到内容** ✗，原因是它的内联脚本依赖**外链** jQuery
   （`ReferenceError: $ is not defined`）。本版让"内容由**内联**脚本生成"的页面可取，让"依赖外部 JS 库"的页面**如实降级**。
   是否执行同源外链脚本见 [#137](https://github.com/Thatgfsj/webctl/issues/137)。
 - 引擎限值只有 loop / recursion / stack 与输入预算；**堆内存与墙钟不设限**（Boa 0.20 不提供这些 API），归属决策见 [#130](https://github.com/Thatgfsj/webctl/issues/130)。
