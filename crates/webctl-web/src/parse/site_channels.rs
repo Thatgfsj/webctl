@@ -188,7 +188,8 @@ fn tags(html: &str, name: &str) -> Vec<String> {
             continue;
         }
         let Some(gt) = tag_end(&lowered, after, &mut budget) else {
-            // 未闭合引号（或预算耗尽）：跳过这个标签继续找。
+            // 未闭合引号：跳过这个标签继续找（不中断整篇）；
+            // **预算耗尽**则停止扫描（见下一行的 break）。
             if budget == 0 {
                 break;
             }
@@ -282,7 +283,8 @@ fn ignored_ranges(lowered: &str) -> Vec<(usize, usize)> {
         }
         let Some(gt) = tag_end(lowered, i + 1, &mut budget) else {
             // 预算耗尽或未闭合：停止扫描（未闭合标签按 HTML 语义吞到文末），
-            // 既符合语义又把洪泛输入限制在 O(n)。
+            // 既符合语义，又把**扫描量**限制在 O(n)（区间排序 O(k log k)、
+            // 每个候选的区间定位 O(log n) —— 不再笼统宣称整体 O(n)）。
             break;
         };
         let name: String = lowered[i + 1..]
@@ -547,7 +549,6 @@ mod tests {
         }
     }
 
-    /// 注释里的假 `<title>` 不得被采信。
     /// #148 复审实测的 CPU 放大：50k 个 `<` 在无预算时约 63 秒。
     /// 直接钉住预算机制：预算耗尽时 `tag_end` 必须返回 `None`。
     #[test]
@@ -601,6 +602,7 @@ mod tests {
         );
     }
 
+    /// 注释里的假 `<title>` 不得被采信。
     #[test]
     fn fake_title_in_comment_is_ignored() {
         let html = r#"<!-- <title>假标题</title> --><title>真标题</title>"#;
