@@ -11,7 +11,7 @@
 
 ### Added
 
-- **内嵌结构化数据通道**：新工具 `embedded_data`（工具面第 16 个），从 JSON-LD / Microdata / `__NUXT_DATA__` 一类内联状态里取结构化数据（[#114](https://github.com/Thatgfsj/webctl/issues/114)）。
+- **内嵌结构化数据通道**：新工具 `embedded_data`（工具面第 16 个），从 JSON-LD、`script[type=json]`、框架状态容器（`inline-state`，如 `__NUXT_DATA__`）与 `data-page` 里取结构化数据（[#114](https://github.com/Thatgfsj/webctl/issues/114)）。
 - **降级带可行动信息**：`meta.actionable = {reason, detected, next_steps}`，让调用方知道"为什么降级、看到了什么、还能试什么"；`caps` 同时暴露 SPA 支持面（[#115](https://github.com/Thatgfsj/webctl/issues/115)）。
 - **SPA 样本集与「有效信息获取率」基线**：`docs/SPA-BASELINE.md` + 可执行的离线基线测试（[#119](https://github.com/Thatgfsj/webctl/issues/119)）。
 - **受限内置 JS 引擎**（[ADR-0005](docs/adr/0005-embedded-js-engine.md)）：`crates/webctl-js` 用纯 Rust 的 Boa 执行页面**内联**脚本，配套最小 DOM/BOM 垫片与 `render()`；
