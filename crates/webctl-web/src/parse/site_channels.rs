@@ -549,7 +549,6 @@ mod tests {
 
     /// 注释里的假 `<title>` 不得被采信。
     /// #148 复审实测的 CPU 放大：50k 个 `<` 在无预算时约 63 秒。
-    /// 这里用**很宽松**的上界（2 秒）做回归守卫——重点是从 O(n²) 变成 O(n)。
     /// 直接钉住预算机制：预算耗尽时 `tag_end` 必须返回 `None`。
     #[test]
     fn tag_end_respects_scan_budget() {
@@ -574,6 +573,7 @@ mod tests {
         );
     }
 
+    /// 这里用**很宽松**的上界（2 秒）做回归守卫——重点是从 O(n²) 变成 O(n)。
     #[test]
     fn angle_bracket_flood_is_bounded() {
         let flood = "<".repeat(50_000);
