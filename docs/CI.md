@@ -7,7 +7,7 @@
 
 | 作业名（GitHub 上就是这个字符串） | 平台 | 覆盖什么 | 超时 | 为什么单独一个作业 |
 |---|---|---|---|---|
-| `static · fmt / scripts / config` | ubuntu | 格式、`scripts/*.sh` 语法、**报错定位器自检**、cargo-dist 生成物一致性 | 20 min | 最便宜的错误最先挡住；不需要编译 |
+| `static · fmt / scripts / config` | ubuntu | 格式、`scripts/*.sh` 语法、**报错定位器自检**、`dist`(cargo-dist) 生成物一致性 | 20 min | 最便宜的错误最先挡住；不需要编译 |
 | `clippy (ubuntu-latest / macos / windows)` | 三平台 | `clippy --all-targets -D warnings`（默认 + offline 两条通道） | 40 min | 不同平台的 cfg / 依赖解析差异只有矩阵能暴露 |
 | `test (ubuntu-latest / macos / windows)` | 三平台 | **默认门禁 + L0 离线通道 + release 构建**；忽略测试零容忍；工作区洁净 | 60 min | 主体（工具/套件测试都在这里） |
 | `guards · 锁文件 / 工具面 / 行数口径` | ubuntu | `cargo metadata --locked`、**工具面一致性**（TOOL_NAMES = PLAN §3.7 = SKILL.md = 文案数字）、SKILL.md ↔ tools/list、依赖边界、PR 行数口径 | 20 min | 与"能不能编译"正交的合并安全项 |
@@ -47,7 +47,7 @@
 - **每个作业都有 `timeout-minutes`**：挂死不会占满 runner；
 - **忽略测试零容忍**：出现 `#[ignore]` 即红，并逐条给出 `file:line` 注解；
 - **测试后工作区必须洁净**：与**跑测试前记录的状态做对比**，只判"测试过程新增"的未跟踪/被修改文件（不要求绝对为空——否则 Windows 上可能因换行符设置产生假脏）；
-- **生成物不许漂移**：触及 `dist-workspace.toml` / `.github/build-setup.yml` / `.github/workflows/release.yml` 时跑 `cargo dist generate --mode ci --check`；
+- **生成物不许漂移**：触及 `dist-workspace.toml` / `.github/build-setup.yml` / `.github/workflows/release.yml` 时跑 `dist generate --mode ci --check`（工具已由 `cargo-dist` 更名为 `dist`）；
 - **分支保护**：`main` 上把下面这些检查设为必需（见 §5）。
 
 ## 5. 必需检查清单（分支保护）
@@ -89,6 +89,19 @@ python3 scripts/check-tool-face.py      # 工具面数字/清单一致（#114）
 构建前置（libclang / BoringSSL）见 [CONTRIBUTING.md §4](CONTRIBUTING.md) 的说明。
 
 ## 7. 已知边界（诚实登记）
+
+### 7.1 `dist` 安装为什么不能用 `cargo install`（2026-10-19 修的长期红灯）
+
+- 现象：`static · fmt / scripts / config` 作业在 main 上**长期为红**（至少 3 次运行），其余作业（三平台 clippy/test、guards、musl-static）均绿。
+- 根因：该作业曾用 `cargo install cargo-dist --version 0.33.0 --locked`，但**crates.io 上 `cargo-dist` 最高只有 0.32.0**（`0.33.0` 只以 GitHub Release 资产形式存在），安装必然失败。
+- 修法：改用官方安装脚本（与 `release.yml` 里 cargo-dist 自己的安装方式同源同版本），并加两道**有判别力**的闸门：
+  1. 安装脚本 **sha256 固定**（`c5b53ac2…766b5e`，两次下载字节一致已实测）→ 上游替换资产会失败而不是静默装别的；
+  2. 安装后做**版本断言**（`dist --version` 必须含 `0.33.0`）→ 版本漂移不再可能被忽略。
+- 教训（已固化为规则）：**CI 里任何"安装固定版本"的步骤都必须有版本断言**；否则失败会以"工具装不上"这种与业务无关的面貌出现，并长期潜伏。
+
+### 7.2 其它已知边界
+
+
 
 - **L1 真站与 L4 性能不在 CI**：前者要外网且站点会抖，后者对机器噪声敏感。所以"**CI 绿 ≠ 真站也绿**"，这两条是本地手动通道；
 - **矩阵只覆盖 x86_64**：ubuntu / macos / windows 的 runner 都是 x86_64（macos-latest 是 arm64 还是 x86_64 取决于 GitHub 的轮换），**不覆盖 aarch64 Linux**——那属于发布矩阵问题（见 [RELEASE.md](RELEASE.md) 的"未纳入的目标"）；

@@ -76,21 +76,40 @@ jobs:
             echo "need=0" >> "$GITHUB_OUTPUT"
             echo "::notice::未触及 dist-workspace.toml / build-setup.yml / release.yml，跳过 cargo-dist 一致性校验"
           fi
-      - name: 缓存 cargo-dist 二进制
+      - name: 缓存 dist(cargo-dist) 二进制
         if: steps.dist-need.outputs.need == '1'
         uses: actions/cache@v4
         with:
-          path: ~/.cargo/bin/cargo-dist
-          key: cargo-dist-0.33.0-${{ runner.os }}
-      - name: cargo-dist 生成物一致性（generate --mode ci --check）
+          path: ~/.cargo/bin/dist
+          key: dist-0.33.0-${{ runner.os }}
+      - name: dist 生成物一致性（generate --mode ci --check）
         if: steps.dist-need.outputs.need == '1'
         shell: bash
+        env:
+          # 官方安装脚本（v0.33.0 资产的 sha256，两次下载字节一致，已实测）。
+          # 上游若替换同一 URL 的资产，这里会**校验失败**而不是静默装上别的版本。
+          DIST_INSTALLER_SHA256: c5b53ac2559eb26e3b3dc28755eb5d011ed6ec9ac97fa4fc2a2459872e766b5e
         run: |
-          if ! command -v cargo-dist >/dev/null 2>&1; then
-            echo "安装 cargo-dist 0.33.0（与 dist-workspace.toml 锁定版本一致）"
-            cargo install cargo-dist --version 0.33.0 --locked
+          # 注意：该工具已由 cargo-dist 更名为 dist；**crates.io 上的 `cargo-dist` 只到 0.32.0**，
+          # 而 dist-workspace.toml 锁定 0.33.0 —— 所以**不能**用 `cargo install cargo-dist --version 0.33.0`
+          # （那会在 registry 里找不到版本，作业必红）。0.33.0 只能从官方安装脚本获取，
+          # 与 .github/workflows/release.yml 里的安装方式同源同版本。
+          want="0.33.0"
+          if ! command -v dist >/dev/null 2>&1 || ! dist --version 2>/dev/null | grep -q "cargo-dist $want"; then
+            tmp="$(mktemp)"
+            curl --proto '=https' --tlsv1.2 -LsSf \
+              "https://github.com/axodotdev/cargo-dist/releases/download/v$want/cargo-dist-installer.sh" \
+              -o "$tmp"
+            echo "$DIST_INSTALLER_SHA256  $tmp" | sha256sum -c - \
+              || { echo "::error title=安装脚本校验失败::官方安装脚本 sha256 与钉住值不符（上游资产可能被替换）"; exit 1; }
+            sh "$tmp"
           fi
-          cargo dist generate --mode ci --check
+          got="$(dist --version 2>/dev/null | head -1)"
+          case "$got" in
+            *"$want"*) echo "dist 版本核对通过：$got" ;;
+            *) echo "::error title=dist 版本不符::期望 $want，实得 '$got'；生成物会漂移，先修 pin"; exit 1 ;;
+          esac
+          dist generate --mode ci --check
 
   # ---------- clippy：三平台 ----------
   clippy:
