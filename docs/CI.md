@@ -99,6 +99,27 @@ python3 scripts/check-tool-face.py      # 工具面数字/清单一致（#114）
   2. 安装后做**版本断言**（`dist --version` 必须含 `0.33.0`）→ 版本漂移不再可能被忽略。
 - 教训（已固化为规则）：**CI 里任何"安装固定版本"的步骤都必须有版本断言**；否则失败会以"工具装不上"这种与业务无关的面貌出现，并长期潜伏。
 
+### 7.3 CI 优化后的**覆盖面变化**（2026-10-19 实测，逐条登记）
+
+优化前实测（main `1c10746`，run `39219244456`，成功）：总墙钟 **373 s**；
+关键路径 `test (windows-latest)` **367 s**、`test (macos-latest)` 206 s、`guards` **146 s**（PR #139 上实测 2m25s）、
+`test (ubuntu-latest)` 138 s、`musl-static` 108 s、`clippy (windows)` 75 s、`static` 21 s。
+
+本轮的改动与**覆盖面影响**：
+
+1. **`guards` 加 Rust 缓存**：该作业要 `cargo build -p webctl`（`check-skill-tools.sh` 需要真实二进制读 `tools/list`），
+   而 BoringSSL 让那次构建约 2 分钟——**没有缓存时它就是该作业的全部耗时**。加 `Swatinem/rust-cache@v2`（`shared-key: guards`）。
+   **无覆盖面变化**。
+2. **release 构建（L2）只在 Linux 上跑**：此前三平台都 `cargo build --release --locked`，是 `test (windows)` 367 s 的主要来源。
+   **覆盖面变化（如实登记）**：PR CI **不再**验证 macOS/Windows 的 **release profile 编译**；
+   理由：L2 是**平台无关**的体积/静态性检查，而 release 产物本来就由 `release.yml` 在**打 tag 时对三平台各构建一次**；
+   保留的验证：三平台 `clippy`/`test`（dev profile）+ Linux 的 release 构建 + tag 时的三平台 release 矩阵。
+3. **日志仅失败时上传**：成功时的定位信息已由 `ci-report.sh` 写进 **GitHub 注解 + 作业摘要**，上传的日志只有排障时才用。
+   **无覆盖面变化**（失败时上传行为不变）。
+
+> 缓存为什么**不**在 `clippy` 与 `test` 之间共享：`clippy` 走 `RUSTC_WORKSPACE_WRAPPER`，产物与 `cargo test` 不可复用，
+> 共享同一 key 会互相冲刷缓存（各自更慢）。故每个作业用自己的 `shared-key`。
+
 ### 7.2 其它已知边界
 
 
