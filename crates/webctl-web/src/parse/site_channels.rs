@@ -274,10 +274,6 @@ fn ignored_ranges(lowered: &str) -> Vec<(usize, usize)> {
     out.sort_unstable();
     out
 }
-
-fn lower_find_gt(lowered: &str, from: usize) -> Option<usize> {
-    lowered[from..].find('>').map(|at| from + at)
-}
 /// 取 `<name>...</name>` 的原文（用于 `<title>`）。
 fn element_text(html: &str, name: &str) -> Option<String> {
     let lowered = html.to_ascii_lowercase();
