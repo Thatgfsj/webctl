@@ -189,7 +189,7 @@ fn tags(html: &str, name: &str) -> Vec<String> {
         }
         let Some(gt) = tag_end(&lowered, after, &mut budget) else {
             // 未闭合引号：跳过这个标签继续找（不中断整篇）；
-            // **预算耗尽**则停止扫描（见下一行的 break）。
+            // **预算耗尽**则停止扫描（下方 if budget == 0 分支）。
             if budget == 0 {
                 break;
             }
@@ -532,19 +532,44 @@ mod tests {
     /// #148 复审给出的 6 个**误伤**反例：旧实现会把真实元数据静默吞掉（main 能取到 → 变空）。
     #[test]
     fn ignored_ranges_does_not_swallow_real_metadata() {
+        // 期望值写死：只断言"非空"是**没牙齿**的（复审两次用临时探针才排除假阳性）。
         let cases = [
-            r#"<div data-x="<script>"></div><meta property="og:title" content="real">"#,
-            r#"<!-- 用 <script> 加载 --><meta property="og:title" content="real">"#,
-            r#"<!-- <script> --><meta property="og:title" content="real"><script>x()</script>"#,
-            r#"<style>a{content:'<script>';}</style><meta property="og:title" content="real">"#,
-            r#"<script>var re=/<!--/;</script><meta property="og:title" content="real">"#,
-            r#"<meta content="oops><meta property="og:url" content="real">"#,
+            (
+                r#"<div data-x="<script>"></div><meta property="og:title" content="real">"#,
+                "og:title",
+            ),
+            (
+                r#"<!-- 用 <script> 加载 --><meta property="og:title" content="real">"#,
+                "og:title",
+            ),
+            (
+                r#"<!-- <script> --><meta property="og:title" content="real"><script>x()</script>"#,
+                "og:title",
+            ),
+            (
+                r#"<style>a{content:'<script>';}</style><meta property="og:title" content="real">"#,
+                "og:title",
+            ),
+            (
+                r#"<script>var re=/<!--/;</script><meta property="og:title" content="real">"#,
+                "og:title",
+            ),
+            (
+                r#"<meta content="oops><meta property="og:url" content="real">"#,
+                "og:url",
+            ),
         ];
-        for (index, html) in cases.iter().enumerate() {
+        for (index, (html, key)) in cases.iter().enumerate() {
             let m = site_metadata(html);
-            assert!(
-                !m.entries.is_empty(),
-                "反例 {index}：真实元数据被误伤吞掉了：{m:?}"
+            assert_eq!(
+                m.entries.len(),
+                1,
+                "反例 {index}：应恰好取到 1 条元数据：{m:?}"
+            );
+            assert_eq!(m.entries[0].key, *key, "反例 {index}：键不对：{m:?}");
+            assert_eq!(
+                m.entries[0].content, "real",
+                "反例 {index}：值必须是 real（只断言非空会漏掉假阳性）：{m:?}"
             );
         }
     }
