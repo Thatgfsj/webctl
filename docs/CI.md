@@ -102,7 +102,6 @@ python3 scripts/check-tool-face.py      # 工具面数字/清单一致（#114）
 ### 7.2 其它已知边界
 
 
-
 - **L1 真站与 L4 性能不在 CI**：前者要外网且站点会抖，后者对机器噪声敏感。所以"**CI 绿 ≠ 真站也绿**"，这两条是本地手动通道；
 - **矩阵只覆盖 x86_64**：ubuntu / macos / windows 的 runner 都是 x86_64（macos-latest 是 arm64 还是 x86_64 取决于 GitHub 的轮换），**不覆盖 aarch64 Linux**——那属于发布矩阵问题（见 [RELEASE.md](RELEASE.md) 的"未纳入的目标"）；
 - **定位依赖输出格式**：若 cargo / rustc 未来改了 `-->` 或 `panicked at` 的格式，注解会退化为"只能看原文日志"。§3 的自检夹具就是这条退化的哨兵；
@@ -123,10 +122,13 @@ python3 scripts/check-tool-face.py      # 工具面数字/清单一致（#114）
    **覆盖面变化（如实登记）**：PR CI **不再**验证 macOS/Windows 的 **release profile 编译**；
    理由：L2 是**平台无关**的体积/静态性检查，而 release 产物本来就由 `release.yml` 在**打 tag 时对三平台各构建一次**；
    保留的验证：三平台 `clippy`/`test`（dev profile）+ Linux 的 release 构建 + tag 时的三平台 release 矩阵。
-3. **日志仅失败时上传**：成功时的定位信息已由 `ci-report.sh` 写进 **GitHub 注解 + 作业摘要**，上传的日志只有排障时才用。
+3. **日志仅失败 / 取消时上传**：成功时的定位信息已由 `ci-report.sh` 写进 **GitHub 注解 + 作业摘要**，上传的日志只有排障时才用（条件与范围的完整说明见 §7.4）。
    **无覆盖面变化**（失败时上传行为不变）。
 
 > **缓存体量**：`guards` 的 Rust 缓存约 **470 MB / 每个非 main ref**（实测保存 470,677,791 B），且按 GitHub 规则只能被该 ref 自己的重跑恢复；仓库缓存总量已达约 11 GB（超出默认 10 GB 软限，按 LRU 淘汰）。这是「更快」与「更多缓存占用」的显式取舍。
+
+> 缓存为什么**不**在 `clippy` 与 `test` 之间共享：`clippy` 走 `RUSTC_WORKSPACE_WRAPPER`，产物与 `cargo test` 不可复用，
+> 共享同一 key 会互相冲刷缓存（各自更慢）。故每个作业用自己的 `shared-key`。
 
 ### 7.4 日志上传的范围（含取消的运行）
 
@@ -134,5 +136,3 @@ python3 scripts/check-tool-face.py      # 工具面数字/清单一致（#114）
   取消的运行同样需要排障证据，不能因为不是 `failure` 就丢掉。
 - 覆盖面说明：改动前是 `if: always()`（成功也传），所以本项只**减少**了成功场景的上传，未减少任何排障场景。
 
-> 缓存为什么**不**在 `clippy` 与 `test` 之间共享：`clippy` 走 `RUSTC_WORKSPACE_WRAPPER`，产物与 `cargo test` 不可复用，
-> 共享同一 key 会互相冲刷缓存（各自更慢）。故每个作业用自己的 `shared-key`。
