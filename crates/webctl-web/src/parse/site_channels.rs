@@ -170,6 +170,7 @@ fn channel_kind(mime: &str) -> Option<ChannelKind> {
 fn tags(html: &str, name: &str) -> Vec<String> {
     let lowered = html.to_ascii_lowercase();
     let ignored = ignored_ranges(&lowered);
+    let mut budget = scan_budget(&lowered);
     let needle = format!("<{name}");
     let mut out = Vec::new();
     let mut cursor = 0usize;
@@ -186,8 +187,11 @@ fn tags(html: &str, name: &str) -> Vec<String> {
         {
             continue;
         }
-        let Some(gt) = tag_end(&lowered, after) else {
-            // 未闭合引号：跳过这个标签继续找，不中断整篇。
+        let Some(gt) = tag_end(&lowered, after, &mut budget) else {
+            // 未闭合引号（或预算耗尽）：跳过这个标签继续找。
+            if budget == 0 {
+                break;
+            }
             continue;
         };
         out.push(html[after..gt].to_owned());
@@ -197,9 +201,17 @@ fn tags(html: &str, name: &str) -> Vec<String> {
 }
 
 /// 找 `from` 之后第一个**不在引号内**的 `>`（引号里的 `>` 不终止标签）。
-fn tag_end(lowered: &str, from: usize) -> Option<usize> {
+///
+/// `budget` 是**共享扫描预算**：每次最多检查一个字符，耗尽即返回 `None`。
+/// 这是为了挡住「`<` 洪泛」的 CPU 放大——没有预算时，每个 `<` 都要重扫到文末，
+/// 50k 个 `<` 会要 63 秒（#148 复审实测；正常输入是毫秒级）。
+fn tag_end(lowered: &str, from: usize, budget: &mut usize) -> Option<usize> {
     let mut quote: Option<char> = None;
     for (offset, c) in lowered[from..].char_indices() {
+        if *budget == 0 {
+            return None;
+        }
+        *budget -= 1;
         match quote {
             Some(q) => {
                 if c == q {
@@ -216,6 +228,10 @@ fn tag_end(lowered: &str, from: usize) -> Option<usize> {
     None
 }
 
+/// 一次扫描的预算：与输入长度同阶，保证整体 O(n)。
+fn scan_budget(lowered: &str) -> usize {
+    lowered.len().saturating_mul(2).saturating_add(1024)
+}
 /// 标记「不是标签文本」的区间（注释、`script`/`style` 正文）。
 ///
 /// **单遍左→右状态机**（#148 复审指出的回归：旧实现把属性值里的 `<script>`、注释里的 `<script>`、
@@ -225,6 +241,7 @@ fn tag_end(lowered: &str, from: usize) -> Option<usize> {
 /// 3. 未闭合的引号只跳过当前 `<` 并继续；未闭合的注释/标签/脚本按 HTML 语义吞到文末。
 fn ignored_ranges(lowered: &str) -> Vec<(usize, usize)> {
     let mut out = Vec::new();
+    let mut budget = scan_budget(lowered);
     let mut i = 0usize;
     while i < lowered.len() {
         // 按**字符宽度**前进：`lowered[i..]` 要求 i 在字符边界上（中文/emoji 否则会 panic）。
@@ -246,9 +263,10 @@ fn ignored_ranges(lowered: &str) -> Vec<(usize, usize)> {
             }
             continue;
         }
-        let Some(gt) = tag_end(lowered, i + 1) else {
-            i += 1;
-            continue;
+        let Some(gt) = tag_end(lowered, i + 1, &mut budget) else {
+            // 预算耗尽或未闭合：停止扫描（未闭合标签按 HTML 语义吞到文末），
+            // 既符合语义又把洪泛输入限制在 O(n)。
+            break;
         };
         let name: String = lowered[i + 1..]
             .chars()
@@ -513,6 +531,35 @@ mod tests {
     }
 
     /// 注释里的假 `<title>` 不得被采信。
+    /// #148 复审实测的 CPU 放大：50k 个 `<` 在无预算时约 63 秒。
+    /// 这里用**很宽松**的上界（2 秒）做回归守卫——重点是从 O(n²) 变成 O(n)。
+    #[test]
+    fn angle_bracket_flood_is_bounded() {
+        let flood = "<".repeat(50_000);
+        let started = std::time::Instant::now();
+        let m = site_metadata(&flood);
+        let elapsed = started.elapsed();
+        assert!(m.entries.is_empty(), "洪泛输入不该产出元数据");
+        assert!(
+            elapsed.as_secs_f64() < 2.0,
+            "50k 个 `<` 应快速返回（实测 {elapsed:?}；修复前约 63 秒）"
+        );
+    }
+
+    /// 未闭合 `<meta` 洪泛同样必须有界。
+    #[test]
+    fn unclosed_meta_flood_is_bounded() {
+        let flood = "<meta ".repeat(4_000);
+        let started = std::time::Instant::now();
+        let m = site_metadata(&flood);
+        let elapsed = started.elapsed();
+        assert!(m.entries.is_empty());
+        assert!(
+            elapsed.as_secs_f64() < 2.0,
+            "未闭合 meta 洪泛应有界：{elapsed:?}"
+        );
+    }
+
     #[test]
     fn fake_title_in_comment_is_ignored() {
         let html = r#"<!-- <title>假标题</title> --><title>真标题</title>"#;
