@@ -23,7 +23,7 @@
 | 发布 | **v0.1.1**（[Release](https://github.com/Thatgfsj/webctl/releases/tag/v0.1.1)）：三平台资产（含 **musl 静态**）+ 安装器；下载、sha256 校验与干净环境 E2E 均已实测（[docs/RELEASE.md](docs/RELEASE.md)） |
 | 计划文档 | [docs/PLAN.md](docs/PLAN.md)（**v0.4**，含 2026-10-16 的方向变更） |
 | 事实依据 | [docs/SURVEY.md](docs/SURVEY.md)（本机实测 + 公开仓库核对；其中 CDP 部分已成历史记录） |
-| 形态 | Rust workspace，4 个 crate；发布 **2 个二进制**：`webctl`（主 CLI，含 `mcp` 子命令）与 `webctl-mcp`（独立 MCP server 入口）。三平台；v0.1.1 起 Linux 同时提供 glibc 与 **musl 静态**两种资产；musl 静态由 CI 每次 PR 验证（[#90](https://github.com/Thatgfsj/webctl/issues/90)） |
+| 形态 | Rust workspace，5 个 crate（`webctl` / `webctl-core` / `webctl-web` / `webctl-mcp` / `webctl-js`）；发布 **2 个二进制**：`webctl`（主 CLI，含 `mcp` 子命令）与 `webctl-mcp`（独立 MCP server 入口）。三平台；v0.1.1 起 Linux 同时提供 glibc 与 **musl 静态**两种资产；musl 静态由 CI 每次 PR 验证（[#90](https://github.com/Thatgfsj/webctl/issues/90)） |
 | 接口 | CLI（`caps` / `fetch` / `config` / `cookies` / `mcp`）+ MCP server（`mcp__webctl__*`，16 个工具） |
 | 外部依赖 | **运行时零外部进程、零外部浏览器**；不调用 `curl`/`jq`/`pdftotext` 等系统命令；JS 引擎（boa）是**进程内库**且默认关闭 |
 | 发布物 | cargo-dist 生成的三平台压缩包（`webctl` 与 `webctl-mcp` 各一；Linux 含 glibc 与 **musl 静态**两种）+ shell/PowerShell 安装器（[清单](docs/RELEASE.md)）；**v0.1.1 已发布** |
