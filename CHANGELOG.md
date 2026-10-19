@@ -4,6 +4,43 @@
 [语义化版本](https://semver.org/lang/zh-CN/)。格式约定、发版步骤与 release note 模板见
 [docs/RELEASE.md](docs/RELEASE.md)。
 
+## [0.1.2] - 2026-10-19
+
+本版主题：**JS 密集型 / SPA 站点的有效信息获取**（EPIC #113）。
+三条路线同时推进：内嵌结构化数据、可行动降级、以及受限的内置 JS 引擎。
+
+### Added
+
+- **内嵌结构化数据通道**：新工具 `embedded_data`（工具面第 16 个），从 JSON-LD、`script[type=json]`、框架状态容器（`inline-state`，如 `__NUXT_DATA__`）与 `data-page` 里取结构化数据（[#114](https://github.com/Thatgfsj/webctl/issues/114)）。
+- **降级带可行动信息**：`meta.actionable = {reason, detected, next_steps}`，让调用方知道"为什么降级、看到了什么、还能试什么"；`caps` 同时暴露 SPA 支持面（[#115](https://github.com/Thatgfsj/webctl/issues/115)）。
+- **SPA 样本集与「有效信息获取率」基线**：`docs/SPA-BASELINE.md` + 可执行的离线基线测试（[#119](https://github.com/Thatgfsj/webctl/issues/119)）。
+- **受限内置 JS 引擎**（[ADR-0005](docs/adr/0005-embedded-js-engine.md)）：`crates/webctl-js` 用纯 Rust 的 Boa 执行页面**内联**脚本，配套最小 DOM/BOM 垫片与 `render()`；
+  沙箱**零宿主能力**（无网络 / 文件 / 子进程 / 定时器，动态 `import` fail-closed），限值覆盖 loop / recursion / stack 与输入预算。
+- **`js_render` 开关（默认关闭）** 与引擎接线：开启后 `extract` 等工具先渲染再解析；`caps.js` 如实区分 `enabled`（调用方是否开启）与 `wired`（是否真的接线）。
+- **CI 重写**：三平台矩阵（ubuntu / macos / windows）、合并安全守卫（全量 `--locked`、每作业超时、并发取消、最小权限、`#[ignore]` 零容忍、工作区洁净断言）、
+  失败精准定位为 **`file:line:col` 的 GitHub 注解 + 作业摘要**；配套 `docs/CI.md` 与 `docs/TESTING.md §1` 的通道映射。
+
+### Changed
+
+- **CI 性能**：`guards` 作业加 Rust 缓存（热运行 146s → 43s）；release 构建（L2）只在 Linux 上跑（Windows 367s → 251s）；日志仅在失败/取消时上传。
+  总墙钟热缓存 **373s → 257s（−31%）**；覆盖面变化（PR CI 不再验证 macOS/Windows 的 release profile 编译）已如实登记在 `docs/CI.md §7.3`。
+
+### Fixed
+
+- **安全**：修掉沙箱的一处真实逃逸——Boa 默认模块加载器以**进程 CWD** 为根，页面脚本可用相对 `import()` 真实读取宿主文件（[#127](https://github.com/Thatgfsj/webctl/issues/127)）。
+> 已知仍在评审中、**尚未进入本版**的改动：`doc_text` / `json_query` / `download` 在 JS 页的降级继承（[#125](https://github.com/Thatgfsj/webctl/issues/125)，PR #139 待合）。
+
+- 最小 DOM：解析器补 RAWTEXT（`script`/`style`/`textarea`/`title` 按原文处理）、序列化函数防止被页面改写、垫片避开 Annex B 的 `substr`。
+- CI：`dist` 安装方式修正（`cargo-dist` 已更名 `dist`，crates.io 上无 0.33.0；改用官方脚本 + sha256 固定 + 版本断言），修掉 main 上长期红灯的 `static` 作业（[#140](https://github.com/Thatgfsj/webctl/pull/140)）。
+
+### 如实登记的未达成项（EPIC #113）
+
+- **核心锚点未达成**：`quotes.toscrape.com/js/` 在开启引擎后**仍取不到内容** ✗，原因是该页的内联脚本依赖**外链** jQuery
+  （`ReferenceError: $ is not defined`）。本版让"内容由**内联**脚本生成"的页面可取，让"依赖外部 JS 库"的页面**如实降级**。
+  是否执行同源外链脚本见 [#137](https://github.com/Thatgfsj/webctl/issues/137)。
+- 引擎限值只有 loop / recursion / stack 与输入预算；**堆内存与墙钟不设限**（Boa 0.20 不提供这些 API），归属决策见 [#130](https://github.com/Thatgfsj/webctl/issues/130)。
+- musl 静态体积基线待用**真实发布资产**回填（本机无 Bootlin 工具链，未编造数字）。
+
 ## [0.1.1] - 2026-10-17
 
 ### Added

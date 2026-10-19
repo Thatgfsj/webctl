@@ -193,7 +193,7 @@ v0.3 的 aria ref 依赖"最近一次快照"的 live 页面，**在无浏览器�
 
 > 只有当两个模块 (a) 变更来源或节奏明显不同，且 (b) 依赖方向单向无环时，才拆成独立 crate；否则同一 crate 内用目录分隔即可。
 
-### 4.2 布局（4 个 crate，v0.3 的 7 个中 3 个随 T3 一起删除）
+### 4.2 布局（5 个 crate：`webctl` / `webctl-core` / `webctl-web` / `webctl-mcp` / `webctl-js`；v0.3 的 7 个中 3 个随 T3 删除，0.1.2 起新增 `webctl-js`）
 
 ```
 webctl/
