@@ -142,8 +142,8 @@ jobs:
           if [ "$rc_default" -ne 0 ]; then echo "::error title=clippy::默认特性通道未通过 → 见上面每条 file:line:col"; fi
           if [ "$rc_offline" -ne 0 ]; then echo "::error title=clippy::offline 通道未通过 → 见上面每条 file:line:col"; fi
           [ "$rc_default" -eq 0 ] && [ "$rc_offline" -eq 0 ]
-      - name: 上传日志
-        if: always()
+      - name: 上传日志（仅失败时：成功时的定位信息已由 ci-report.sh 写进注解与作业摘要）
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: clippy-logs-${{ matrix.os }}
@@ -180,8 +180,16 @@ jobs:
           rc_test=$?
           cargo test --locked --features offline --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/test-offline.log"
           rc_offline=$?
-          cargo build --release --locked 2>&1 | tee "$RUNNER_TEMP/build-release.log"
-          rc_build=$?
+          # L2（体积 / 静态性）与平台无关，**只在 Linux 上做 release 构建**；
+          # macOS/Windows 的 release 产物由 release.yml 在打 tag 时对三平台各构建一次。
+          # 覆盖面变化已如实登记在 docs/CI.md §7.3。
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            cargo build --release --locked 2>&1 | tee "$RUNNER_TEMP/build-release.log"
+            rc_build=$?
+          else
+            echo "非 Linux：跳过 release 构建（见 docs/CI.md §7.3）" | tee "$RUNNER_TEMP/build-release.log"
+            rc_build=0
+          fi
           scripts/ci-report.sh --lane "test (默认)"        --log "$RUNNER_TEMP/test.log"
           scripts/ci-report.sh --lane "test (offline L0)"  --log "$RUNNER_TEMP/test-offline.log"
           scripts/ci-report.sh --lane "build --release (L2)" --log "$RUNNER_TEMP/build-release.log"
@@ -219,8 +227,8 @@ jobs:
             echo "::notice::checkout 后本来就有的工作区差异（不计入本次判定）："; cat "$RUNNER_TEMP/ws-before.txt"
           fi
           echo "测试过程未新增脏文件"
-      - name: 上传日志
-        if: always()
+      - name: 上传日志（仅失败时：成功时的定位信息已由 ci-report.sh 写进注解与作业摘要）
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: test-logs-${{ matrix.os }}
@@ -245,6 +253,13 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.98.1
+      # 本作业要 `cargo build -p webctl`（check-skill-tools.sh 需要真实二进制读 tools/list），
+      # 而 BoringSSL 让那次构建约 2 分钟：没有缓存时它是本作业的全部耗时（实测 2m25s）。
+      - uses: Swatinem/rust-cache@v2
+        with:
+          # 与 clippy/test 分开：clippy 走 RUSTC_WORKSPACE_WRAPPER，产物不可复用，
+          # 共享会互相冲刷缓存（见 docs/CI.md §7.3）。
+          shared-key: guards
       - name: 锁文件与清单一致（cargo metadata --locked）
         run: cargo metadata --locked --format-version 1 > /dev/null && echo "Cargo.lock 与清单一致"
       - name: 构建 webctl（check-skill-tools.sh 需要真实二进制来读 tools/list）
