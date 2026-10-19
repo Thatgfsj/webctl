@@ -187,7 +187,8 @@ fn tags(html: &str, name: &str) -> Vec<String> {
             continue;
         }
         let Some(gt) = tag_end(&lowered, after) else {
-            break;
+            // 未闭合引号：跳过这个标签继续找，不中断整篇。
+            continue;
         };
         out.push(html[after..gt].to_owned());
         cursor = gt + 1;
@@ -215,44 +216,60 @@ fn tag_end(lowered: &str, from: usize) -> Option<usize> {
     None
 }
 
-/// 注释与 `script`/`style` 正文的字节区间（升序）。
+/// 标记「不是标签文本」的区间（注释、`script`/`style` 正文）。
+///
+/// **单遍左→右状态机**（#148 复审指出的回归：旧实现把属性值里的 `<script>`、注释里的 `<script>`、
+/// 脚本里的 `<!--` 都当成标签，导致整篇被吞、真实元数据变空）。三条规则：
+/// 1. 遇到 `<` 先用引号感知的 `tag_end` 找到标签结束，**整个标签跳过**——属性值里的 `<` 因此永远不会被当成标签开头；
+/// 2. 注释（`<!--`）整段跳过；进入 `script`/`style` 正文后整段跳到 `</name>`——注释里的 `<script>`、脚本里的 `<!--` 都不再参与配对；
+/// 3. 未闭合的引号只跳过当前 `<` 并继续；未闭合的注释/标签/脚本按 HTML 语义吞到文末。
 fn ignored_ranges(lowered: &str) -> Vec<(usize, usize)> {
     let mut out = Vec::new();
-    let mut cursor = 0usize;
-    while let Some(rel) = lowered[cursor..].find("<!--") {
-        let start = cursor + rel;
-        match lowered[start..].find("-->") {
-            Some(end) => {
-                out.push((start, start + end + 3));
-                cursor = start + end + 3;
-            }
-            None => {
-                out.push((start, lowered.len()));
-                break;
-            }
+    let mut i = 0usize;
+    while i < lowered.len() {
+        // 按**字符宽度**前进：`lowered[i..]` 要求 i 在字符边界上（中文/emoji 否则会 panic）。
+        if !lowered[i..].starts_with('<') {
+            i += lowered[i..].chars().next().map_or(1, char::len_utf8);
+            continue;
         }
-    }
-    for tag in ["script", "style"] {
-        let open = format!("<{tag}");
-        let close = format!("</{tag}");
-        let mut cursor = 0usize;
-        while let Some(rel) = lowered[cursor..].find(&open) {
-            let start = cursor + rel;
-            let Some(gt) = lower_find_gt(lowered, start + open.len()) else {
-                break;
-            };
+        if lowered[i..].starts_with("<!--") {
+            match lowered[i..].find("-->") {
+                Some(rel) => {
+                    let next = i + rel + 3;
+                    out.push((i, next));
+                    i = next;
+                }
+                None => {
+                    out.push((i, lowered.len()));
+                    break;
+                }
+            }
+            continue;
+        }
+        let Some(gt) = tag_end(lowered, i + 1) else {
+            i += 1;
+            continue;
+        };
+        let name: String = lowered[i + 1..]
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric())
+            .collect();
+        if name == "script" || name == "style" {
             let body = gt + 1;
+            let close = format!("</{name}");
             match lowered[body..].find(&close) {
-                Some(end) => {
-                    out.push((body, body + end));
-                    cursor = body + end;
+                Some(rel) => {
+                    out.push((body, body + rel));
+                    i = body + rel;
                 }
                 None => {
                     out.push((body, lowered.len()));
                     break;
                 }
             }
+            continue;
         }
+        i = gt + 1;
     }
     out.sort_unstable();
     out
@@ -264,8 +281,17 @@ fn lower_find_gt(lowered: &str, from: usize) -> Option<usize> {
 /// 取 `<name>...</name>` 的原文（用于 `<title>`）。
 fn element_text(html: &str, name: &str) -> Option<String> {
     let lowered = html.to_ascii_lowercase();
+    let ignored = ignored_ranges(&lowered);
     let open = format!("<{name}");
-    let start = lowered.find(&open)?;
+    let mut from = 0usize;
+    let start = loop {
+        let at = lowered[from..].find(&open)? + from;
+        if ignored.iter().any(|(s, e)| at >= *s && at < *e) {
+            from = at + open.len();
+            continue;
+        }
+        break at;
+    };
     let after = start + open.len();
     let gt = lowered[after..].find('>')? + after;
     let close = format!("</{name}");
@@ -468,6 +494,33 @@ mod tests {
         let m = site_metadata(html);
         assert_eq!(m.entries.len(), 1, "引号内的 > 不该终止标签");
         assert_eq!(m.entries[0].content, "a > b");
+    }
+
+    /// #148 复审给出的 6 个**误伤**反例：旧实现会把真实元数据静默吞掉（main 能取到 → 变空）。
+    #[test]
+    fn ignored_ranges_does_not_swallow_real_metadata() {
+        let cases = [
+            r#"<div data-x="<script>"></div><meta property="og:title" content="real">"#,
+            r#"<!-- 用 <script> 加载 --><meta property="og:title" content="real">"#,
+            r#"<!-- <script> --><meta property="og:title" content="real"><script>x()</script>"#,
+            r#"<style>a{content:'<script>';}</style><meta property="og:title" content="real">"#,
+            r#"<script>var re=/<!--/;</script><meta property="og:title" content="real">"#,
+            r#"<meta content="oops><meta property="og:url" content="real">"#,
+        ];
+        for (index, html) in cases.iter().enumerate() {
+            let m = site_metadata(html);
+            assert!(
+                !m.entries.is_empty(),
+                "反例 {index}：真实元数据被误伤吞掉了：{m:?}"
+            );
+        }
+    }
+
+    /// 注释里的假 `<title>` 不得被采信。
+    #[test]
+    fn fake_title_in_comment_is_ignored() {
+        let html = r#"<!-- <title>假标题</title> --><title>真标题</title>"#;
+        assert_eq!(site_metadata(html).title.as_deref(), Some("真标题"));
     }
 
     #[test]
