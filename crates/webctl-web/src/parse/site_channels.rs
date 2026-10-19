@@ -178,7 +178,7 @@ fn tags(html: &str, name: &str) -> Vec<String> {
         let start = cursor + rel;
         let after = start + needle.len();
         cursor = after;
-        if ignored.iter().any(|(s, e)| start >= *s && start < *e) {
+        if in_ignored(&ignored, start) {
             continue;
         }
         // 必须是标签名边界（`<meta` 不能匹配 `<metadata`）。
@@ -226,6 +226,19 @@ fn tag_end(lowered: &str, from: usize, budget: &mut usize) -> Option<usize> {
         }
     }
     None
+}
+
+/// 判断位置是否落在忽略区间内。区间**已排序且互不重叠**，用二分查找（O(log n)）——
+/// 旧实现是线性 `any()`，在 `<!----><meta a>` 这类输入上会退化成 O(n²)。
+fn in_ignored(ignored: &[(usize, usize)], at: usize) -> bool {
+    match ignored.binary_search_by(|(start, _)| start.cmp(&at)) {
+        Ok(_) => true,
+        Err(0) => false,
+        Err(index) => {
+            let (start, end) = ignored[index - 1];
+            at >= start && at < end
+        }
+    }
 }
 
 /// 一次扫描的预算：与输入长度同阶，保证整体 O(n)。
@@ -533,6 +546,30 @@ mod tests {
     /// 注释里的假 `<title>` 不得被采信。
     /// #148 复审实测的 CPU 放大：50k 个 `<` 在无预算时约 63 秒。
     /// 这里用**很宽松**的上界（2 秒）做回归守卫——重点是从 O(n²) 变成 O(n)。
+    /// 直接钉住预算机制：预算耗尽时 `tag_end` 必须返回 `None`。
+    #[test]
+    fn tag_end_respects_scan_budget() {
+        let lowered = "<meta content=\"a\">".to_string();
+        let mut budget = 0usize;
+        assert_eq!(
+            tag_end(&lowered, 1, &mut budget),
+            None,
+            "预算为 0 时必须立刻放弃"
+        );
+        let mut budget = 3usize;
+        assert_eq!(
+            tag_end(&lowered, 1, &mut budget),
+            None,
+            "预算不足以扫到 > 时必须放弃"
+        );
+        let mut budget = scan_budget(&lowered);
+        assert_eq!(
+            tag_end(&lowered, 1, &mut budget),
+            Some(lowered.len() - 1),
+            "预算充足时应找到标签结束"
+        );
+    }
+
     #[test]
     fn angle_bracket_flood_is_bounded() {
         let flood = "<".repeat(50_000);
@@ -549,14 +586,14 @@ mod tests {
     /// 未闭合 `<meta` 洪泛同样必须有界。
     #[test]
     fn unclosed_meta_flood_is_bounded() {
-        let flood = "<meta ".repeat(4_000);
+        let flood = "<meta ".repeat(16_000);
         let started = std::time::Instant::now();
         let m = site_metadata(&flood);
         let elapsed = started.elapsed();
         assert!(m.entries.is_empty());
         assert!(
             elapsed.as_secs_f64() < 2.0,
-            "未闭合 meta 洪泛应有界：{elapsed:?}"
+            "未闭合 meta 洪泛应有界（16k；无预算实测约 13 秒）：{elapsed:?}"
         );
     }
 
