@@ -164,30 +164,103 @@ fn channel_kind(mime: &str) -> Option<ChannelKind> {
 }
 
 /// 取出每个 `<name ...>` 开标签的属性文本（忽略大小写；不做完整 HTML 解析）。
+///
+/// **跳过注释与 `script`/`style` 正文**：页面可以在注释或脚本字符串里写一个假的 `<meta>`，
+/// 采信它就等于让页面内容影响我们的判定（#117 复审登记的残余风险 2）。
 fn tags(html: &str, name: &str) -> Vec<String> {
     let lowered = html.to_ascii_lowercase();
+    let ignored = ignored_ranges(&lowered);
     let needle = format!("<{name}");
     let mut out = Vec::new();
     let mut cursor = 0usize;
     while let Some(rel) = lowered[cursor..].find(&needle) {
         let start = cursor + rel;
         let after = start + needle.len();
+        cursor = after;
+        if ignored.iter().any(|(s, e)| start >= *s && start < *e) {
+            continue;
+        }
         // 必须是标签名边界（`<meta` 不能匹配 `<metadata`）。
         let boundary = lowered[after..].chars().next();
         if !matches!(boundary, Some(c) if c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '/' || c == '>')
         {
-            cursor = after;
             continue;
         }
-        let Some(gt) = lowered[after..].find('>') else {
+        let Some(gt) = tag_end(&lowered, after) else {
             break;
         };
-        out.push(html[after..after + gt].to_owned());
-        cursor = after + gt + 1;
+        out.push(html[after..gt].to_owned());
+        cursor = gt + 1;
     }
     out
 }
 
+/// 找 `from` 之后第一个**不在引号内**的 `>`（引号里的 `>` 不终止标签）。
+fn tag_end(lowered: &str, from: usize) -> Option<usize> {
+    let mut quote: Option<char> = None;
+    for (offset, c) in lowered[from..].char_indices() {
+        match quote {
+            Some(q) => {
+                if c == q {
+                    quote = None;
+                }
+            }
+            None => match c {
+                '"' | '\'' => quote = Some(c),
+                '>' => return Some(from + offset),
+                _ => {}
+            },
+        }
+    }
+    None
+}
+
+/// 注释与 `script`/`style` 正文的字节区间（升序）。
+fn ignored_ranges(lowered: &str) -> Vec<(usize, usize)> {
+    let mut out = Vec::new();
+    let mut cursor = 0usize;
+    while let Some(rel) = lowered[cursor..].find("<!--") {
+        let start = cursor + rel;
+        match lowered[start..].find("-->") {
+            Some(end) => {
+                out.push((start, start + end + 3));
+                cursor = start + end + 3;
+            }
+            None => {
+                out.push((start, lowered.len()));
+                break;
+            }
+        }
+    }
+    for tag in ["script", "style"] {
+        let open = format!("<{tag}");
+        let close = format!("</{tag}");
+        let mut cursor = 0usize;
+        while let Some(rel) = lowered[cursor..].find(&open) {
+            let start = cursor + rel;
+            let Some(gt) = lower_find_gt(lowered, start + open.len()) else {
+                break;
+            };
+            let body = gt + 1;
+            match lowered[body..].find(&close) {
+                Some(end) => {
+                    out.push((body, body + end));
+                    cursor = body + end;
+                }
+                None => {
+                    out.push((body, lowered.len()));
+                    break;
+                }
+            }
+        }
+    }
+    out.sort_unstable();
+    out
+}
+
+fn lower_find_gt(lowered: &str, from: usize) -> Option<usize> {
+    lowered[from..].find('>').map(|at| from + at)
+}
 /// 取 `<name>...</name>` 的原文（用于 `<title>`）。
 fn element_text(html: &str, name: &str) -> Option<String> {
     let lowered = html.to_ascii_lowercase();
@@ -259,16 +332,35 @@ fn attr(attrs: &str, name: &str) -> Option<String> {
     None
 }
 
-/// 最小实体解码（够用于元数据；不做完整 HTML5 实体表）。
+/// 最小实体解码（**单遍**：`&amp;lt;` 解成字面量 `&lt;`，不会二次解成 `<`）。
 fn decode(text: &str) -> String {
-    text.replace("&amp;", "&")
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&quot;", "\"")
-        .replace("&#39;", "'")
-        .replace("&apos;", "'")
+    const ENTITIES: [(&str, &str); 6] = [
+        ("&amp;", "&"),
+        ("&lt;", "<"),
+        ("&gt;", ">"),
+        ("&quot;", "\""),
+        ("&#39;", "'"),
+        ("&apos;", "'"),
+    ];
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(at) = rest.find('&') {
+        out.push_str(&rest[..at]);
+        let tail = &rest[at..];
+        match ENTITIES.iter().find(|(key, _)| tail.starts_with(key)) {
+            Some((key, value)) => {
+                out.push_str(value);
+                rest = &tail[key.len()..];
+            }
+            None => {
+                out.push('&');
+                rest = &tail[1..];
+            }
+        }
+    }
+    out.push_str(rest);
+    out
 }
-
 fn collapse(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
@@ -351,6 +443,41 @@ mod tests {
         let m = site_metadata(html);
         assert_eq!(m.entries.len(), 1, "`<metadata` 不该被当成 `<meta`");
         assert_eq!(m.entries[0].key, "twitter:card");
+    }
+
+    #[test]
+    fn fake_meta_in_comments_and_scripts_is_ignored() {
+        let html = r#"<html><head>
+          <!-- <meta property="og:title" content="注释里的假货"> -->
+          <script>var s = '<meta property="og:url" content="脚本里的假货">';</script>
+          <style>/* <meta property="twitter:card" content="样式里的假货"> */</style>
+          <meta property="og:title" content="真的">
+        </head></html>"#;
+        let m = site_metadata(html);
+        assert_eq!(
+            m.entries.len(),
+            1,
+            "注释/脚本/样式里的 meta 不得被采信：{m:?}"
+        );
+        assert_eq!(m.entries[0].content, "真的");
+    }
+
+    #[test]
+    fn angle_bracket_inside_quotes_does_not_split_tag() {
+        let html = r#"<meta property="og:title" content="a > b">"#;
+        let m = site_metadata(html);
+        assert_eq!(m.entries.len(), 1, "引号内的 > 不该终止标签");
+        assert_eq!(m.entries[0].content, "a > b");
+    }
+
+    #[test]
+    fn entities_are_decoded_exactly_once() {
+        let html = r#"<meta property="og:title" content="&amp;lt;b&amp;gt;">"#;
+        let m = site_metadata(html);
+        assert_eq!(
+            m.entries[0].content, "&lt;b&gt;",
+            "只解一次：&amp;lt; 应变成字面量 &lt;，不能二次解成 <"
+        );
     }
 
     #[test]
