@@ -6,7 +6,7 @@ name: CI
 #   3) 合并安全：cargo 全部 --locked；每个 job 有 timeout；并发取消旧运行；最小权限；
 #      忽略测试零容忍；测试跑完后工作区必须洁净；cargo-dist 生成物不许漂移；
 #   4) 精准报错：每个可能失败的命令把输出 tee 到日志，成功后也过一遍 scripts/ci-report.sh，
-#      把失败变成 file:line:col 的 GitHub 注解 + 作业摘要，并把原始日志作为 artifact 上传。
+#      把失败变成 file:line:col 的 GitHub 注解 + 作业摘要，并把原始日志在**失败 / 取消**时作为 artifact 上传。
 
 on:
   push:
@@ -143,7 +143,7 @@ jobs:
           if [ "$rc_offline" -ne 0 ]; then echo "::error title=clippy::offline 通道未通过 → 见上面每条 file:line:col"; fi
           [ "$rc_default" -eq 0 ] && [ "$rc_offline" -eq 0 ]
       - name: 上传日志（仅失败时：成功时的定位信息已由 ci-report.sh 写进注解与作业摘要）
-        if: failure()
+        if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
           name: clippy-logs-${{ matrix.os }}
@@ -192,7 +192,13 @@ jobs:
           fi
           scripts/ci-report.sh --lane "test (默认)"        --log "$RUNNER_TEMP/test.log"
           scripts/ci-report.sh --lane "test (offline L0)"  --log "$RUNNER_TEMP/test-offline.log"
-          scripts/ci-report.sh --lane "build --release (L2)" --log "$RUNNER_TEMP/build-release.log"
+          # 非 Linux 上 release 构建是**跳过**的：不能按「跑过且通过」出摘要（那会误导），
+          # 改为打一条 notice，说明本车道这次没运行（见 docs/CI.md §7.3）。
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            scripts/ci-report.sh --lane "build --release (L2)" --log "$RUNNER_TEMP/build-release.log"
+          else
+            echo "::notice title=build --release (L2)::非 Linux：本车道跳过（docs/CI.md §7.3），未运行故不出摘要"
+          fi
           if [ "$rc_test" -ne 0 ];    then echo "::error title=test::默认门禁未通过 → 见上面每条 file:line:col"; fi
           if [ "$rc_offline" -ne 0 ]; then echo "::error title=test::offline 通道未通过 → 见上面每条 file:line:col"; fi
           if [ "$rc_build" -ne 0 ];   then echo "::error title=build::release 构建未通过"; fi
@@ -228,7 +234,7 @@ jobs:
           fi
           echo "测试过程未新增脏文件"
       - name: 上传日志（仅失败时：成功时的定位信息已由 ci-report.sh 写进注解与作业摘要）
-        if: failure()
+        if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
           name: test-logs-${{ matrix.os }}
