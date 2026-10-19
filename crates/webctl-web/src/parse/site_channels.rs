@@ -241,7 +241,11 @@ fn in_ignored(ignored: &[(usize, usize)], at: usize) -> bool {
     }
 }
 
-/// 一次扫描的预算：与输入长度同阶，保证整体 O(n)。
+/// 一次扫描的预算：与输入长度同阶。
+///
+/// **它约束的是 `tag_end` 的扫描量**（把 `<` 洪泛从二次降到线性）；
+/// 忽略区间的**定位**由 `in_ignored` 的二分负责。不要把二者合起来说成"整体 O(n)"——
+/// 此外 `lowered.to_ascii_lowercase()` 等一次性拷贝仍是线性的。
 fn scan_budget(lowered: &str) -> usize {
     lowered.len().saturating_mul(2).saturating_add(1024)
 }
@@ -313,7 +317,7 @@ fn element_text(html: &str, name: &str) -> Option<String> {
     let mut from = 0usize;
     let start = loop {
         let at = lowered[from..].find(&open)? + from;
-        if ignored.iter().any(|(s, e)| at >= *s && at < *e) {
+        if in_ignored(&ignored, at) {
             from = at + open.len();
             continue;
         }
