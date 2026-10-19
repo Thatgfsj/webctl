@@ -142,7 +142,7 @@ jobs:
           if [ "$rc_default" -ne 0 ]; then echo "::error title=clippy::默认特性通道未通过 → 见上面每条 file:line:col"; fi
           if [ "$rc_offline" -ne 0 ]; then echo "::error title=clippy::offline 通道未通过 → 见上面每条 file:line:col"; fi
           [ "$rc_default" -eq 0 ] && [ "$rc_offline" -eq 0 ]
-      - name: 上传日志（仅失败时：成功时的定位信息已由 ci-report.sh 写进注解与作业摘要）
+      - name: 上传日志（仅失败 / 取消时：成功时的定位信息已由 ci-report.sh 写进注解与作业摘要）
         if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
@@ -233,7 +233,7 @@ jobs:
             echo "::notice::checkout 后本来就有的工作区差异（不计入本次判定）："; cat "$RUNNER_TEMP/ws-before.txt"
           fi
           echo "测试过程未新增脏文件"
-      - name: 上传日志（仅失败时：成功时的定位信息已由 ci-report.sh 写进注解与作业摘要）
+      - name: 上传日志（仅失败 / 取消时：成功时的定位信息已由 ci-report.sh 写进注解与作业摘要）
         if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
