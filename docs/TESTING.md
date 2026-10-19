@@ -439,6 +439,18 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 ### 6.5 PR 08 礼貌与限速（议题 #37）
 
 - `crates/webctl-web/tests/politeness.rs` **8 条**：`robots_disallow_blocks_without_requesting`、`robots_can_be_disabled_and_is_recorded`、`min_interval_is_enforced`、`concurrency_is_capped`、`retry_after_is_respected`、`interception_is_blocked_without_retry_storm`、`server_error_is_blocked`、`network_errors_retry_within_budget`。
+- `crates/webctl-web/src/parse/site_channels.rs` 单元 **11 条**（议题 [#117](https://github.com/Thatgfsj/webctl/issues/117) 第 1 步，**尚未接线**）：
+  `metadata_carries_an_explicit_source`（**每条元数据带 `source`**，据此区分"元数据"与"正文"——验收要求）、
+  `channels_are_discovered_in_document_order`（rss/atom/oembed 保文档序）、
+  `empty_page_yields_empty_not_error`（找不到就是**空**，不是错误）、
+  `non_alternate_and_unknown_types_are_ignored`（`rel=stylesheet` 带 RSS MIME **不算**通道）、
+  `tag_boundary_prevents_false_matches`（`<metadata>` 不匹配 `<meta`）、
+  `attribute_values_tolerate_quoting_styles`（单/双引号与**无引号**值；曾把 `https://…` 截成 `https:` 的 bug 由它抓出）、
+  `fake_meta_in_comments_and_scripts_is_ignored` / `fake_title_in_comment_is_ignored`（注释、脚本、样式里的假标签**不得**被采信）、
+  `angle_bracket_inside_quotes_does_not_split_tag`（引号内的 `>` 不终止标签）、
+  `entities_are_decoded_exactly_once`（`&amp;lt;` 只解一次）、
+  `ignored_ranges_does_not_swallow_real_metadata`（[#148](https://github.com/Thatgfsj/webctl/pull/148) 复审的 **6 个误伤反例**：属性值/注释/样式/脚本里的 `<script>` 与未闭合引号，都**不得**吞掉真实元数据）。
+  > `PR #149`（未合并）另加 3 条洪泛/预算用例；合并后本节应为 **14 条**。
 - `crates/webctl-web/src/politeness/**` 单元 **17 条**，含首轮审阅否决后补的三条回归：`queued_requests_still_keep_min_interval`（排队场景最小间隔）、`consecutive_user_agent_lines_share_one_group`、`longest_matching_agent_token_wins`。
 
 ### 6.6 历史：早期「待回填」占位清单（**已全部回填**）
