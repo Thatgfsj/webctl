@@ -164,35 +164,130 @@ fn channel_kind(mime: &str) -> Option<ChannelKind> {
 }
 
 /// 取出每个 `<name ...>` 开标签的属性文本（忽略大小写；不做完整 HTML 解析）。
+///
+/// **跳过注释与 `script`/`style` 正文**：页面可以在注释或脚本字符串里写一个假的 `<meta>`，
+/// 采信它就等于让页面内容影响我们的判定（#117 复审登记的残余风险 2）。
 fn tags(html: &str, name: &str) -> Vec<String> {
     let lowered = html.to_ascii_lowercase();
+    let ignored = ignored_ranges(&lowered);
     let needle = format!("<{name}");
     let mut out = Vec::new();
     let mut cursor = 0usize;
     while let Some(rel) = lowered[cursor..].find(&needle) {
         let start = cursor + rel;
         let after = start + needle.len();
+        cursor = after;
+        if ignored.iter().any(|(s, e)| start >= *s && start < *e) {
+            continue;
+        }
         // 必须是标签名边界（`<meta` 不能匹配 `<metadata`）。
         let boundary = lowered[after..].chars().next();
         if !matches!(boundary, Some(c) if c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '/' || c == '>')
         {
-            cursor = after;
             continue;
         }
-        let Some(gt) = lowered[after..].find('>') else {
-            break;
+        let Some(gt) = tag_end(&lowered, after) else {
+            // 未闭合引号：跳过这个标签继续找，不中断整篇。
+            continue;
         };
-        out.push(html[after..after + gt].to_owned());
-        cursor = after + gt + 1;
+        out.push(html[after..gt].to_owned());
+        cursor = gt + 1;
     }
     out
 }
 
+/// 找 `from` 之后第一个**不在引号内**的 `>`（引号里的 `>` 不终止标签）。
+fn tag_end(lowered: &str, from: usize) -> Option<usize> {
+    let mut quote: Option<char> = None;
+    for (offset, c) in lowered[from..].char_indices() {
+        match quote {
+            Some(q) => {
+                if c == q {
+                    quote = None;
+                }
+            }
+            None => match c {
+                '"' | '\'' => quote = Some(c),
+                '>' => return Some(from + offset),
+                _ => {}
+            },
+        }
+    }
+    None
+}
+
+/// 标记「不是标签文本」的区间（注释、`script`/`style` 正文）。
+///
+/// **单遍左→右状态机**（#148 复审指出的回归：旧实现把属性值里的 `<script>`、注释里的 `<script>`、
+/// 脚本里的 `<!--` 都当成标签，导致整篇被吞、真实元数据变空）。三条规则：
+/// 1. 遇到 `<` 先用引号感知的 `tag_end` 找到标签结束，**整个标签跳过**——属性值里的 `<` 因此永远不会被当成标签开头；
+/// 2. 注释（`<!--`）整段跳过；进入 `script`/`style` 正文后整段跳到 `</name>`——注释里的 `<script>`、脚本里的 `<!--` 都不再参与配对；
+/// 3. 未闭合的引号只跳过当前 `<` 并继续；未闭合的注释/标签/脚本按 HTML 语义吞到文末。
+fn ignored_ranges(lowered: &str) -> Vec<(usize, usize)> {
+    let mut out = Vec::new();
+    let mut i = 0usize;
+    while i < lowered.len() {
+        // 按**字符宽度**前进：`lowered[i..]` 要求 i 在字符边界上（中文/emoji 否则会 panic）。
+        if !lowered[i..].starts_with('<') {
+            i += lowered[i..].chars().next().map_or(1, char::len_utf8);
+            continue;
+        }
+        if lowered[i..].starts_with("<!--") {
+            match lowered[i..].find("-->") {
+                Some(rel) => {
+                    let next = i + rel + 3;
+                    out.push((i, next));
+                    i = next;
+                }
+                None => {
+                    out.push((i, lowered.len()));
+                    break;
+                }
+            }
+            continue;
+        }
+        let Some(gt) = tag_end(lowered, i + 1) else {
+            i += 1;
+            continue;
+        };
+        let name: String = lowered[i + 1..]
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric())
+            .collect();
+        if name == "script" || name == "style" {
+            let body = gt + 1;
+            let close = format!("</{name}");
+            match lowered[body..].find(&close) {
+                Some(rel) => {
+                    out.push((body, body + rel));
+                    i = body + rel;
+                }
+                None => {
+                    out.push((body, lowered.len()));
+                    break;
+                }
+            }
+            continue;
+        }
+        i = gt + 1;
+    }
+    out.sort_unstable();
+    out
+}
 /// 取 `<name>...</name>` 的原文（用于 `<title>`）。
 fn element_text(html: &str, name: &str) -> Option<String> {
     let lowered = html.to_ascii_lowercase();
+    let ignored = ignored_ranges(&lowered);
     let open = format!("<{name}");
-    let start = lowered.find(&open)?;
+    let mut from = 0usize;
+    let start = loop {
+        let at = lowered[from..].find(&open)? + from;
+        if ignored.iter().any(|(s, e)| at >= *s && at < *e) {
+            from = at + open.len();
+            continue;
+        }
+        break at;
+    };
     let after = start + open.len();
     let gt = lowered[after..].find('>')? + after;
     let close = format!("</{name}");
@@ -259,16 +354,35 @@ fn attr(attrs: &str, name: &str) -> Option<String> {
     None
 }
 
-/// 最小实体解码（够用于元数据；不做完整 HTML5 实体表）。
+/// 最小实体解码（**单遍**：`&amp;lt;` 解成字面量 `&lt;`，不会二次解成 `<`）。
 fn decode(text: &str) -> String {
-    text.replace("&amp;", "&")
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&quot;", "\"")
-        .replace("&#39;", "'")
-        .replace("&apos;", "'")
+    const ENTITIES: [(&str, &str); 6] = [
+        ("&amp;", "&"),
+        ("&lt;", "<"),
+        ("&gt;", ">"),
+        ("&quot;", "\""),
+        ("&#39;", "'"),
+        ("&apos;", "'"),
+    ];
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(at) = rest.find('&') {
+        out.push_str(&rest[..at]);
+        let tail = &rest[at..];
+        match ENTITIES.iter().find(|(key, _)| tail.starts_with(key)) {
+            Some((key, value)) => {
+                out.push_str(value);
+                rest = &tail[key.len()..];
+            }
+            None => {
+                out.push('&');
+                rest = &tail[1..];
+            }
+        }
+    }
+    out.push_str(rest);
+    out
 }
-
 fn collapse(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
@@ -351,6 +465,68 @@ mod tests {
         let m = site_metadata(html);
         assert_eq!(m.entries.len(), 1, "`<metadata` 不该被当成 `<meta`");
         assert_eq!(m.entries[0].key, "twitter:card");
+    }
+
+    #[test]
+    fn fake_meta_in_comments_and_scripts_is_ignored() {
+        let html = r#"<html><head>
+          <!-- <meta property="og:title" content="注释里的假货"> -->
+          <script>var s = '<meta property="og:url" content="脚本里的假货">';</script>
+          <style>/* <meta property="twitter:card" content="样式里的假货"> */</style>
+          <meta property="og:title" content="真的">
+        </head></html>"#;
+        let m = site_metadata(html);
+        assert_eq!(
+            m.entries.len(),
+            1,
+            "注释/脚本/样式里的 meta 不得被采信：{m:?}"
+        );
+        assert_eq!(m.entries[0].content, "真的");
+    }
+
+    #[test]
+    fn angle_bracket_inside_quotes_does_not_split_tag() {
+        let html = r#"<meta property="og:title" content="a > b">"#;
+        let m = site_metadata(html);
+        assert_eq!(m.entries.len(), 1, "引号内的 > 不该终止标签");
+        assert_eq!(m.entries[0].content, "a > b");
+    }
+
+    /// #148 复审给出的 6 个**误伤**反例：旧实现会把真实元数据静默吞掉（main 能取到 → 变空）。
+    #[test]
+    fn ignored_ranges_does_not_swallow_real_metadata() {
+        let cases = [
+            r#"<div data-x="<script>"></div><meta property="og:title" content="real">"#,
+            r#"<!-- 用 <script> 加载 --><meta property="og:title" content="real">"#,
+            r#"<!-- <script> --><meta property="og:title" content="real"><script>x()</script>"#,
+            r#"<style>a{content:'<script>';}</style><meta property="og:title" content="real">"#,
+            r#"<script>var re=/<!--/;</script><meta property="og:title" content="real">"#,
+            r#"<meta content="oops><meta property="og:url" content="real">"#,
+        ];
+        for (index, html) in cases.iter().enumerate() {
+            let m = site_metadata(html);
+            assert!(
+                !m.entries.is_empty(),
+                "反例 {index}：真实元数据被误伤吞掉了：{m:?}"
+            );
+        }
+    }
+
+    /// 注释里的假 `<title>` 不得被采信。
+    #[test]
+    fn fake_title_in_comment_is_ignored() {
+        let html = r#"<!-- <title>假标题</title> --><title>真标题</title>"#;
+        assert_eq!(site_metadata(html).title.as_deref(), Some("真标题"));
+    }
+
+    #[test]
+    fn entities_are_decoded_exactly_once() {
+        let html = r#"<meta property="og:title" content="&amp;lt;b&amp;gt;">"#;
+        let m = site_metadata(html);
+        assert_eq!(
+            m.entries[0].content, "&lt;b&gt;",
+            "只解一次：&amp;lt; 应变成字面量 &lt;，不能二次解成 <"
+        );
     }
 
     #[test]
