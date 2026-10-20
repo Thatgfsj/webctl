@@ -18,6 +18,8 @@
 use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
+
+use crate::parse::site_channels::{Channel, SiteMetadata, discover_channels, site_metadata};
 use serde_json::Value;
 use webctl_core::{Envelope, ErrorCode, Trust};
 
@@ -84,6 +86,14 @@ pub struct EmbeddedReport {
     pub entries: Vec<EmbeddedEntry>,
     /// 解析失败的条数。
     pub failed: usize,
+    /// 页面元数据（`og:*` / `twitter:*` / `<title>` / `canonical`），**每条带 `source`**。
+    ///
+    /// 这是"元数据"而非正文：调用方必须按 `source` 区分，不得并进正文/条目。
+    pub metadata: SiteMetadata,
+    /// 页面**声明**的站点级通道（rss / atom / oembed）。
+    ///
+    /// 只报告声明，**本函数不拉取任何网络**；可达性判定属接线后的取回步骤（含 politeness）。
+    pub channels: Vec<Channel>,
 }
 
 /// 从 HTML 中抽取内嵌结构化数据。
@@ -148,11 +158,16 @@ pub fn extract_embedded(html: &str, options: &EmbeddedOptions) -> Envelope<Embed
     let failed = entries.iter().filter(|e| e.parse_error.is_some()).count();
     let parsed = entries.iter().filter(|e| e.value.is_some()).count();
 
+    // #117 接线第 1 半：**纯离线**的站点级元数据与通道声明（不拉取网络）。
+    let metadata = site_metadata(html);
+    let channels = discover_channels(html);
     let report = EmbeddedReport {
         conclusion: conclusion(scanned_scripts, &entries, parsed, failed),
         scanned_scripts,
         entries,
         failed,
+        metadata,
+        channels,
     };
 
     // 找到容器但一条也没解析成功 → 这是真正的 PARSE（不是"零结果"）。
