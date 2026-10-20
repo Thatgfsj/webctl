@@ -138,3 +138,10 @@
   - 隔离目录安装：`CARGO_HOME=<tmp>/home sh webctl-installer.sh --no-modify-path` → 输出 `installing to <tmp>/home/bin`、`everything's installed!`；
   - 装出来的二进制实测：`--version` → `webctl 0.1.1`；`caps --json` → `ok=true`；
   - 结论：README 文档化的**安装路径真的可用**，不只是"URL 返回了一个脚本"。
+
+- 2026-10-20（Lead）**v0.1.2 发布资产复验（无 root / 无 Docker）**：
+  - 资产：`webctl-x86_64-unknown-linux-gnu.tar.xz`（解压后二进制 **34,496,768 B**，动态）、`-musl.tar.xz`（解压后 **33,864,888 B**，`ldd` 报 `statically linked`）；
+  - 两个归档的 `sha256` 与 dist 生成的 `.sha256` **精确匹配**；`--version` 均为 `webctl 0.1.2`；
+  - `scripts/release-e2e.sh <gnu> 0.1.2` **PASS**；`<musl> 0.1.2 --static` **PASS**；
+  - Alpine 用户态：`unshare -r` + `bwrap` + `alpine-minirootfs-3.20.3` → `/opt/webctl --version` = `webctl 0.1.2`、`caps --json` = `ok=true`；
+  - 发布工作流 run `39404395991` 全绿（plan、5 目标构建、global、host、announce）；体积基线已按真实资产回填。
