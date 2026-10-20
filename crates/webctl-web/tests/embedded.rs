@@ -200,6 +200,17 @@ fn report_exposes_metadata_with_explicit_source() {
         data.entries.iter().all(|e| e.source != "og-meta"),
         "元数据不得混进结构化数据条目"
     );
+    // #153 复审指出：原描述声称"正文不进元数据"，但当时没有直接断言（描述夸大）。
+    // 现在补上：正文标记不得出现在 metadata 或 channels 的任何序列化结果里。
+    let serialized = format!(
+        "{}{}",
+        serde_json::to_string(&data.metadata).expect("metadata 可序列化"),
+        serde_json::to_string(&data.channels).expect("channels 可序列化"),
+    );
+    assert!(
+        !serialized.contains("正文内容"),
+        "正文不得出现在元数据/通道里：{serialized}"
+    );
 }
 
 /// #117：通道只报告**声明**（不拉取网络）；没有声明就是空。
