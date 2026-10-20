@@ -77,7 +77,17 @@
 | 解析/抽取性能 `[~5s, 30s)` 档 | **已由 L4 通道接手**：`scripts/perf-baseline.sh --check`（相对基线 + 5× tolerance，抓**量级级退化**，TESTING §6.11）。诚实边界：**不抓 20% 级抖动**，也不替代单测挂死守卫 | 议题 [#83](https://github.com/Thatgfsj/webctl/issues/83)（本轮落地） |
 | musl 静态目标（PKG-02 / PKG-08） | **已达成（v0.1.1）**：发布矩阵产出 `webctl-x86_64-unknown-linux-musl.tar.xz`（22,612,520 字节）与 `webctl-mcp` 同款；`sha256sum -c` 通过、`ldd` = `statically linked`、`release-e2e.sh --static` PASS；并已在**真实 Alpine(musl) 用户态**实测（user namespace + bwrap + minirootfs，见 §7） | 议题 [#90](https://github.com/Thatgfsj/webctl/issues/90)（已收口） |
 
-## 7. 验收记录
+## 7.
+
+### 2026-10-20 · v0.1.2 发布资产复验（无 root / 无 Docker）
+
+- 资产：`webctl-x86_64-unknown-linux-gnu.tar.xz`（34,496,768 B，动态）与 `-musl.tar.xz`（33,864,888 B，**静态**）；
+- `sha256` 两个资产**均精确匹配** dist 生成的校验文件；
+- `--version` 均为 `webctl 0.1.2`；`libc` 链接形态符合预期（gnu 动态 / musl 静态）；
+- `scripts/release-e2e.sh <gnu> 0.1.2` 与 `--static`（musl）**均 PASS**；
+- **Alpine 用户态**：`unshare -r` + `bwrap` + `alpine-minirootfs-3.20.3`，`/opt/webctl --version` = `webctl 0.1.2`，`caps --json` 返回 `ok=true`；
+- 体积基线已用**真实资产**回填（`docs/size-baseline.json`，`source: release-asset`）。
+ 验收记录
 
 > 收尾时在下面追加：日期、执行者、命令、结果摘要、CI run 链接。
 

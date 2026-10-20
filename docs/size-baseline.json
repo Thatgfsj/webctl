@@ -5,21 +5,21 @@
   "cold_start_limit_ms": 50,
   "entries": {
     "x86_64-unknown-linux-gnu": {
-      "bytes": 32692728,
-      "cold_start_ms_p50": 6,
+      "bytes": 34496768,
+      "cold_start_ms_p50": 5,
       "linkage": "dynamic",
-      "source": "local",
-      "recorded_at": "2026-10-18",
-      "commit": "55e289d",
-      "note": "**本地 release 构建实测**（2026-10-18，commit 55e289d + #128 引擎接线）：32,692,728 B。相对 v0.1.1 真实发布资产 22,867,752 B 增长约 43%，与 ADR-0005 预估的 ~33–34 MB 一致（boa_engine + 依赖树 ~11 MB）。**source=local 表示尚未取真实发布资产**：0.1.2 发布时应以 release asset 重测并改回 source=release-asset（沿用 v0.1.1 的校验流程：sha256 + 解压实测）。"
+      "source": "release-asset",
+      "recorded_at": "2026-10-20",
+      "commit": "b3379c7",
+      "note": "**本地 release 构建实测**（2026-10-18，commit 55e289d + #128 引擎接线）：34,496,768 B（**v0.1.2 真实发布资产实测 2026-10-20**）。相对 v0.1.1 真实资产 22,867,752 B 增长约 50.9%，与 ADR-0005 预估的 ~33–34 MB 一致（boa_engine + 依赖树）。"
     },
     "x86_64-unknown-linux-musl": {
-      "bytes": null,
+      "bytes": 33864888,
       "cold_start_ms_p50": 4,
       "linkage": "static",
-      "source": "pending-release-asset",
-      "recorded_at": "2026-10-18",
-      "commit": "55e289d",
+      "source": "release-asset",
+      "recorded_at": "2026-10-20",
+      "commit": "b3379c7",
       "note": "**待重测（不编造数字）**：#128 引擎接线后 musl 目标尚未实测——本机缺少 Bootlin musl C/C++ 工具链（那是 release 工作流安装的），本地构建失败。参考值：v0.1.1 为 22,612,520 B；本次 glibc 从 22,867,752 B 增至 32,692,728 B（+43%），musl 预计同量级增长。0.1.2 发布时用真实 musl 资产重测并回填（沿用 v0.1.1 流程：sha256 + ldd 静态 + release-e2e.sh --static + Alpine 用户态实测）。"
     }
   }

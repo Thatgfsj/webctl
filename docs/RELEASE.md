@@ -2,9 +2,9 @@
 
 | 项 | 值 |
 |---|---|
-| 适用 | v0.1.1（当前 release）与 v0.1.2（版本已落地 main，**尚未打 tag**） |
+| 适用 | v0.1.2（**当前 release**，2026-10-20 发布）与 v0.1.1（上一版） |
 | 流水线 | cargo-dist 0.33.0：`dist-workspace.toml` + `.github/workflows/release.yml` |
-| 状态 | **v0.1.1 已发布**；**v0.1.2 准备中**：版本与 CHANGELOG 已在 main 落地（见 CHANGELOG `[0.1.2]`），**未打 tag、未发布**；本手册的安装命令在打 tag 前仍指 v0.1.1 真实资产（[Release v0.1.1](https://github.com/Thatgfsj/webctl/releases/tag/v0.1.1)）：本文件是可执行的操作手册；发布 E2E 已于 2026-10-17 执行（见 §4 / ACCEPTANCE §7） |
+| 状态 | **v0.1.1 与 v0.1.2 均已发布**。本手册的安装命令与资产数字均取自 **v0.1.2 的真实资产**（2026-10-20 实测：sha256 匹配、`--version` 为 0.1.2、musl 静态、Alpine 用户态可跑，见 ACCEPTANCE §7）；发布 E2E 于 2026-10-17 与 2026-10-20 均执行过（见 §4 / ACCEPTANCE §7） |
 | 相关 | [TESTING §2.16 PKG](TESTING.md) · [PLAN §5.2 PR 14](PLAN.md) · [体积基线](size-baseline.json) |
 
 ## 1. 流水线结构
@@ -40,7 +40,7 @@
 
 | 资产 | 类型 | 内容 / 目标 |
 |---|---|---|
-| `webctl-x86_64-unknown-linux-musl.tar.xz` (+ `.sha256`) | 压缩包 | **v0.1.1 起产出**（22,612,520 字节，`ldd` 报 `statically linked`）；`webctl-mcp` 同款 |
+| `webctl-x86_64-unknown-linux-musl.tar.xz` (+ `.sha256`) | 压缩包 | **v0.1.1 起产出**（v0.1.2 为 33,864,888 字节，`ldd` 报 `statically linked`）；`webctl-mcp` 同款 |
 | `webctl-x86_64-unknown-linux-gnu.tar.xz` (+ `.sha256`) | 压缩包 | 同上（glibc） |
 | `webctl-aarch64-apple-darwin.tar.xz` (+ `.sha256`) | 压缩包 | 同上 |
 | `webctl-x86_64-apple-darwin.tar.xz` (+ `.sha256`) | 压缩包 | 同上 |
@@ -50,7 +50,7 @@
 | `webctl-mcp-<target>.tar.xz` / `.zip` (+ `.sha256`) | 压缩包 | **第二个二进制**：`webctl-mcp`（独立 MCP server 入口；与 `webctl mcp` 子命令等价）。`dist plan` 对 workspace 内该包同样产出资产 |
 | `webctl-mcp-installer.sh` / `.ps1` | 安装器 | 同上（对应 `webctl-mcp`） |
 
-以下安装命令取自 **v0.1.1 的真实资产**（`dist plan` 的 `install_hint`；已于 2026-10-17 实测可用）：
+以下安装命令取自 **v0.1.2 的真实资产**（`dist plan` 的 `install_hint`；已于 2026-10-20 实测可用）：
 
 ~~~bash
 # Linux / macOS（tag 为 v0.1.1 时）
