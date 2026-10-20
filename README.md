@@ -68,10 +68,10 @@ v0.4 **取消了外部浏览器与外部 CLI**（[计划 §0](docs/PLAN.md)）�
 
 ~~~bash
 # Linux / macOS（安装 webctl；另有 webctl-mcp-installer.sh）
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/Thatgfsj/webctl/releases/download/v0.1.1/webctl-installer.sh | sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/Thatgfsj/webctl/releases/download/v0.1.2/webctl-installer.sh | sh
 
 # Windows PowerShell
-powershell -ExecutionPolicy Bypass -c "irm https://github.com/Thatgfsj/webctl/releases/download/v0.1.1/webctl-installer.ps1 | iex"
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/Thatgfsj/webctl/releases/download/v0.1.2/webctl-installer.ps1 | iex"
 ~~~
 
 也可以直接下载平台压缩包（如 `webctl-x86_64-unknown-linux-gnu.tar.xz`）并用其 `.sha256` 校验；本地验证方式见 [docs/RELEASE.md §4](docs/RELEASE.md)。
