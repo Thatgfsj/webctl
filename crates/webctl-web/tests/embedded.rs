@@ -176,3 +176,49 @@ fn embed_13_bare_and_window_prefixed_are_distinct_when_separate() {
     assert_eq!(list[0].value.as_ref().unwrap()["a"], 1);
     assert_eq!(list[1].value.as_ref().unwrap()["b"], 2);
 }
+
+/// #117 接线第 1 半：元数据必须带 `source`，且**不并进正文/条目**。
+#[test]
+fn report_exposes_metadata_with_explicit_source() {
+    let html = r#"<html><head>
+      <title>标题</title>
+      <meta property="og:title" content="OG">
+      <meta name="twitter:card" content="summary">
+    </head><body>正文内容</body></html>"#;
+    let report = extract_embedded(html, &EmbeddedOptions::default());
+    assert!(report.ok, "{report:?}");
+    let data = report.data.expect("data");
+    assert_eq!(data.metadata.title.as_deref(), Some("标题"));
+    let og = data
+        .metadata
+        .entries
+        .iter()
+        .find(|e| e.key == "og:title")
+        .expect("og:title 应在元数据里");
+    assert_eq!(og.source, "og-meta", "元数据必须带来源标签");
+    assert!(
+        data.entries.iter().all(|e| e.source != "og-meta"),
+        "元数据不得混进结构化数据条目"
+    );
+}
+
+/// #117：通道只报告**声明**（不拉取网络）；没有声明就是空。
+#[test]
+fn report_exposes_declared_channels_only() {
+    let html = r#"<html><head>
+      <link rel="alternate" type="application/rss+xml" href="/feed.xml">
+      <link rel="alternate" type="application/json+oembed" href="/oembed">
+    </head><body>x</body></html>"#;
+    let report = extract_embedded(html, &EmbeddedOptions::default());
+    let data = report.data.expect("data");
+    assert_eq!(data.channels.len(), 2, "应报告 2 条声明通道");
+    assert_eq!(data.channels[0].href, "/feed.xml");
+    let plain = extract_embedded(
+        "<html><body>无声明</body></html>",
+        &EmbeddedOptions::default(),
+    );
+    assert!(
+        plain.data.expect("data").channels.is_empty(),
+        "没有声明就是空，不猜"
+    );
+}
