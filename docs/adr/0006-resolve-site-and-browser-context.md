@@ -21,7 +21,7 @@
    - L1 URL 直推 + **内置常见站点映射表**（用户已批准；纯本地、随版本更新）；
    - L2 **站点内建搜索**（已知域名时用其搜索入口，**先过 politeness**）；
    - L3 **免 key 公共只读 API**（Wikidata/Wikipedia；用户已批准）；
-   - L4 **sitemap / robots 声明**候选（复用 **#147/#153 已合并**的离线声明抽取（`crates/webctl-web/src/parse/site_channels.rs`，只做 RSS/Atom/oEmbed 通道与 `og:*`/`twitter:*`/`title`/`canonical` 元数据；**不含 sitemap**，也不含拉取））；
+   - L4 **sitemap 声明**候选：来源是 `politeness/robots.rs` 的 `Sitemap:` 指令解析；**与** `#147/#153` 的通道抽取（RSS/Atom/oEmbed 与 `og:*`/`twitter:*` 元数据，`site_channels.rs` **不含 sitemap**）**无关**；
    - L5 **用户出口抓 SERP**（`WEBCTL_PROXY` + 注入的浏览器上下文）：**默认关闭、每次显式 opt-in**（用户已批准该参数形态）。
 3. **浏览器上下文注入**：webctl **不读取、不驱动**浏览器；只接受由宿主/LLM 提供的 `user_agent / accept / accept_language / sec_ch_ua / referer / cookies`，**按单次请求生效**、**绝不落盘/落日志/进 envelope**（**实现时必须补测试断言**；当前仓库尚无该代码）。
 4. **诚实边界（写进文档与错误信息）**：注入能借用浏览器的 **HTTP 头与 Cookie** ✓，但 **TLS 指纹仍是 wreq 的** ✗、**JS/WebGL/字体指纹仍不存在** ✗ —— 这不是"伪装成浏览器"，只是"携带用户会话" ✗；**不保证**绕过任何反爬 ✓，被拦即 `BLOCKED` ✓。
@@ -37,8 +37,8 @@
 
 ## 后果
 
-- 工具面 **16 → 17**：真源是 `crates/webctl-mcp/src/tools.rs` 的 `TOOL_NAMES`（`[&str; 16]`）与 `README.md` 的工具清单、`PLAN §3.7` 标题（「16 个，定稿」）；**必须同步**，否则 `scripts/check-tool-face.py` 会红（它校验这三处一致）
-- `PLAN §1` 的形态约束（`PLAN.md:7`「零外部浏览器依赖」与 `PLAN.md:48` §1 目标 1）需要定语修订："不内嵌浏览器" → "不内嵌浏览器；可注入宿主提供的浏览器上下文"；
+- 工具面 **16 → 17**：真源是 `crates/webctl-mcp/src/tools.rs` 的 `TOOL_NAMES`（`[&str; 16]`）与 `TOOL_SPECS`；`scripts/check-tool-face.py` 还会校验 `SKILL.md` 的标题与工具清单、`README.md` 的名单与逐名出现、以及 `PLAN §3.7` 标题（「16 个，定稿」）。**因此同步清单必须包含**：`TOOL_NAMES`/`TOOL_SPECS`、`SKILL.md`、`README.md`、`PLAN §3.7`，否则守卫会红。
+- `PLAN §1` 的形态约束在 `PLAN.md:7`「零外部进程、零外部浏览器依赖」与 `PLAN.md:48`（§1 目标 1：纯 Rust、无 Python/Node/浏览器）；本 ADR 提议把这些表述**补充**为"浏览器不作为依赖；可注入宿主提供的浏览器上下文"——**该措辞是新增的，不是 PLAN 现有文字**，不得反向引用为 PLAN 原文。
 - `resolve_site` **绝不返回"看起来像"的单一答案**：多候选 + 证据 + 置信度，低置信时给 `actionable.next_steps`；
 - L5 兜底必须**默认关**、日志留痕"已启用兜底"、失败如实 `BLOCKED`。
 
