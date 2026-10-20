@@ -398,7 +398,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 | **状态环境工具** | 临时 state dir、权限检查、并发进程编排、文件损坏注入 | STATE-*、SEC-03,12 |
 | **资源观测工具** | fd 计数、RSS 采样、子进程计数、CPU 空闲采样 | RES-*、SEC-10、MCP-14 |
 | **真站 smoke 脚本** | `tests/e2e/run-real.sh`，可跳过、遵守 robots | E2E-* |
-| **体积基线记录** | **#128 引擎接线后重定**（`docs/size-baseline.json`）：glibc **32,692,728 B**（本地 release 实测，`source=local`，+43% vs v0.1.1，与 ADR-0005 预估一致）；musl **待真实发布资产回填**（`source=pending-release-asset`，本机缺 Bootlin 工具链，**不编造数字**）。v0.1.1 的原值（musl 22,612,520 B / p50 4ms、glibc 22,867,752 B）保留在 `docs/ACCEPTANCE.md §7` 的日期化记录里 |
+| **体积基线记录** | 见 `docs/size-baseline.json`（**v0.1.2 真实发布资产实测，2026-10-20**）：glibc **34,496,768 B**（动态）、musl **33,864,888 B**（静态）；两者 `source=release-asset`、`commit=30d1593`（sha256 已校验） |
 
 ## 5. 覆盖缺口（不假装能测）
 
