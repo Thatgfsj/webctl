@@ -8,14 +8,17 @@
 //!   不输出任何 cookie 值；
 //! - 诚实边界：注入只能借用 **HTTP 头与 Cookie**；**TLS 指纹仍是 wreq 的**、JS/WebGL/字体指纹
 //!   **不存在** ✗ —— 这不是"伪装成浏览器"，只是"携带用户会话"；
+//! - **刻意不实现 `Serialize`**：#161 复审实测，一旦可序列化，`serde_json::to_string` /
+//!   `to_string_pretty` / `to_value` 就会把 cookie 值**明文**写进日志或 envelope ✗；
+//!   因此只保留 `Deserialize` 供宿主传入，任何输出路径都必须走脱敏 `Debug`。
 //! - 不保证绕过任何反爬；被拦即 `BLOCKED`（由上层判定）。
 
 use std::fmt;
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 /// 一条 cookie（仅在该域名下随请求发送）。
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Deserialize)]
 pub struct BrowserCookie {
     /// 域名（调用方保证只用于匹配的域）。
     pub domain: String,
@@ -26,7 +29,7 @@ pub struct BrowserCookie {
 }
 
 /// 宿主提供的浏览器上下文（可选；缺省即不注入任何头）。
-#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Default, PartialEq, Eq, Deserialize)]
 pub struct BrowserContext {
     /// `User-Agent`。
     pub user_agent: Option<String>,
