@@ -9,15 +9,16 @@
       "cold_start_ms_p50": 6,
       "linkage": "dynamic",
       "source": "release-asset",
-      "recorded_at": "2026-10-18",
+      "recorded_at": "2026-10-20",
       "commit": "30d1593",
       "note": "**v0.1.2 真实发布资产实测**（2026-10-20，解压后二进制 34,496,768 B，动态链接）。相对 v0.1.1 真实发布资产 22,867,752 B 增长约 50.9%，与 ADR-0005 预估的 ~33-34 MB 一致（boa_engine + 依赖树）。source=release-asset 表示数字取自真实 Release 资产（sha256 已校验）。"
     },
     "x86_64-unknown-linux-musl": {
       "bytes": 33864888,
+      "cold_start_ms_p50": 4,
       "linkage": "static",
       "source": "release-asset",
-      "recorded_at": "2026-10-18",
+      "recorded_at": "2026-10-20",
       "commit": "30d1593",
       "note": "**v0.1.2 真实发布资产实测**（2026-10-20，解压后二进制 33,864,888 B，`ldd` 报 `statically linked`）。source=release-asset 表示数字取自真实 Release 资产（sha256 已校验）。"
     }

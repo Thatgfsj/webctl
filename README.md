@@ -64,7 +64,7 @@ v0.4 **取消了外部浏览器与外部 CLI**（[计划 §0](docs/PLAN.md)）�
 
 ## 安装
 
-**安装命令取自 v0.1.1 的真实资产**（见 [Release v0.1.1](https://github.com/Thatgfsj/webctl/releases/tag/v0.1.1)、清单见 [docs/RELEASE.md §2](docs/RELEASE.md)）：
+**安装命令取自 v0.1.2 的真实资产**（见 [Release v0.1.2](https://github.com/Thatgfsj/webctl/releases/tag/v0.1.2)、清单见 [docs/RELEASE.md §2](docs/RELEASE.md)）：
 
 ~~~bash
 # Linux / macOS（安装 webctl；另有 webctl-mcp-installer.sh）
