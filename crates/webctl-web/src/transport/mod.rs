@@ -281,12 +281,29 @@ async fn run(
         if let Some(context) = &options.browser_context {
             let host = current.host_str().unwrap_or_default();
             // SEC-06：跨源重定向不携带凭据类头（cookie/referer），由 inject_headers 负责过滤。
+            //
+            // 去重（重要）：wreq 的 header() 是 append 而非 replace，若同名头已由
+            // 更高优先级来源设置，重复发送会出现"两个 Cookie / 两个 UA"。
+            // 优先级：显式 user_agent / cookie_jar / 调用方 headers  >  注入的浏览器上下文。
+            let mut taken_by_explicit: Vec<String> = Vec::new();
+            if options.user_agent.is_some() {
+                taken_by_explicit.push("user-agent".to_owned());
+            }
+            if options.cookie_jar.is_some() {
+                taken_by_explicit.push("cookie".to_owned());
+            }
+            for (name, _) in &options.headers {
+                taken_by_explicit.push(name.to_ascii_lowercase());
+            }
             for (name, value) in inject_headers(
                 context,
                 host,
                 same_origin(&initial, &current),
                 options.user_agent.as_deref(),
             ) {
+                if taken_by_explicit.iter().any(|t| t == &name) {
+                    continue;
+                }
                 request = request.header(name, value);
             }
         }
