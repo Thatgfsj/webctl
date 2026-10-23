@@ -90,6 +90,34 @@ impl BrowserContext {
     }
 }
 
+/// 计算**实际要注入**的头部（纯函数，便于单测；不含任何 I/O）。
+///
+/// 规则（与 SEC-06「跨源重定向不得携带原始凭据」一致）：
+/// - `user-agent` / `accept` / `accept-language` / `sec-ch-ua`：**总是**可带（非凭据）；
+/// - `cookie` / `referer`：**只在同源时**携带 —— 跨源重定向一律丢弃 ✗；
+/// - 显式 `user_agent` 参数**优先**于上下文（调用方已指定就不覆盖）；
+/// - 上下文为空时返回空 vec（不产生任何变化）。
+pub fn inject_headers(
+    context: &BrowserContext,
+    host: &str,
+    same_origin: bool,
+    explicit_user_agent: Option<&str>,
+) -> Vec<(String, String)> {
+    context
+        .header_pairs(host)
+        .into_iter()
+        .filter(|(name, _)| {
+            if *name == "cookie" || *name == "referer" {
+                // 凭据类头：跨源不携带。
+                same_origin
+            } else {
+                !(*name == "user-agent" && explicit_user_agent.is_some())
+            }
+        })
+        .map(|(name, value)| (name.to_owned(), value))
+        .collect()
+}
+
 /// cookie 域名是否匹配请求主机（`.example.com` 与 `example.com` 都匹配其子域与自身）。
 fn domain_matches(cookie_domain: &str, host: &str) -> bool {
     let bare = cookie_domain.trim_start_matches('.').to_ascii_lowercase();
@@ -201,6 +229,40 @@ mod tests {
             rendered.contains("2 条（已脱敏）"),
             "应显示条数：{rendered}"
         );
+    }
+
+    #[test]
+    fn inject_headers_drops_credentials_on_cross_origin() {
+        let pairs = inject_headers(&sample(), "example.test", false, None);
+        let names: Vec<&str> = pairs.iter().map(|(n, _)| n.as_str()).collect();
+        assert!(!names.contains(&"cookie"), "跨源不得携带 cookie：{names:?}");
+        assert!(
+            !names.contains(&"referer"),
+            "跨源不得携带 referer：{names:?}"
+        );
+        assert!(names.contains(&"user-agent"), "非凭据头可跨源：{names:?}");
+    }
+
+    #[test]
+    fn inject_headers_keeps_credentials_on_same_origin() {
+        let pairs = inject_headers(&sample(), "www.example.test", true, None);
+        let names: Vec<&str> = pairs.iter().map(|(n, _)| n.as_str()).collect();
+        assert!(names.contains(&"cookie"));
+        assert!(names.contains(&"referer"));
+    }
+
+    #[test]
+    fn explicit_user_agent_wins_over_context() {
+        let pairs = inject_headers(&sample(), "example.test", true, Some("explicit/1.0"));
+        assert!(
+            pairs.iter().all(|(n, _)| n != "user-agent"),
+            "显式 UA 优先，不应再注入上下文 UA"
+        );
+    }
+
+    #[test]
+    fn empty_context_produces_no_headers() {
+        assert!(inject_headers(&BrowserContext::default(), "example.test", true, None).is_empty());
     }
 
     #[test]
