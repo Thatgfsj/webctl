@@ -21,6 +21,7 @@ use url::Url;
 use webctl_core::{Envelope, ErrorCode, Trust};
 use wreq::redirect::Policy;
 
+use crate::browser_context::{BrowserContext, inject_headers};
 use crate::content_type::{self, ContentKind};
 use crate::encoding::{self, CharsetSource};
 
@@ -55,6 +56,10 @@ pub struct FetchOptions {
     pub cookie_jar: Option<Arc<CookieJar>>,
     /// 显式代理 URL；`None` 表示不使用代理（直连）。
     pub proxy: Option<String>,
+    /// 宿主注入的浏览器上下文（0.2 M0 / ADR-0006）；`None` 表示不注入任何头。
+    ///
+    /// 只借用 HTTP 头与 Cookie；TLS/JS 指纹**不可用**。凭据类头跨源不携带（见 `inject_headers`）。
+    pub browser_context: Option<BrowserContext>,
 }
 
 impl Default for FetchOptions {
@@ -68,6 +73,7 @@ impl Default for FetchOptions {
             follow_redirects: true,
             cookie_jar: None,
             proxy: None,
+            browser_context: None,
         }
     }
 }
@@ -270,6 +276,19 @@ async fn run(
                 continue;
             }
             request = request.header(name.as_str(), value.as_str());
+        }
+
+        if let Some(context) = &options.browser_context {
+            let host = current.host_str().unwrap_or_default();
+            // SEC-06：跨源重定向不携带凭据类头（cookie/referer），由 inject_headers 负责过滤。
+            for (name, value) in inject_headers(
+                context,
+                host,
+                same_origin(&initial, &current),
+                options.user_agent.as_deref(),
+            ) {
+                request = request.header(name, value);
+            }
         }
 
         let response = request.send().await.map_err(map_error)?;
