@@ -286,10 +286,14 @@ async fn run(
             // 更高优先级来源设置，重复发送会出现"两个 Cookie / 两个 UA"。
             // 优先级：显式 user_agent / cookie_jar / 调用方 headers  >  注入的浏览器上下文。
             let mut taken_by_explicit: Vec<String> = Vec::new();
-            if options.user_agent.is_some() {
-                taken_by_explicit.push("user-agent".to_owned());
-            }
-            if options.cookie_jar.is_some() {
+            // 只有 jar **真的会发出 Cookie** 时才让上下文让位；
+            // 空 jar（或 jar 里没有该域 cookie）不能让上下文 cookie 被整个压制（复审实测的缺陷）。
+            let jar_sends_cookie = options
+                .cookie_jar
+                .as_ref()
+                .and_then(|jar| jar.cookie_header(&current))
+                .is_some();
+            if jar_sends_cookie {
                 taken_by_explicit.push("cookie".to_owned());
             }
             for (name, _) in &options.headers {
