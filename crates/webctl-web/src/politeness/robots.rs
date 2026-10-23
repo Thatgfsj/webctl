@@ -1,6 +1,6 @@
 //! robots.txt 的最小可用解析与匹配（PLAN v0.4 §3.8 / ADR-0004）。
 //!
-//! 只支持实际会用到的子集：`User-agent` / `Allow` / `Disallow` / `Sitemap`，注释与空行忽略；
+//! 只支持实际会用到的子集：`User-agent` / `Allow` / `Disallow`（`Sitemap` 行**目前被忽略**：`parse()` 的 `_ => {}` 分支尚未实现，见 0.2 M4），注释与空行忽略；
 //! 选择"最匹配的 user-agent 组"（精确 token 优先于 `*`），路径用"最长匹配优先、同长 Allow 胜"。
 //! 不实现 `Crawl-delay`（限速由本模块外的 HostGate 统一控制）与正则扩展。
 use serde::{Deserialize, Serialize};
