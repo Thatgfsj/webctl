@@ -6,7 +6,7 @@
 //! 3) 无更高优先级来源 -> 注入头齐全；
 //! 4) browser_context=None -> 行为不变；
 //! 5) 不过度去重：accept / accept-language / sec-ch-ua / referer 不被误压制；
-//! 6) 探针：jar 存在但对该 host 无 cookie 时，上下文 cookie 是否被误压制。
+//! 6) 空 jar 时上下文 cookie **必须正常注入**（#164 修复的真实缺陷，精确断言）。
 
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
@@ -285,7 +285,7 @@ async fn t5b_explicit_cookie_header_wins() {
 
 /// 6) 探针（不判失败）：jar 存在但对该 host 无 cookie 时，上下文 cookie 是否被压制。
 #[tokio::test]
-async fn t6_probe_empty_jar_with_context_cookie() {
+async fn t6_empty_jar_falls_back_to_context_cookie() {
     let server = RawServer::start().await;
     let options = FetchOptions {
         cookie_jar: Some(Arc::new(CookieJar::new())),
@@ -294,6 +294,10 @@ async fn t6_probe_empty_jar_with_context_cookie() {
     };
     get(&server, &options).await;
     let cookies = server.values("cookie");
-    println!("[PROBE] empty jar + context cookie -> {cookies:?}");
-    assert!(cookies.len() <= 1);
+    // 精确断言（#165 复审指出：原来只断言 len() <= 1，0 也通过 -> 对 #164 的空 jar 修复毫无判别力）。
+    assert_eq!(
+        cookies,
+        vec!["sid=CTX".to_string()],
+        "空 jar 时上下文 cookie 必须正常注入（#164 修的真缺陷），实际: {cookies:?}"
+    );
 }
