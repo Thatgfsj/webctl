@@ -138,7 +138,7 @@ TTL、损坏恢复）属议题 #34；能力开关、MCP 工具面分别属其他
 ### 安全与诚实边界（必须知道）
 
 - **凭据类头（`cookie` / `referer`）只在同源请求携带**；跨源重定向一律丢弃（与 SEC-06 一致）；
-- **cookie 值绝不落盘、绝不落日志、绝不进 envelope**：`BrowserContext` **刻意不实现 `Serialize`**（有编译期用例钉住），`Debug` 只输出条数；
+- **cookie 值绝不落盘、绝不落日志、绝不进 envelope**：`BrowserContext` **刻意不实现 `Serialize`**（因此 serde 无法把它写成 JSON ✓；当前**没有** trybuild 式的编译失败用例，属待补 ✗），`Debug` 只输出条数；
 - 注入前按优先级去重：jar 实际发出的 Cookie / 显式 `user_agent` / 调用方 `headers`  >  上下文（避免重复 Cookie 头）；
 - **空 jar 不压制上下文 cookie**（有 `t6` 回归用例）；
 - **诚实边界**：只借用 HTTP 头与 Cookie；**TLS 指纹仍是 wreq 的**、JS/WebGL/字体指纹**不存在** ✗；**不保证**绕过任何反爬；被拦即 `BLOCKED`；
