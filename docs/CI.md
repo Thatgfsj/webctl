@@ -2,6 +2,8 @@
 
 > 一句话：把本地能跑的每条门禁**在三平台各跑一遍**，并且任何失败都要**指名道姓**（`文件:行:列`），
 > 而不是让人在几千行日志里翻。文件名 `.github/workflows/ci.yml`；本文说明它为什么这么切、怎么读结果、以及边界在哪。
+>
+> **2026-10-24 起**：PR 阶段只跑 `static` + `guards`，三平台矩阵只在 push main / 手动触发时跑（见 §8）。
 
 ## 1. 作业一览
 
@@ -12,6 +14,8 @@
 | `test (ubuntu-latest / macos / windows)` | 三平台 | **默认门禁 + L0 离线通道 + release 构建**；忽略测试零容忍；工作区洁净 | 60 min | 主体（工具/套件测试都在这里） |
 | `guards · 锁文件 / 工具面 / 行数口径` | ubuntu | `cargo metadata --locked`、**工具面一致性**（TOOL_NAMES = PLAN §3.7 = SKILL.md = 文案数字）、SKILL.md ↔ tools/list、依赖边界、PR 行数口径 | 20 min | 与"能不能编译"正交的合并安全项 |
 | `musl-static (x86_64-unknown-linux-musl)` | ubuntu | Bootlin 工具链构建 + `file`/`ldd`/`readelf` 静态断言 | 60 min | 议题 [#90](https://github.com/Thatgfsj/webctl/issues/90) |
+
+> 上表是**按作业职责**的清单；PR 阶段实际只跑 `static` / `guards`，其余作业在 PR 上为 skipped（§8）。
 
 ## 2. 通道映射（对应 [TESTING.md §1](TESTING.md) 的 L0–L4）
 
@@ -61,7 +65,7 @@ guards · 锁文件 / 工具面 / 行数口径
 
 > **2026-10-24 变更**：按用户要求"PR 不跑完整 CI"，`clippy` / `test` / `musl-static` 三个作业在 PR 上被 job 级 `if` 跳过，因此它们**不再是必需检查**（否则 PR 永远 BLOCKED）。
 > **覆盖面的减少（如实登记）** ✗：
-> - PR 阶段**不再有**三平台编译/测试与 musl 静态验证，这些只在 **push main**、`workflow_dispatch` 与发布 tag（`release.yml`）时跑；
+> - PR 阶段**不再有**三平台编译/测试与 musl 静态验证，这些只在 **push main** 与 `workflow_dispatch` 时跑；发布 tag **不触发** `ci.yml`（`release.yml` 只做 cargo-dist 构建与发布），见 §8；
 > - 合并红线从 9 项降为 **2 项**（`static` + `guards`）；
 > - 这是**政策选择**，不是能力提升：PR 阶段的回归保护明显变弱。
 > - 回滚：把三个作业的 job 级 `if` 删掉，并把 7 个检查名加回分支保护。

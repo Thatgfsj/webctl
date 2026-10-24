@@ -18,7 +18,7 @@
 
 ## 1. 执行通道与通用断言
 
-> **2026-10-24 政策调整**：PR 阶段只跑轻量作业（`static` + `guards`），三平台 `clippy`/`test` 与 `musl-static` 只在 push main / 手动 / 发布时跑 —— 覆盖面减少已如实登记在 [CI.md §8](CI.md)。
+> **2026-10-24 政策调整**：PR 阶段只跑轻量作业（`static` + `guards`），三平台 `clippy`/`test` 与 `musl-static` 只在 push main / 手动触发时跑（发布 tag 不触发 `ci.yml`）—— 覆盖面减少已如实登记在 [CI.md §8](CI.md)。
 
 v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"之分。
 
