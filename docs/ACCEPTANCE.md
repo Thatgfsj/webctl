@@ -15,13 +15,15 @@
 
 ## 1. 每个 PR 的交付门禁（§5.2 十四个 PR）
 
+> **2026-10-24 政策调整**：三平台 CI 作业（`clippy`/`test`/`musl-static`）在 PR 上为 skipped，只在 push main 跑；PR 阶段分支保护必需检查为 `static` + `guards`（见 [CI.md §8](CI.md)）。**下面四条本地门禁仍按本清单执行**，三平台那一条以 push main 的结果为准。
+
 每个 PR 合并前必须同时满足：
 
 - [ ] `cargo fmt --check` → exit 0
 - [ ] `cargo clippy --all-targets -- -D warnings` → 0 warning
 - [ ] `cargo test` → 全绿
 - [ ] `cargo test --features offline` → 全绿（L0 离线 lane）
-- [ ] **三平台 CI 全 success**（ubuntu / macos / windows），且**确认 CI 真的触发了**（冲突会导致 merge ref 缺失、CI 静默不跑——PR 03 踩过）
+- [ ] **三平台 CI 全 success**（ubuntu / macos / windows）——**2026-10-24 起改为 push main 验证**，PR 上该作业 skipped 属预期；PR 阶段看 `static` + `guards`，且**确认 CI 真的触发了**（冲突会导致 merge ref 缺失、CI 静默不跑——PR 03 踩过）
 - [ ] 独立审阅者复核通过并**由审阅者**合并（实现者不自行合并）
 - [ ] 行数如实申报（§5.1；启动期不作门禁，见议题 #41）
 
