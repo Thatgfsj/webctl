@@ -625,7 +625,7 @@ PR 11 留下的 `#[ignore]` 交接哨兵及其常量已随 #82 删除；随后 `
 
 `crates/webctl-mcp/tests/mcp14.rs` **1 条**：`mcp_14_in_process_dispatch_spawns_no_children`（单独二进制，避免其他用例的子进程污染基线；复用 PR 13 的 `tests/support/resources.rs`）。
 
-议题 #68（caps 诚实性）：`crates/webctl-core/src/caps.rs` 新增 `missing_tools_never_report_interface_available`、`unavailable_tools_do_not_light_up_interface`、`registered_tools_light_up_interface`；`webctl caps --json` 现枚举 §3.7 的 16 个工具（#114 起）并逐项给 state/reason，`interface` 只在工具真注册且可用时 available。
+议题 #68（caps 诚实性）：`crates/webctl-core/src/caps.rs` 新增 `missing_tools_never_report_interface_available`、`unavailable_tools_do_not_light_up_interface`、`registered_tools_light_up_interface`；`webctl caps --json` 现枚举 §3.7 的 17 个工具（#114 起 16 个，0.2 M1 起 17 个）并逐项给 state/reason，`interface` 只在工具真注册且可用时 available。
 
 服务 ENV-06、STATE-06、MCP-01…14、SEC-09。
 - **MCP-SEC09-ISO（隔离度补充）**：`crates/webctl-mcp/src/dispatch.rs` 的 `sec_09_mcp_dispatcher_is_the_one_that_redacts` —— 手工构造**仍含明文凭据**的 `Fetched`，只调 `dispatch::redact_fetched_envelope`（**不经过** `transport::finish`），断言明文消失且非敏感头保留。

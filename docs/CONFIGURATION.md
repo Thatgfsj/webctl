@@ -155,4 +155,4 @@ TTL、损坏恢复）属议题 #34；能力开关、MCP 工具面分别属其他
 
 > `--browser-context <file>` CLI 开关尚未落地 ✗（当前入口是环境变量）；见议题 #158。
 > 上表第三、四行是**如实登记的缺口**：不要据此认为"带上会话 cookie 就能完成登录态提交"。
-> `forms` 只解析**已有页面**（不取网络）、`session` 的 list/show/load/save 都不取页面，故不单列（`session` 的 Save 虽构造了引擎，但不发起请求）。
+> `forms` 不经过 `SessionEngine`：它走第 1 行的普通取回（`resolve_source` → `fetch_target`），因此**已注入**，不单列；`session` 的 list/show/load/save 都不取页面（Save 只落盘状态），也不单列。
