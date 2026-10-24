@@ -114,6 +114,8 @@ jobs:
   # ---------- clippy：三平台 ----------
   clippy:
     name: clippy (${{ matrix.os }})
+    # 用户要求：PR 只跑轻量前置（static / guards）；重型矩阵留到 push main / 手动触发（tag 不触发本文件）。
+    if: github.event_name != 'pull_request'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
     strategy:
@@ -155,6 +157,8 @@ jobs:
   # ---------- 工具/套件测试：三平台（主体） ----------
   test:
     name: test (${{ matrix.os }})
+    # 用户要求：PR 只跑轻量前置（static / guards）；重型矩阵留到 push main / 手动触发（tag 不触发本文件）。
+    if: github.event_name != 'pull_request'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
@@ -300,6 +304,8 @@ jobs:
   # 的 C++ 源码需要 Bootlin 的 musl C++ 交叉工具链（固定版本 + SHA256）。
   musl-static:
     name: musl-static (x86_64-unknown-linux-musl)
+    # 用户要求：PR 只跑轻量前置（static / guards）；重型矩阵留到 push main / 手动触发（tag 不触发本文件）。
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:

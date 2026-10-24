@@ -20,6 +20,7 @@ pub mod parse;
 pub mod paths;
 pub mod politeness;
 pub mod redact;
+pub mod resolve_site;
 pub mod session;
 pub mod transport;
 
