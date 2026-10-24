@@ -13,7 +13,7 @@
   `dist generate --check` 可机械确认二者一致（本 PR 已通过，退出码 0）。
 - `.github/workflows/release.yml`：cargo-dist 自动生成。触发条件为 push tag（形如 `**[0-9]+.[0-9]+.[0-9]+*`）或 pull request
   （PR 上只跑 `dist plan`，不发布、不建 release）。
-- `.github/workflows/ci.yml`：每 PR 三平台门禁 + `musl-static` 作业（固定 Bootlin musl C++ 工具链，构建并断言静态）。
+- `.github/workflows/ci.yml`：**push main 上**三平台门禁 + `musl-static` 作业（固定 Bootlin musl C++ 工具链，构建并断言静态）；**PR 只跑 `static` / `guards`**（2026-10-24 政策，见 docs/CI.md §8）。
 
 目标平台（`dist-workspace.toml` 的 `targets`）：
 
