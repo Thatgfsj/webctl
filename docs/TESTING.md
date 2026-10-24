@@ -428,7 +428,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 
 ### 6.3 PR 04 会话引擎（议题 #4）
 
-`crates/webctl-web/tests/session.rs` **33 条** = 15 SESS + 17 FORM + 1 fixture 自检：
+会话域**按主题拆成两个测试二进制**（#171：单文件 < 1000 行）：`crates/webctl-web/tests/session.rs` **15 条 SESS** + `crates/webctl-web/tests/session_forms.rs` **18 条**（17 FORM + 1 fixture 自检），共享 fixture/辅助在 `tests/support/session_site.rs` / `tests/support/session_helpers.rs`（用 `#[path]` 引入，不单独成为测试目标）：
 
 - **SESS**：`sess_01_login_success`、`sess_02_not_logged_in_is_session_lost`、`sess_03_cookie_persists_across_engines`、`sess_04_csrf_is_extracted_and_refilled`、`sess_05_csrf_rotation_is_refetched`、`sess_06_hidden_fields_are_preserved`、`sess_07_form_10_multipart_upload`、`sess_08_pagination_sums_items`、`sess_09_loop_pagination_stops_with_limit`、`sess_10_spa_degrades`、`sess_11_export_import_session_state`、`sess_12_invalid_session_name_is_rejected`、`sess_13_redirect_login_keeps_session`、`sess_14_concurrent_requests_share_session`、**`sess_15_paginate_spa_stays_degraded`**（首轮审阅否决后补：分页必须传播 DEGRADED，不得吞成 OK+0 条）。
 - **FORM**：`form_01_single_field`、`form_02_multiple_fields_at_once`、`form_03_unicode_value`、`form_04_select_value`、`form_05_checkbox_and_radio_semantics`、`form_06_hidden_field_default`、`form_07_unknown_field_is_error`、`form_08_missing_required`、`form_11_landing_url_and_status`、`form_12_duplicate_submission_refused`，**新增** `form_13_duplicate_checkbox_first_checked_only`、`form_14_duplicate_checkbox_second_checked_only`、`form_15_duplicate_text_inputs_keep_order`、`form_16_select_multiple_submits_all_selected`、`form_17_307_preserves_post_body`、`form_18_308_preserves_post_body`、`form_19_303_switches_to_get_without_body`（首轮审阅否决后补：同名多值与 307/308 丢 body）。
