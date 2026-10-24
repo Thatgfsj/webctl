@@ -1,11 +1,7 @@
-#[path = "../../webctl-web/tests/support/http_fixture.rs"]
-mod http_fixture;
-#[path = "../../webctl-web/tests/support/resources.rs"]
-mod resources;
-
 mod common;
 
 use common::*;
+use common::{http_fixture, resources};
 use std::time::Duration;
 
 use serde_json::{Value, json};

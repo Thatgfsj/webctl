@@ -7,9 +7,9 @@
 //! 硬约束：只访问本地文件与回环地址；运行期零子进程（仅测试夹具启动本仓二进制）。
 
 #[path = "../../../webctl-web/tests/support/http_fixture.rs"]
-mod http_fixture;
+pub mod http_fixture;
 #[path = "../../../webctl-web/tests/support/resources.rs"]
-mod resources;
+pub mod resources;
 
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
