@@ -155,6 +155,8 @@ pub fn resolve_l1(name: &str, max_candidates: usize) -> Vec<Candidate> {
     out.extend(direct_candidates(name));
     // 分数降序；稳定排序保证同分时顺序确定（clippy 建议 sort_by_key + Reverse）。
     out.sort_by_key(|candidate| std::cmp::Reverse(candidate.score));
+    // 按 url 去重（保留高分那一条）：内置命中与直推可能指向同一个域名。
+    out.dedup_by(|a, b| a.url == b.url);
     out.truncate(max_candidates);
     out
 }
@@ -199,6 +201,18 @@ mod tests {
         let out = resolve_l1("example.org", 5);
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].url, "https://example.org");
+    }
+
+    #[test]
+    fn no_duplicate_urls_when_builtin_and_direct_overlap() {
+        let out = resolve_l1("github", 10);
+        let before = out.len();
+        let mut urls: Vec<String> = out.iter().map(|c| c.url.clone()).collect();
+        urls.sort_unstable();
+        urls.dedup();
+        assert_eq!(before, urls.len(), "候选 URL 必须唯一：{out:?}");
+        assert_eq!(out[0].url, "https://github.com");
+        assert_eq!(out[0].channel, "builtin", "保留高分的内置那一条");
     }
 
     #[test]
