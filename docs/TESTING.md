@@ -344,13 +344,13 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 | ID | 用例 | 期望（可机械判定） | 通道 | 归属 |
 |---|---|---|---|---|
 | PKG-01 | release 构建 | `cargo build --release` 成功 | L2 | PR 14 |
-| PKG-02 | musl 静态 | **已达成（v0.1.1 发布资产）**：`webctl-x86_64-unknown-linux-musl.tar.xz` 可运行（`--version` / `caps --json`），并已在**真实 Alpine(musl)** 里跑通 `fetch` 与 MCP `extract`；CI 的 `musl-static` 作业每次 PR 同样断言静态 | L2 | #90（已收口） |
+| PKG-02 | musl 静态 | **已达成（v0.1.1 发布资产）**：`webctl-x86_64-unknown-linux-musl.tar.xz` 可运行（`--version` / `caps --json`），并已在**真实 Alpine(musl)** 里跑通 `fetch` 与 MCP `extract`；CI 的 `musl-static` 作业在 push main 时（PR 阶段不跑，见 CI.md §8） 同样断言静态 | L2 | #90（已收口） |
 | PKG-03 | 三平台 | linux/macos/windows 资产齐全 | L2 | PR 14 |
 | PKG-04 | 版本 | `--version` 与 tag 一致 | L2 | PR 14 |
 | PKG-05 | 体积基线 | 不超过 P0 定下的基线 | L2 | PR 14 |
 | PKG-06 | 干净环境 | 无 Rust/无浏览器的干净环境可直接运行 | L2 | PR 14 |
 | PKG-07 | 文档一致 | README 安装命令与实际资产一致（无虚构命令） | L2 | PR 14 |
-| PKG-08 | 无动态依赖 | **已达成（v0.1.1）**：musl 资产 `ldd` = `statically linked`、`readelf -d` 无 NEEDED，并已在**真实 Alpine(musl)** 里跑通；glibc 资产为动态链接（预期）；CI 的 `musl-static` 作业每次 PR 同样断言 | L2 | #90（已收口） |
+| PKG-08 | 无动态依赖 | **已达成（v0.1.1）**：musl 资产 `ldd` = `statically linked`、`readelf -d` 无 NEEDED，并已在**真实 Alpine(musl)** 里跑通；glibc 资产为动态链接（预期）；CI 的 `musl-static` 作业在 push main 时（PR 阶段不跑，见 CI.md §8） 同样断言 | L2 | #90（已收口） |
 
 ### 2.17 E2E — 真实站点锚点（7）
 
