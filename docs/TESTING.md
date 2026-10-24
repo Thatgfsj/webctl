@@ -595,6 +595,8 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 
 - **L3 通道**（0.2 M3，`tests/resolve_site_l3.rs`，6 条，纯本地 fixture）：`p856_becomes_official_site_candidate`（搜索 → P856 → public-api 候选，http 规范成 https、去尾斜杠，证据含 Q 号与标签）、`robots_disallow_stops_before_requesting`（robots 禁止时**不发出**搜索请求且原因是 robots）、`empty_search_is_no_match`、`entity_without_p856_is_no_official_site`、`non_json_search_is_parse_failure`、`entities_error_is_reported_with_code`（500 → BLOCKED + 码）。
 
+- **L4 通道**（0.2 M4，`tests/resolve_site_sitemap.rs`，4 条，纯本地 fixture）：`declared_sitemaps_are_reported_in_file_order`（声明按 robots.txt 顺序报告、只抓一次）、`robots_without_sitemap_is_none_not_unavailable`（可读但无声明 = None）、`missing_robots_txt_is_unavailable`（404 = Unavailable，不得说成『没声明』）、`probe_top_respects_limit_and_keeps_candidate_order`（探测上限与候选顺序）。另有 `politeness/robots.rs` 单测增 2 条（`sitemap_lines_are_collected_case_insensitively`、`no_sitemap_lines_means_empty_declaration`）。
+
 - **MCP-01**：`mcp_01_initialize_negotiates_protocol_version`
 - **embedded_data**（#114）：`embedded_data_extracts_json_ld_from_inline_html`、`embedded_data_empty_result_is_not_a_parse_failure`、`embedded_data_broken_payload_is_parse_error`、`embedded_data_schema_declares_only_wired_parameters`（**声明必须等于实现**）、`embedded_data_rejects_url_and_html_together`
 - **引擎接线**（#128 步骤 2）：`js_render_off_keeps_existing_degradation`（**默认关闭**：脚本页仍 DEGRADED、0 命中）、

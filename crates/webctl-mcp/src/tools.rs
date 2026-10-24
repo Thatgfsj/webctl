@@ -116,7 +116,7 @@ pub const TOOL_SPECS: [ToolSpec; 17] = [
     },
     ToolSpec {
         name: "resolve_site",
-        description: "按站点名给出入口候选（L1 内置映射/域名直推 + L3 Wikidata P856；多候选、带证据与置信度，不单选）",
+        description: "按站点名给出入口候选（L1 内置映射/域名直推 + L3 Wikidata P856 + L4 sitemap 声明；多候选、带证据与置信度，不单选）",
     },
     ToolSpec {
         name: "caps",

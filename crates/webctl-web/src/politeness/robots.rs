@@ -1,6 +1,7 @@
 //! robots.txt 的最小可用解析与匹配（PLAN v0.4 §3.8 / ADR-0004）。
 //!
-//! 只支持实际会用到的子集：`User-agent` / `Allow` / `Disallow`（`Sitemap` 行**目前被忽略**：`parse()` 的 `_ => {}` 分支尚未实现，见 0.2 M4），注释与空行忽略；
+//! 只支持实际会用到的子集：`User-agent` / `Allow` / `Disallow` / **`Sitemap`**（0.2 M4：声明被收集进
+//! [`RobotsRules::sitemaps`]，供站点定位的 L4 通道"只报告声明"用），注释与空行忽略；
 //! 选择"最匹配的 user-agent 组"（精确 token 优先于 `*`），路径用"最长匹配优先、同长 Allow 胜"。
 //! 不实现 `Crawl-delay`（限速由本模块外的 HostGate 统一控制）与正则扩展。
 use serde::{Deserialize, Serialize};
@@ -53,6 +54,11 @@ pub struct RobotsRules {
     pub wildcard: AgentRules,
     /// 具名组（小写 token）。
     pub named: Vec<(String, AgentRules)>,
+    /// `Sitemap:` 声明的站点地图 URL（保持文件顺序、只收 http(s)、去重）。
+    ///
+    /// 这是**站点自身的声明**，不是我们抓出来的页面；L4 通道只报告它，不据此猜测内容。
+    #[serde(default)]
+    pub sitemaps: Vec<String>,
 }
 
 impl RobotsRules {
@@ -108,10 +114,24 @@ impl RobotsRules {
                         group.rules.push((allow, path.clone()));
                     }
                 }
+                "sitemap" => {
+                    // Sitemap 是站点级声明，与 User-agent 组无关；只收 http(s) 绝对 URL。
+                    if value.is_empty() || !is_http_url(value) {
+                        continue;
+                    }
+                    if !result.sitemaps.iter().any(|known| known == value) {
+                        result.sitemaps.push(value.to_owned());
+                    }
+                }
                 _ => {}
             }
         }
         result
+    }
+
+    /// `Sitemap:` 声明清单（保持文件顺序）。
+    pub fn sitemaps(&self) -> &[String] {
+        &self.sitemaps
     }
 
     /// 针对某个 user-agent 选出规则组：精确 token 优先，其次 token 前缀匹配，最后 `*`。
@@ -130,6 +150,13 @@ impl RobotsRules {
 /// 该 URL 路径是否被允许（无规则时允许）。
 pub fn allows(rules: &RobotsRules, user_agent: &str, path: &str) -> bool {
     rules.rules_for(user_agent).allows(path)
+}
+
+/// `Sitemap:` 只接受带 http(s) scheme 的绝对 URL（robots.txt 里偶尔出现相对路径或空值）。
+fn is_http_url(value: &str) -> bool {
+    let lower = value.to_ascii_lowercase();
+    (lower.starts_with("http://") || lower.starts_with("https://"))
+        && value.len() > "https://".len()
 }
 
 fn normalize_path(path: &str) -> String {
@@ -209,6 +236,36 @@ Disallow:
 
         // 具名组：webctl 的 Disallow 为空 = 全允许（比 `*` 组更具体）
         assert!(allows(&rules, "webctl/0.1", "/private/x"));
+
+        // Sitemap: 声明被收集（0.2 M4），顺序保持
+        assert_eq!(
+            rules.sitemaps(),
+            ["https://example.test/sitemap.xml".to_owned()]
+        );
+    }
+
+    /// Sitemap 是站点级声明：与 UA 组无关、大小写不敏感、只收 http(s)、去重。
+    #[test]
+    fn sitemap_lines_are_collected_case_insensitively() {
+        let rules = RobotsRules::parse(
+            "User-agent: *\nDisallow: /x\nSitemap: https://a.test/s.xml\nsitemap: http://b.test/s.xml\nSITEMAP: https://a.test/s.xml\nSitemap: /relative/s.xml\nSitemap:\n",
+        );
+        assert_eq!(
+            rules.sitemaps(),
+            [
+                "https://a.test/s.xml".to_owned(),
+                "http://b.test/s.xml".to_owned()
+            ],
+            "保留首次出现顺序、去重、丢弃相对路径与空值"
+        );
+        // 仍不影响允许/禁止判定。
+        assert!(!allows(&rules, "x", "/x"));
+    }
+
+    #[test]
+    fn no_sitemap_lines_means_empty_declaration() {
+        let rules = RobotsRules::parse("User-agent: *\nDisallow: /x\n");
+        assert!(rules.sitemaps().is_empty());
     }
 
     #[test]

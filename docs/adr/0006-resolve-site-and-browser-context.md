@@ -48,4 +48,5 @@
 - 现状依据：[PLAN §1](../PLAN.md)（无浏览器的形态约束）、[ADR-0004](0004-politeness-by-default.md)、[ROADMAP-0.2 §4](../ROADMAP-0.2.md)；
 - **本 ADR 为草案**：实现完成前，文中"实现时必须补测试断言"等条目**不得**被引用为已实现。
 - **2026-10-25 补记（M0 部分 + M1 仅 L1 已落地）**：浏览器上下文为环境变量入口（`WEBCTL_BROWSER_CONTEXT`）；`resolve_site` 已作为第 17 个工具上线，但**只有 L1**（内置表 + 直推），L2–L5 未实现；未落地项已逐条登记在 [PLAN §9](../PLAN.md) 与 [ROADMAP-0.2 §4.1](../ROADMAP-0.2.md)。
-- **2026-10-25 补记（M3 落地）**：L3 通道（Wikidata P856 官方网站）已实现并通过离线 fixture 用例；**每次请求都过 politeness**（robots/限速/429 退避），被 robots 拦下不请求且如实回报；L2/L4/L5 仍未实现。
+- **2026-10-25 补记（M3 落地）**：L3 通道（Wikidata P856 官方网站）已实现并通过离线 fixture 用例；**每次请求都过 politeness**（robots/限速/429 退避），被 robots 拦下不请求且如实回报；L2/L5 仍未实现。
+- **2026-10-25 补记（M4 落地）**：`politeness/robots.rs` 已解析 `Sitemap:`（此前的 `_ => {}` 分支）；L4 通道对直推候选探测 robots.txt 并**只报告声明**——『站点在运营』不等于『就是用户说的那个站』，因此不据此提升置信度，也不抓 sitemap 内容（那属 #147/#153 的通道抽取）。

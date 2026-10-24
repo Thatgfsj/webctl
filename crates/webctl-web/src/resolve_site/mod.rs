@@ -2,13 +2,15 @@
 //!
 //! - **L1 层**（本文件）：内置映射表 + 域名直推，**不联网** ✓；
 //! - **L3 层**（子模块 wikidata）：免 key 公共只读 API（Wikidata P856 官方网站），联网且过 politeness；
-//! - L2 站点内建搜索、L4 sitemap、L5 SERP 兜底仍在后续切片。
+//! - **L4 层**（子模块 sitemap）：候选域名 robots.txt 的 Sitemap 声明，**只报告声明**（不据此提升置信度）；
+//! - L2 站点内建搜索、L5 SERP 兜底仍在后续切片。
 //!
 //! 诚实性约束：
 //! - **绝不返回单一"看起来像"的答案**：永远给候选列表 + 置信分 + 证据 ✗；
 //! - 不认识就返回**空**（不是猜）✗；
 //! - 每个候选都带 `channel`，调用方能看出它来自"内置表"还是"直推"。
 
+pub mod sitemap;
 pub mod wikidata;
 
 use serde::{Deserialize, Serialize};

@@ -16,6 +16,7 @@
 use serde_json::{Value, json};
 use webctl_core::{Actionable, Envelope, ErrorCode, Trust};
 use webctl_web::politeness::{PoliteFetcher, PolitenessConfig};
+use webctl_web::resolve_site::sitemap::{self, SitemapReport, SitemapStatus};
 use webctl_web::resolve_site::wikidata::{self, L3Config, L3Failure};
 use webctl_web::resolve_site::{Candidate, merge, resolve_l1};
 
@@ -30,20 +31,24 @@ const CONFIDENT_SCORE: u8 = 60;
 const DEFAULT_MAX_CANDIDATES: usize = 5;
 /// 候选数上限（避免调用方要 1000 条）。
 const MAX_CANDIDATES_CAP: usize = 10;
+/// L4 最多探测几个候选的 robots.txt（每个候选一次请求，给工具预算留余量）。
+const SITEMAP_PROBE_LIMIT: usize = 2;
 
 /// 一次定位尝试的汇总（把"跑了哪些层/哪层失败"显式带出来）。
 struct Resolution {
     candidates: Vec<Candidate>,
     layers: Vec<&'static str>,
     l3_failure: Option<L3Failure>,
+    sitemaps: Vec<SitemapReport>,
 }
 
-/// 依次跑 L1、必要时跑 L3。
+/// 依次跑 L1；仍不可靠时跑 L3；还有直推候选时再跑 L4（只报告 sitemap 声明）。
 async fn resolve_with_layers(ctx: &McpContext, site: &str, max_candidates: usize) -> Resolution {
     let l1 = resolve_l1(site, max_candidates);
     let mut layers = vec!["l1"];
     let mut candidates = l1;
     let mut l3_failure = None;
+    let mut sitemaps = Vec::new();
     // offline 模式不联网：L1 之外一律不尝试（并在降级原因里说清楚）。
     if best_score(&candidates) < CONFIDENT_SCORE && !ctx.config.offline {
         let fetcher = PoliteFetcher::new(PolitenessConfig::default(), ctx.fetch_options());
@@ -51,11 +56,17 @@ async fn resolve_with_layers(ctx: &McpContext, site: &str, max_candidates: usize
         layers.push("public-api");
         candidates = merge(vec![candidates, outcome.candidates], max_candidates);
         l3_failure = outcome.failure;
+        // L4 只对**已有候选**做声明探测；命中 P856 后已可靠，就不再多发请求。
+        if best_score(&candidates) < CONFIDENT_SCORE && !candidates.is_empty() {
+            layers.push("sitemap");
+            sitemaps = sitemap::probe_top(&candidates, SITEMAP_PROBE_LIMIT, &fetcher).await;
+        }
     }
     Resolution {
         candidates,
         layers,
         l3_failure,
+        sitemaps,
     }
 }
 
@@ -131,7 +142,8 @@ pub(crate) async fn tool_resolve_site(ctx: &McpContext, args: &Value) -> Value {
         "candidates": resolution.candidates,
         "confidence": if confident { "high" } else if resolution.candidates.is_empty() { "none" } else { "low" },
         "layers": resolution.layers,
-        "channel_note": "builtin=内置映射表（可靠）；public-api=Wikidata P856 官方网站声明（可靠）；direct=按常见 TLD 直推（猜测，需自行验证）",
+        "sitemaps": resolution.sitemaps,
+        "channel_note": "builtin=内置映射表（可靠）；public-api=Wikidata P856 官方网站声明（可靠）；direct=按常见 TLD 直推（猜测，需自行验证）；sitemaps=候选域名 robots.txt 的 Sitemap 声明（只证明站点在运营，不证明是你要的那个站）",
     });
     if confident {
         // 本地推理 + 结构化声明，不是页面内容。
@@ -139,12 +151,30 @@ pub(crate) async fn tool_resolve_site(ctx: &McpContext, args: &Value) -> Value {
     }
     // A3：低置信/零命中是降级，不伪装成"定位成功"。
     // Envelope::degraded 固定 Trust::UntrustedPageContent —— 这里**保守**标记为不可信内容。
-    let (reason, detected) = classify(
+    let (reason, mut detected) = classify(
         &resolution.candidates,
         site,
         ctx.config.offline,
         resolution.l3_failure.as_ref(),
     );
+    // L4 的声明只作为**证据**补充，不改变 reason（它证明"站点在运营"，不证明"就是它"）。
+    for report in &resolution.sitemaps {
+        match report.status {
+            SitemapStatus::Declared => detected.push(format!(
+                "候选 {} 的 robots.txt 声明了 {} 条 sitemap（站点在运营，但名称↔站点对应关系仍未验证）",
+                report.candidate_url,
+                report.sitemaps.len()
+            )),
+            SitemapStatus::None => detected.push(format!(
+                "候选 {} 的 robots.txt 没有 Sitemap 声明（不等于不是站点）",
+                report.candidate_url
+            )),
+            SitemapStatus::Unavailable => detected.push(format!(
+                "候选 {} 的 robots.txt 拿不到（可能 404 或屏蔽爬虫），无法据此判断",
+                report.candidate_url
+            )),
+        }
+    }
     to_value(
         Envelope::degraded(data, "resolve-site", ErrorCode::Degraded, 0).with_actionable(
             Actionable {
