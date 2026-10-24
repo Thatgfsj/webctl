@@ -2,6 +2,8 @@
 
 > 一句话：把本地能跑的每条门禁**在三平台各跑一遍**，并且任何失败都要**指名道姓**（`文件:行:列`），
 > 而不是让人在几千行日志里翻。文件名 `.github/workflows/ci.yml`；本文说明它为什么这么切、怎么读结果、以及边界在哪。
+>
+> **2026-10-24 起**：PR 阶段只跑 `static` + `guards`，三平台矩阵只在 push main / 手动触发时跑（见 §8）。
 
 ## 1. 作业一览
 
@@ -12,6 +14,8 @@
 | `test (ubuntu-latest / macos / windows)` | 三平台 | **默认门禁 + L0 离线通道 + release 构建**；忽略测试零容忍；工作区洁净 | 60 min | 主体（工具/套件测试都在这里） |
 | `guards · 锁文件 / 工具面 / 行数口径` | ubuntu | `cargo metadata --locked`、**工具面一致性**（TOOL_NAMES = PLAN §3.7 = SKILL.md = 文案数字）、SKILL.md ↔ tools/list、依赖边界、PR 行数口径 | 20 min | 与"能不能编译"正交的合并安全项 |
 | `musl-static (x86_64-unknown-linux-musl)` | ubuntu | Bootlin 工具链构建 + `file`/`ldd`/`readelf` 静态断言 | 60 min | 议题 [#90](https://github.com/Thatgfsj/webctl/issues/90) |
+
+> 上表是**按作业职责**的清单；PR 阶段实际只跑 `static` / `guards`，其余作业在 PR 上为 skipped（§8）。
 
 ## 2. 通道映射（对应 [TESTING.md §1](TESTING.md) 的 L0–L4）
 
@@ -45,25 +49,28 @@
 - **`concurrency` 取消同 ref 的旧运行**：避免"旧的绿掩盖新的红"；
 - **最小权限**：workflow 级 `contents: read`，只有 `guards` 额外要 `pull-requests: read`；
 - **每个作业都有 `timeout-minutes`**：挂死不会占满 runner；
-- **忽略测试零容忍**：出现 `#[ignore]` 即红，并逐条给出 `file:line` 注解；
-- **测试后工作区必须洁净**：与**跑测试前记录的状态做对比**，只判"测试过程新增"的未跟踪/被修改文件（不要求绝对为空——否则 Windows 上可能因换行符设置产生假脏）；
+- **忽略测试零容忍**：出现 `#[ignore]` 即红，并逐条给出 `file:line` 注解；**注意：该 step 在 `test` 作业里，PR 阶段已跳过（见 §8）—— 它从 PR 阶段退出 ✓ 不再作为 PR 合并红线**；
+- **测试后工作区必须洁净**（同样在 `test` 作业里，**PR 阶段不执行**，见 §8）：与**跑测试前记录的状态做对比**，只判"测试过程新增"的未跟踪/被修改文件（不要求绝对为空——否则 Windows 上可能因换行符设置产生假脏）；
 - **生成物不许漂移**：触及 `dist-workspace.toml` / `.github/build-setup.yml` / `.github/workflows/release.yml` 时跑 `dist generate --mode ci --check`（工具已由 `cargo-dist` 更名为 `dist`）；
 - **分支保护**：`main` 上把下面这些检查设为必需（见 §5）。
 
 ## 5. 必需检查清单（分支保护）
 
-要在 `main` 上强制的检查名（**必须与作业名逐字一致**，否则会把所有合并卡死）：
+`main` 上强制的检查名（**必须与作业名逐字一致**，否则会把所有合并卡死）：
 
 ~~~text
 static · fmt / scripts / config
-clippy (ubuntu-latest)      clippy (macos-latest)      clippy (windows-latest)
-test (ubuntu-latest)        test (macos-latest)        test (windows-latest)
 guards · 锁文件 / 工具面 / 行数口径
-musl-static (x86_64-unknown-linux-musl)
 ~~~
 
-> `pr-size` 已并入 `guards`（只在 PR 上跑那一项）。要不要把 `enforce_admins` 也打开是取舍：打开后连管理员也必须走 PR + 绿检查，**紧急直推 main 会被挡住**；本仓当前选择"检查强制、管理员不豁免"，理由见 `CONTRIBUTING.md` 的评审纪律。
+> **2026-10-24 变更**：按用户要求"PR 不跑完整 CI"，`clippy` / `test` / `musl-static` 三个作业在 PR 上被 job 级 `if` 跳过，因此它们**不再是必需检查**（否则 PR 永远 BLOCKED）。
+> **覆盖面的减少（如实登记）** ✗：
+> - PR 阶段**不再有**三平台编译/测试与 musl 静态验证，这些只在 **push main** 与 `workflow_dispatch` 时跑；发布 tag **不触发** `ci.yml`（`release.yml` 只做 cargo-dist 构建与发布），见 §8；
+> - 合并红线从 9 项降为 **2 项**（`static` + `guards`）；
+> - 这是**政策选择**，不是能力提升：PR 阶段的回归保护明显变弱。
+> - 回滚：把三个作业的 job 级 `if` 删掉，并把 7 个检查名加回分支保护。
 
+> `pr-size` 已并入 `guards`（只在 PR 上跑那一项）。要不要把 `enforce_admins` 也打开是取舍：打开后连管理员也必须走 PR + 绿检查。
 ## 6. 本地怎么复现 CI
 
 ~~~bash
@@ -136,3 +143,29 @@ python3 scripts/check-tool-face.py      # 工具面数字/清单一致（#114）
   取消的运行同样需要排障证据，不能因为不是 `failure` 就丢掉。
 - 覆盖面说明：改动前是 `if: always()`（成功也传），所以本项只**减少**了成功场景的上传，未减少任何排障场景。
 
+## 8. PR 阶段的验证范围（2026-10-24 政策调整，用户要求）
+
+**动机**：用户要求"不要每个 PR 都跑完整 CI，发布时再跑"。PR 阶段只保留轻量前置。
+
+### 8.1 实际跑什么（按 workflow 文件逐条核对，不是按印象写）
+
+| 作业 | 所属文件 | PR 触发 | push main / 手动 | tag |
+|---|---|---|---|---|
+| `static`（fmt / 脚本语法 / dist 漂移 / 报错定位器自检） | `ci.yml` | ✅ 跑 | ✅ 跑 | ❌ 不跑（`ci.yml` 无 tag 触发器） |
+| `guards`（锁文件 / 工具面 / 依赖边界 / 行数） | `ci.yml` | ✅ 跑 | ✅ 跑 | ❌ 不跑 |
+| `clippy`（三平台） | `ci.yml` | ❌ **不跑** | ✅ 跑 | ❌ 不跑 |
+| `test`（三平台，含"忽略测试零容忍"与"工作区洁净"两个 step） | `ci.yml` | ❌ **不跑** | ✅ 跑 | ❌ 不跑 |
+| `musl-static` | `ci.yml` | ❌ **不跑** | ✅ 跑 | ❌ 不跑 |
+| `Release`（5 目标构建 + 资产 + 公告） | `release.yml` | 只跑 `plan`（该文件有 `pull_request:`） | — | ✅ 跑全流程 |
+
+### 8.2 覆盖面的减少（如实登记）
+
+- **PR 阶段不再验证三平台编译与测试** ✗：macOS / Windows 的编译错误、平台相关测试失败，在 PR 阶段发现不了；
+- **两条合并红线从 PR 阶段消失** ✗：`#[ignore]` 零容忍与"测试后工作区洁净"这两个 step 在 `test` 作业里（`ci.yml` L210/L222），`test` 在 PR 被跳过 → **PR 不再执行这两条**；`docs/CI.md §4/§5` 原先把它们列为"合并安全"，那是**旧口径**；
+- `guards` 仍会构建一次二进制 ✗（`check-skill-tools.sh` 需要 `WEBCTL_BIN`），所以"PR 完全不编译"并未做到；
+- tag 发布时 `ci.yml` **不跑** ✗（只有 `release.yml`）→ 三平台 `test`/`clippy` 的**最后一次把关是 push main**，不是 tag；
+- 合并红线不变的部分：`static` + `guards` 仍必须在 PR 绿 ✓。
+
+### 8.3 回滚方式
+
+删除 `clippy` / `test` / `musl-static` 三个作业上的 `if: github.event_name != 'pull_request'`，即可恢复 PR 全量验证。
