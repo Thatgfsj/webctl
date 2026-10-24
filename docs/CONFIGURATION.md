@@ -126,3 +126,22 @@ js_render = false     # 是否执行页面内联脚本；默认 false（ADR-0005
 
 本文件描述的范围是 PR 10 落地的配置与 CLI 行为。会话状态持久化（state dir 文件锁、
 TTL、损坏恢复）属议题 #34；能力开关、MCP 工具面分别属其他议题。
+
+## 浏览器上下文注入（0.2 M0 / ADR-0006）
+
+宿主（agent/LLM）可从**设备浏览器**读取上下文并注入给 webctl，用于"携带用户会话"的取回。webctl **不读取、不驱动浏览器**。
+
+| 键 | 形式 | 说明 |
+|---|---|---|
+| `WEBCTL_BROWSER_CONTEXT` | 环境变量，值为**JSON 文件路径** | 指向 `{ user_agent, accept, accept_language, sec_ch_ua, referer, cookies[] }`；未设置 = 不注入 |
+
+### 安全与诚实边界（必须知道）
+
+- **凭据类头（`cookie` / `referer`）只在同源请求携带**；跨源重定向一律丢弃（与 SEC-06 一致）；
+- **cookie 值绝不落盘、绝不落日志、绝不进 envelope**：`BrowserContext` **刻意不实现 `Serialize`**（有编译期用例钉住），`Debug` 只输出条数；
+- 注入前按优先级去重：jar 实际发出的 Cookie / 显式 `user_agent` / 调用方 `headers`  >  上下文（避免重复 Cookie 头）；
+- **空 jar 不压制上下文 cookie**（有 `t6` 回归用例）；
+- **诚实边界**：只借用 HTTP 头与 Cookie；**TLS 指纹仍是 wreq 的**、JS/WebGL/字体指纹**不存在** ✗；**不保证**绕过任何反爬；被拦即 `BLOCKED`；
+- 解析失败会向 stderr 打印原因（**不静默**），并按"不注入"处理。
+
+> `--browser-context <file>` CLI 开关尚未落地 ✗（当前入口是环境变量）；见议题 #158。
