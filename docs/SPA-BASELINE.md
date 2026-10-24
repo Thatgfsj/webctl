@@ -89,9 +89,10 @@ embedded_data {"url": <URL>}                       # 看 code / data.entries 条
   `ReferenceError: $ is not defined`——**不是**"成功但空"；
 - 结论：本版让"内容由**内联**脚本生成"的页面可取；让"依赖外部 JS 库"的页面**如实失败**。
   后者的处理（取同源外链脚本再执行）已立议题 [#137](https://github.com/Thatgfsj/webctl/issues/137)。
-- `tailwindcss.com` 是否仍为 `none`（若变，说明改变了什么）；
-- 离线样本基线的 diff（`spa_baseline.rs` 的断言必须显式更新）；
-- 引擎带来的体积/耗时变化（发布资产与 `ldd` 证据见 `docs/RELEASE.md`）。
+- `tailwindcss.com`：**本次未复测**（本版只对 `quotes.toscrape.com/js/` 做了开/关对照）；
+- 离线样本基线：`crates/webctl-web/tests/spa_baseline.rs` 的断言**未变**（引擎默认关闭，夹具仍走既有路径 ✓）；
+- 体积：glibc **22,867,752 → 32,692,728 B**（+43%，本地 release 实测，`docs/size-baseline.json`）；
+  musl 待真实发布资产回填（同处 `pending-release-asset`）；冷启动 p50 **6 ms**（与 `docs/size-baseline.json` 一致）（限 50 ms ✓）。
 
 ## 6. 已知边界
 
@@ -99,4 +100,4 @@ embedded_data {"url": <URL>}                       # 看 code / data.entries 条
 - `extract` 的降级判定与**选择器是否命中**有关：用 `body` 这类"一定命中"的选择器会绕过 JS 空壳判定（实测 `body` → OK），
   所以基线统一用**内容选择器**；
 - 元数据通道本期只记录线索（RSS/JSON-LD 是否在头部），真正的发现与利用见 #117；
-- `doc_text`/`download`/`json_query` 在 JS 页上的"静默 OK"是另一个已立项的问题（#125），不在本基线口径内。
+- `doc_text`/`download`/`json_query` 在 JS 页上的"静默 OK"问题（#125）**已修**：三者现在继承上游降级（`DEGRADED` + `degraded_from=js-render`）或显式失败，渲染成功时**不带**降级标记。
