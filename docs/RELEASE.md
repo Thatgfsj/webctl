@@ -19,7 +19,7 @@
 
 | target | 说明 |
 |---|---|
-| `x86_64-unknown-linux-musl` | Linux **静态**（v0.1.1 起随发布产出）：CI 每次 PR 用固定 Bootlin 工具链构建并断言静态 |
+| `x86_64-unknown-linux-musl` | Linux **静态**（v0.1.1 起随发布产出）：CI 在 push main 时用固定 Bootlin 工具链构建并断言静态（PR 阶段不跑，见 docs/CI.md §8） |
 | `x86_64-unknown-linux-gnu` | Linux glibc 回退 |
 | `aarch64-apple-darwin` / `x86_64-apple-darwin` | macOS（Apple Silicon / Intel） |
 | `x86_64-pc-windows-msvc` | Windows |
@@ -173,7 +173,7 @@ scripts/size-baseline.sh --binary ./webctl --target x86_64-unknown-linux-gnu --r
 
 | 项 | 状态 | 接手 |
 |---|---|---|
-| musl 静态构建 | **已达成（v0.1.1）**：发布资产经 `sha256sum -c` + `ldd`（statically linked）+ `release-e2e.sh --static` PASS；CI 的 `musl-static` 作业每次 PR 同样断言 | 完成 |
+| musl 静态构建 | **已达成（v0.1.1）**：发布资产经 `sha256sum -c` + `ldd`（statically linked）+ `release-e2e.sh --static` PASS；CI 的 `musl-static` 作业在 push main 时同样断言（PR 阶段不跑） | 完成 |
 | 发布 E2E（PKG-04/06/08） | **已执行（2026-10-17）**：下载 + `sha256sum -c` 校验 + `release-e2e.sh` **PASS**，见 ACCEPTANCE §7 | 完成 |
 | PKG-05 musl 体积数字 | **已回填（v0.1.2 真实资产）**：33,864,888 字节（解压后二进制） / 冷启动 p50 4ms（`docs/size-baseline.json` 的 `source=release-asset`） | 完成 |
 | PKG-07 文档-资产一致 | **已完成**：README 安装命令与资产名已按 **v0.1.2** 真实资产逐项核对 | 完成 |

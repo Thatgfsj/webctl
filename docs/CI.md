@@ -45,8 +45,8 @@
 - **`concurrency` 取消同 ref 的旧运行**：避免"旧的绿掩盖新的红"；
 - **最小权限**：workflow 级 `contents: read`，只有 `guards` 额外要 `pull-requests: read`；
 - **每个作业都有 `timeout-minutes`**：挂死不会占满 runner；
-- **忽略测试零容忍**：出现 `#[ignore]` 即红，并逐条给出 `file:line` 注解；
-- **测试后工作区必须洁净**：与**跑测试前记录的状态做对比**，只判"测试过程新增"的未跟踪/被修改文件（不要求绝对为空——否则 Windows 上可能因换行符设置产生假脏）；
+- **忽略测试零容忍**：出现 `#[ignore]` 即红，并逐条给出 `file:line` 注解；**注意：该 step 在 `test` 作业里，PR 阶段已跳过（见 §8）—— 它从 PR 阶段退出 ✓ 不再作为 PR 合并红线**；
+- **测试后工作区必须洁净**（同样在 `test` 作业里，**PR 阶段不执行**，见 §8）：与**跑测试前记录的状态做对比**，只判"测试过程新增"的未跟踪/被修改文件（不要求绝对为空——否则 Windows 上可能因换行符设置产生假脏）；
 - **生成物不许漂移**：触及 `dist-workspace.toml` / `.github/build-setup.yml` / `.github/workflows/release.yml` 时跑 `dist generate --mode ci --check`（工具已由 `cargo-dist` 更名为 `dist`）；
 - **分支保护**：`main` 上把下面这些检查设为必需（见 §5）。
 
@@ -145,7 +145,7 @@ python3 scripts/check-tool-face.py      # 工具面数字/清单一致（#114）
 | 作业 | 所属文件 | PR 触发 | push main / 手动 | tag |
 |---|---|---|---|---|
 | `static`（fmt / 脚本语法 / dist 漂移 / 报错定位器自检） | `ci.yml` | ✅ 跑 | ✅ 跑 | ❌ 不跑（`ci.yml` 无 tag 触发器） |
-| `guards`（锁文件 / 工具面 / 依赖边界 / 行数 / `#[ignore]` 零容忍 / 工作区洁净） | `ci.yml` | ✅ 跑 | ✅ 跑 | ❌ 不跑 |
+| `guards`（锁文件 / 工具面 / 依赖边界 / 行数） | `ci.yml` | ✅ 跑 | ✅ 跑 | ❌ 不跑 |
 | `clippy`（三平台） | `ci.yml` | ❌ **不跑** | ✅ 跑 | ❌ 不跑 |
 | `test`（三平台，含"忽略测试零容忍"与"工作区洁净"两个 step） | `ci.yml` | ❌ **不跑** | ✅ 跑 | ❌ 不跑 |
 | `musl-static` | `ci.yml` | ❌ **不跑** | ✅ 跑 | ❌ 不跑 |
