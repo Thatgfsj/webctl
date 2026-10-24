@@ -144,4 +144,14 @@ TTL、损坏恢复）属议题 #34；能力开关、MCP 工具面分别属其他
 - **诚实边界**：只借用 HTTP 头与 Cookie；**TLS 指纹仍是 wreq 的**、JS/WebGL/字体指纹**不存在** ✗；**不保证**绕过任何反爬；被拦即 `BLOCKED`；
 - 解析失败会向 stderr 打印原因（**不静默**），并按"不注入"处理。
 
+### 适用范围（哪些取回路径真正注入）
+
+| 取回路径 | 是否注入 | 依据 |
+|---|---|---|
+| MCP 工具的普通取回（`fetch` / `extract` / `links` / `tables` / `doc_text` 等走 `transport::fetch` 的请求） | **是** ✓ | `McpContext::fetch_options()` 是工具侧唯一的 `FetchOptions` 构造点，已带上 `browser_context`；`transport::fetch` 在拼头时调用 `inject_headers` |
+| `SessionEngine` 的页面 GET（`forms` / `paginate` / `session` / `fill_form` 取表单页） | **是** ✓ | 引擎的 GET 复用 `transport::fetch`，`with_browser_context` 把上下文写进引擎持有的 `FetchOptions` |
+| `fill_form` 的表单提交（GET 与 POST 都走 `SessionEngine::send`） | **否** ✗ | `send` 自建 wreq client，只读 `user_agent` / cookie jar / `headers`，**不读** `browser_context`（已知缺口，待后续补齐） |
+| CLI `webctl fetch` | **否** ✗ | `WEBCTL_BROWSER_CONTEXT` 只在 MCP 入口（`webctl-mcp`）读取；CLI 侧尚未接线 |
+
 > `--browser-context <file>` CLI 开关尚未落地 ✗（当前入口是环境变量）；见议题 #158。
+> 上表第三、四行是**如实登记的缺口**：不要据此认为"带上会话 cookie 就能完成登录态提交"。
