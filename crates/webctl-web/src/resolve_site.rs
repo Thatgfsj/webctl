@@ -153,7 +153,8 @@ pub fn resolve_l1(name: &str, max_candidates: usize) -> Vec<Candidate> {
         out.push(hit);
     }
     out.extend(direct_candidates(name));
-    out.sort_by(|a, b| b.score.cmp(&a.score));
+    // 分数降序；稳定排序保证同分时顺序确定（clippy 建议 sort_by_key + Reverse）。
+    out.sort_by_key(|candidate| std::cmp::Reverse(candidate.score));
     out.truncate(max_candidates);
     out
 }
