@@ -53,7 +53,8 @@
 |---|---|---|
 | M0 | **部分** | ✓ 环境变量 `WEBCTL_BROWSER_CONTEXT` 入口 + 脱敏（无 `Serialize`）+ 同源/跨源策略 + e2e 8 条；✗ `--browser-context` / `--no-browser-context` CLI 开关未落地；✗ `fill_form` 的**表单提交**与 CLI `fetch` 不注入（见 `docs/CONFIGURATION.md` 适用范围表） |
 | M1 | **完成（仅 L1）** | ✓ `resolve_site`（第 17 个工具）+ 内置表 36 条 + 域名直推 + 全局去重 + 多候选/证据/置信度 + 低置信 `DEGRADED` + `actionable`；✗ 真实站点命中率未验（`PLAN §9` 第 6 条）；✗ L2–L5 未开始 |
-| M2–M5 | **未开始** | 见第 4 节表格 |
+| M3 | **完成（L3 通道）** | ✓ 免 key 公共只读 API：Wikidata P856（官方网站），两步请求都过 politeness（robots/限速/429 退避），被 robots 拦下**不请求**且如实回报；endpoint 可注入，6 条离线 fixture 用例钉住请求形状/解析/阻断/显式失败；offline 模式不尝试 L3 |
+| M2 / M4 / M5 | **未开始** | L2 站点内建搜索、L4 sitemap（需先补 robots 的 Sitemap 解析）、L5 SERP 兜底（默认关 + 显式 opt-in） |
 
 ## 6. 风险
 

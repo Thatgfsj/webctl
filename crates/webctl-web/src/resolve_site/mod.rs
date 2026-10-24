@@ -1,12 +1,15 @@
-//! 站点定位（0.2 M1 / ADR-0006）：名称 -> 候选 URL。
+//! 站点定位（0.2 / ADR-0006）：名称 -> 候选 URL。
 //!
-//! 本模块只做 **L1 层**：内置映射表 + 域名直推。**不联网** ✓
-//!（L2 站点内建搜索、L3 公共 API、L4 sitemap、L5 SERP 兜底都在后续切片）。
+//! - **L1 层**（本文件）：内置映射表 + 域名直推，**不联网** ✓；
+//! - **L3 层**（子模块 wikidata）：免 key 公共只读 API（Wikidata P856 官方网站），联网且过 politeness；
+//! - L2 站点内建搜索、L4 sitemap、L5 SERP 兜底仍在后续切片。
 //!
 //! 诚实性约束：
 //! - **绝不返回单一"看起来像"的答案**：永远给候选列表 + 置信分 + 证据 ✗；
 //! - 不认识就返回**空**（不是猜）✗；
 //! - 每个候选都带 `channel`，调用方能看出它来自"内置表"还是"直推"。
+
+pub mod wikidata;
 
 use serde::{Deserialize, Serialize};
 
@@ -153,11 +156,17 @@ pub fn resolve_l1(name: &str, max_candidates: usize) -> Vec<Candidate> {
         out.push(hit);
     }
     out.extend(direct_candidates(name));
-    // 分数降序；稳定排序保证同分时顺序确定（clippy 建议 sort_by_key + Reverse）。
+    merge(vec![out], max_candidates)
+}
+
+/// 合并多层候选：分数降序 → **全局**按 url 去重（保留高分那条）→ 截断。
+///
+/// 为什么必须全局去重：排序后同一 url 未必相邻（例如 wikipedia：内置 .org 95、
+/// 直推 .com 55、直推 .org 50），dedup_by 只比较相邻元素会漏掉重复。
+pub fn merge(groups: Vec<Vec<Candidate>>, max_candidates: usize) -> Vec<Candidate> {
+    let mut out: Vec<Candidate> = groups.into_iter().flatten().collect();
+    // 稳定排序：同分时保持输入顺序（L1 先于 L3，内置先于直推）。
     out.sort_by_key(|candidate| std::cmp::Reverse(candidate.score));
-    // 按 url 去重（保留高分那一条）：内置命中与直推可能指向同一个域名。
-    // 注意：排序后同一 url 未必相邻（例如 wikipedia：内置 .org 95、直推 .com 55、直推 .org 50），
-    // 所以必须全局去重，不能用 dedup_by（它只比较相邻元素）。
     let mut seen = std::collections::HashSet::new();
     out.retain(|candidate| seen.insert(candidate.url.clone()));
     out.truncate(max_candidates);

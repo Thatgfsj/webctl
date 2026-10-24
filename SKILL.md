@@ -26,7 +26,7 @@ description: 纯内置的网页取回/解析/抽取 MCP server（零外部进程
 - `embedded_data` — 抽取页面**内嵌**的结构化数据（JSON-LD / `script[type=json]` / 框架状态容器 / `data-page`）；**零 JS 执行**，零结果是合法空结果。
 - `download` — 文件下载到指定目录（尺寸上限与落盘路径）。
 - `robots` — robots.txt 与站点策略查询（礼貌爬取依据）。
-- `resolve_site` — 按站点名给出入口候选（内置映射 + 域名直推；多候选、带证据与置信度，**绝不单选**；不联网）。
+- `resolve_site` — 按站点名给出入口候选（L1 内置映射/域名直推 + L3 Wikidata P856；多候选、带证据与置信度，**绝不单选**；L3 会联网且过 politeness，offline 模式只走 L1）。
 - `caps` — 内置能力与版本自检，逐项列出 17 个工具的可用性。
 <!-- tools:end -->
 
