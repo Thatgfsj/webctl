@@ -138,23 +138,27 @@ python3 scripts/check-tool-face.py      # 工具面数字/清单一致（#114）
 
 ## 8. PR 阶段的验证范围（2026-10-24 政策调整，用户要求）
 
-**动机**：用户要求"不要每个 PR 都跑完整 CI，发布时再跑"。为降低 CI 占用与等待时间，PR 阶段只保留**轻量前置**。
+**动机**：用户要求"不要每个 PR 都跑完整 CI，发布时再跑"。PR 阶段只保留轻量前置。
 
-| 作业 | PR 触发 | push main / 手动 / 发布 |
-|---|---|---|
-| `static`（fmt / 脚本语法 / dist 漂移 / 报错定位器自检） | ✅ 跑 | ✅ 跑 |
-| `guards`（锁文件 / 工具面 / 依赖边界 / 行数 / 忽略测试 / 工作区洁净） | ✅ 跑 | ✅ 跑 |
-| `clippy`（三平台） | ❌ **不跑** | ✅ 跑 |
-| `test`（三平台） | ❌ **不跑** | ✅ 跑 |
-| `musl-static` | ❌ **不跑** | ✅ 跑 |
-| `Release`（tag 触发，5 目标构建 + 资产 + Release） | — | ✅ 只有 tag 才跑 |
+### 8.1 实际跑什么（按 workflow 文件逐条核对，不是按印象写）
 
-### 8.1 覆盖面的减少（如实登记）
+| 作业 | 所属文件 | PR 触发 | push main / 手动 | tag |
+|---|---|---|---|---|
+| `static`（fmt / 脚本语法 / dist 漂移 / 报错定位器自检） | `ci.yml` | ✅ 跑 | ✅ 跑 | ❌ 不跑（`ci.yml` 无 tag 触发器） |
+| `guards`（锁文件 / 工具面 / 依赖边界 / 行数 / `#[ignore]` 零容忍 / 工作区洁净） | `ci.yml` | ✅ 跑 | ✅ 跑 | ❌ 不跑 |
+| `clippy`（三平台） | `ci.yml` | ❌ **不跑** | ✅ 跑 | ❌ 不跑 |
+| `test`（三平台，含"忽略测试零容忍"与"工作区洁净"两个 step） | `ci.yml` | ❌ **不跑** | ✅ 跑 | ❌ 不跑 |
+| `musl-static` | `ci.yml` | ❌ **不跑** | ✅ 跑 | ❌ 不跑 |
+| `Release`（5 目标构建 + 资产 + 公告） | `release.yml` | 只跑 `plan`（该文件有 `pull_request:`） | — | ✅ 跑全流程 |
 
-- **PR 阶段不再验证三平台编译与测试** ✗：macOS / Windows 的编译错误、平台相关测试失败，**在 PR 阶段不会被发现**，只会在 push main 或发布 tag 时暴露；
-- `guards` 仍会构建一次二进制（`check-skill-tools.sh` 需要 `WEBCTL_BIN`），所以"PR 完全不编译"并未做到 ✗；
-- **合并红线不变**：所有 PR 仍要求 `static` + `guards` 绿；但"三平台全绿才合并"这条**不再由 CI 强制** ✗，改为**发版前的 `Release` 与 push main 的矩阵**把关 ✓。
+### 8.2 覆盖面的减少（如实登记）
 
-### 8.2 回滚方式
+- **PR 阶段不再验证三平台编译与测试** ✗：macOS / Windows 的编译错误、平台相关测试失败，在 PR 阶段发现不了；
+- **两条合并红线从 PR 阶段消失** ✗：`#[ignore]` 零容忍与"测试后工作区洁净"这两个 step 在 `test` 作业里（`ci.yml` L210/L222），`test` 在 PR 被跳过 → **PR 不再执行这两条**；`docs/CI.md §4/§5` 原先把它们列为"合并安全"，那是**旧口径**；
+- `guards` 仍会构建一次二进制 ✗（`check-skill-tools.sh` 需要 `WEBCTL_BIN`），所以"PR 完全不编译"并未做到；
+- tag 发布时 `ci.yml` **不跑** ✗（只有 `release.yml`）→ 三平台 `test`/`clippy` 的**最后一次把关是 push main**，不是 tag；
+- 合并红线不变的部分：`static` + `guards` 仍必须在 PR 绿 ✓。
 
-删除 `clippy` / `test` / `musl-static` 三个作业上的 `if: github.event_name != 'pull_request'` 即可恢复 PR 全量验证 ✓。
+### 8.3 回滚方式
+
+删除 `clippy` / `test` / `musl-static` 三个作业上的 `if: github.event_name != 'pull_request'`，即可恢复 PR 全量验证。
