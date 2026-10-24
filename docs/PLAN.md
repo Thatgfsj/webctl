@@ -175,7 +175,7 @@ v0.3 的 aria ref 依赖"最近一次快照"的 live 页面，**在无浏览器�
 | 13 | `embedded_data` | 页面**内嵌**结构化数据抽取（JSON-LD / `script[type=json]` / 框架状态容器 / `data-page`），**零 JS 执行**（0.1.2，[#114](https://github.com/Thatgfsj/webctl/issues/114)） |
 | 14 | `download` | 文件下载到指定目录（尺寸上限、类型白名单、落盘路径） |
 | 15 | `robots` | robots.txt 与站点策略查询（礼貌爬取依据） |
-| 16 | `resolve_site` | 站点名 → 入口候选（L1 内置映射/域名直推 + L3 Wikidata P856；多候选 + 证据 + 置信度，**绝不单选**；offline 时只走 L1） |
+| 16 | `resolve_site` | 站点名 → 入口候选（L1 内置映射/域名直推 + L3 Wikidata P856 + L4 候选域名的 sitemap 声明；多候选 + 证据 + 置信度，**绝不单选**；offline 时只走 L1） |
 | 17 | `caps` | 内置能力与版本自检 |
 
 **明确不做**：screenshot / pdf 打印 / click / hover / drag / press_key / upload_file / handle_dialog / wait_for / evaluate / console_messages / network_requests（这些都是浏览器语义）。
@@ -352,7 +352,7 @@ v0.3 的锚点（JS 页必须拿到 10 条）**作废**。v0.4 的锚点：
 4. 大响应（>50MB）下的内存表现与截断策略。
 5. 礼貌限速在真实站点上的实际有效性（不被封 vs 太慢）。
 6. `resolve_site` 的 L1 命中率：内置表 36 条是人工整理，直推只覆盖 6 个常见 TLD；**真实站点集上的命中率未验证**（M1 只证明了机制、去重与"不猜"）。
-7. `resolve_site` 的 **L3（Wikidata P856）已落地**（2026-10-25）；**L2 站点内建搜索、L4 sitemap、L5 SERP 兜底仍未实现**；`hint_domain` / `channels` / `allow_serp_fallback` 尚未进 schema（声明必须等于实现）。
+7. `resolve_site` 的 **L3（Wikidata P856）已落地**（2026-10-25）；**L2 站点内建搜索、L5 SERP 兜底仍未实现**（L4 的 robots.txt `Sitemap:` 解析已落地，只报告声明、不提升置信度）；`hint_domain` / `channels` / `allow_serp_fallback` 尚未进 schema（声明必须等于实现）。
 8. 浏览器上下文：`--browser-context` / `--no-browser-context` CLI 开关**未落地**（当前只认 `WEBCTL_BROWSER_CONTEXT` 环境变量）；`fill_form` 的表单提交与 CLI `fetch` **不注入**。
 9. 真实设备浏览器的 cookie 导出格式（含新版 Chrome 的 COOKIES 加密）**未验证**。
 
