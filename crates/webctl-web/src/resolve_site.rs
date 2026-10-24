@@ -156,7 +156,10 @@ pub fn resolve_l1(name: &str, max_candidates: usize) -> Vec<Candidate> {
     // 分数降序；稳定排序保证同分时顺序确定（clippy 建议 sort_by_key + Reverse）。
     out.sort_by_key(|candidate| std::cmp::Reverse(candidate.score));
     // 按 url 去重（保留高分那一条）：内置命中与直推可能指向同一个域名。
-    out.dedup_by(|a, b| a.url == b.url);
+    // 注意：排序后同一 url 未必相邻（例如 wikipedia：内置 .org 95、直推 .com 55、直推 .org 50），
+    // 所以必须全局去重，不能用 dedup_by（它只比较相邻元素）。
+    let mut seen = std::collections::HashSet::new();
+    out.retain(|candidate| seen.insert(candidate.url.clone()));
     out.truncate(max_candidates);
     out
 }
@@ -213,6 +216,27 @@ mod tests {
         assert_eq!(before, urls.len(), "候选 URL 必须唯一：{out:?}");
         assert_eq!(out[0].url, "https://github.com");
         assert_eq!(out[0].channel, "builtin", "保留高分的内置那一条");
+    }
+
+    #[test]
+    fn no_duplicate_urls_even_when_duplicates_are_not_adjacent() {
+        // wikipedia：内置 wikipedia.org(95)、直推 wikipedia.com(55)、直推 wikipedia.org(50)。
+        // 排序后两条 .org 被 .com 隔开 —— dedup_by 只比较相邻元素，会漏掉这条重复。
+        let out = resolve_l1("wikipedia", 10);
+        let mut urls: Vec<String> = out.iter().map(|c| c.url.clone()).collect();
+        let before = urls.len();
+        urls.sort_unstable();
+        urls.dedup();
+        assert_eq!(before, urls.len(), "候选 URL 必须唯一：{out:?}");
+        assert_eq!(out[0].url, "https://wikipedia.org");
+        assert_eq!(out[0].channel, "builtin", "保留高分的内置那一条");
+        assert_eq!(
+            out.iter()
+                .filter(|c| c.url == "https://wikipedia.org")
+                .count(),
+            1,
+            "内置命中不能与直推的同一域名并存：{out:?}"
+        );
     }
 
     #[test]
