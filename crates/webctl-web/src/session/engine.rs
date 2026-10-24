@@ -129,6 +129,15 @@ impl SessionEngine {
     }
 
     /// 指定存储新建会话引擎。
+    /// 0.2 M0：注入宿主提供的浏览器上下文（默认 None，即不注入）。
+    pub fn with_browser_context(
+        mut self,
+        context: Option<crate::browser_context::BrowserContext>,
+    ) -> Self {
+        self.options.browser_context = context;
+        self
+    }
+
     pub fn with_store(name: &str, store: SessionStore) -> Result<Self, SessionError> {
         store.path_for(name)?;
         let jar = Arc::new(CookieJar::new());
