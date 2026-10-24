@@ -8,7 +8,7 @@
 | 依据 | 历史硬数据见 [SURVEY.md](SURVEY.md)；**但 §0 的方向变更已作废其中的 T2/T3 相关结论** |
 | Spike | [wreq 验证报告](spikes/wreq.md)（HTTP 选型已定点） |
 | 决策记录 | [docs/adr/](adr/README.md)：ADR-0001 单层内置 · ADR-0002 不做 JS 引擎（**被 ADR-0005 取代**）· ADR-0003 选择器取代 ref · ADR-0004 礼貌与限速 · **ADR-0005 引入受限内置 JS 引擎（0.1.2 起，默认关闭）** |
-| 工具面 | **已定稿**：16 个内置工具（§3.7），无截图、无坐标交互；**默认不执行页面 JS**（可选受限内置引擎见 [ADR-0005](adr/0005-embedded-js-engine.md)） |
+| 工具面 | **已定稿**：17 个内置工具（§3.7；第 17 个 `resolve_site` 于 0.2 M1 加入），无截图、无坐标交互；**默认不执行页面 JS**（可选受限内置引擎见 [ADR-0005](adr/0005-embedded-js-engine.md)） |
 | 规范核实 | 「每 1000 行 PR 需审批」在现有仓库中**无成文依据**（SURVEY §1.2）；本计划把它作为**待写入的新项目规则**执行，措辞已落地在 [CONTRIBUTING.md](../CONTRIBUTING.md) §2 |
 
 ---
@@ -156,7 +156,7 @@ v0.3 的 aria ref 依赖"最近一次快照"的 live 页面，**在无浏览器�
 - 服务器指令 **≤ 32KB**；工具名 `mcp__webctl__<rawName>`，满足 function-name 契约。
 - 会话归属：单 provider、绑定确切 live Agent+Session、跨 Session 调用拒绝；**不写入 `toolOrder`**。
 
-### 3.7 工具面（16 个，定稿）
+### 3.7 工具面（17 个，定稿）
 
 | # | 工具 | 说明 |
 |---|---|---|
@@ -175,7 +175,8 @@ v0.3 的 aria ref 依赖"最近一次快照"的 live 页面，**在无浏览器�
 | 13 | `embedded_data` | 页面**内嵌**结构化数据抽取（JSON-LD / `script[type=json]` / 框架状态容器 / `data-page`），**零 JS 执行**（0.1.2，[#114](https://github.com/Thatgfsj/webctl/issues/114)） |
 | 14 | `download` | 文件下载到指定目录（尺寸上限、类型白名单、落盘路径） |
 | 15 | `robots` | robots.txt 与站点策略查询（礼貌爬取依据） |
-| 16 | `caps` | 内置能力与版本自检 |
+| 16 | `resolve_site` | 站点名 → 入口候选（0.2 M1：内置映射 + 域名直推；多候选 + 证据 + 置信度，**绝不单选**） |
+| 17 | `caps` | 内置能力与版本自检 |
 
 **明确不做**：screenshot / pdf 打印 / click / hover / drag / press_key / upload_file / handle_dialog / wait_for / evaluate / console_messages / network_requests（这些都是浏览器语义）。
 
@@ -350,6 +351,10 @@ v0.3 的锚点（JS 页必须拿到 10 条）**作废**。v0.4 的锚点：
 3. `json_query` 自研子集 vs `jmespath` crate 的取舍。
 4. 大响应（>50MB）下的内存表现与截断策略。
 5. 礼貌限速在真实站点上的实际有效性（不被封 vs 太慢）。
+6. `resolve_site` 的 L1 命中率：内置表 36 条是人工整理，直推只覆盖 6 个常见 TLD；**真实站点集上的命中率未验证**（M1 只证明了机制、去重与"不猜"）。
+7. `resolve_site` 的 L2–L5 通道**未实现**；`hint_domain` / `channels` / `allow_serp_fallback` **尚未进 schema**（声明必须等于实现）。
+8. 浏览器上下文：`--browser-context` / `--no-browser-context` CLI 开关**未落地**（当前只认 `WEBCTL_BROWSER_CONTEXT` 环境变量）；`fill_form` 的表单提交与 CLI `fetch` **不注入**。
+9. 真实设备浏览器的 cookie 导出格式（含新版 Chrome 的 COOKIES 加密）**未验证**。
 
 ---
 

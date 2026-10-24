@@ -17,7 +17,7 @@
 | 2 | `maxInstructionBytes` 默认 **32,768** | [`crates/webctl-mcp/src/instructions.rs`](../crates/webctl-mcp/src/instructions.rs)：`MAX_INSTRUCTIONS_BYTES = 32 * 1024` | 实测 `initialize` 响应 `instructions`：**v0.1.0 资产 = 2222 字节**（见 §2.1）；**2026-10-17 重测：PR #121（随 ADR-0005 同步文案）= 2441 字节；#114（第 16 个工具）= 2531 字节；#115（可行动降级 + 复审收窄口径）≈ 2807 字节**，余量 **11.7×** | **通过** |
 | 3 | stdio 协商：**先起探测进程，再起服务进程** | 无全局锁/单实例限制；状态只在 state dir（cookie 会话） | 实测"探测→服务"与"两个并发服务"四种启动全部正常应答（见 §2.2） | **通过** |
 | 4 | 连接失败：harness 仍启动但**工具不出现** | — | 排查法见 §4 | **已记录**（属 DSH 侧行为） |
-| 5 | 工具名 `mcp__<serverName>__<rawName>` | [`crates/webctl-mcp/src/tools.rs`](../crates/webctl-mcp/src/tools.rs)：`TOOL_NAMES` 16 个**裸名** | `webctl mcp --list-tools` 输出 16 个裸名（`fetch` / `extract` / …） | **通过**（前缀由 DSH 施加，webctl 不自行加前缀） |
+| 5 | 工具名 `mcp__<serverName>__<rawName>` | [`crates/webctl-mcp/src/tools.rs`](../crates/webctl-mcp/src/tools.rs)：`TOOL_NAMES` 17 个**裸名** | `webctl mcp --list-tools` 输出 17 个裸名（`fetch` / `extract` / …） | **通过**（前缀由 DSH 施加，webctl 不自行加前缀） |
 | 6 | 会话归属：单 provider，绑定确切 Agent+Session，跨 Session 拒绝 | [`crates/webctl-mcp/src/ownership.rs`](../crates/webctl-mcp/src/ownership.rs)：`SessionBinding` + `OwnershipError`；`resolve()` 在绑定不符时返回「归属拒绝」 | `ownership.rs` 内单元测试覆盖"首次绑定 / 同 Agent 通过 / 换 Agent 拒绝"（文件内含 `assert!` 断言与 `归属拒绝` 文案核对） | **通过** |
 | 7 | `toolOrder`：**不要**把 webctl 工具名显式列进去 | [`instructions.rs`](../crates/webctl-mcp/src/instructions.rs)：`dsh_config_snippet()` 生成的配置**不含** `toolOrder`，也不枚举工具名 | `crates/webctl-mcp/tests/mcp.rs` 断言 `!instructions.contains("toolOrder")`（MCP-08） | **通过**（并有机械断言钉住） |
 
@@ -62,7 +62,7 @@ $ 两个并发 webctl mcp
 
 ## 4. "装了没反应"的排查顺序（约束 4）
 
-1. `webctl mcp --list-tools` —— 确认 server 自身能起来并列出 16 个工具；
+1. `webctl mcp --list-tools` —— 确认 server 自身能起来并列出 17 个工具；
 2. 手工发一次 `initialize`（§2.1 的命令）—— 确认 stdio 协商正常、无 stderr 噪音；
 3. 检查 DSH 侧 MCP 配置的 server 名与命令路径是否与 README「安装」段一致；
 4. 若 harness 侧连接失败，DSH 仍会启动但**工具不出现** —— 这是 DSH 的既定行为，不是 webctl 崩溃。

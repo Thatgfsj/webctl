@@ -6,6 +6,9 @@
 //!
 //! 硬约束：只访问本地文件与回环地址；运行期零子进程（仅测试夹具启动本仓二进制）。
 
+// 共享 harness：每个测试二进制（tests/*.rs）只用自己需要的那部分，未用到的助手不算死代码。
+#![allow(dead_code)]
+
 #[path = "../../../webctl-web/tests/support/http_fixture.rs"]
 pub mod http_fixture;
 #[path = "../../../webctl-web/tests/support/resources.rs"]

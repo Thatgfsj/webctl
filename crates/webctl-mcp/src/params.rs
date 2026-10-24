@@ -1,4 +1,4 @@
-//! 16 个工具的 MCP 输入参数（schemars 生成 inputSchema，MCP-03）。
+//! 17 个工具的 MCP 输入参数（schemars 生成 inputSchema，MCP-03）。
 //!
 //! 字段名与 PLAN v0.4 §3.7 的工具语义一一对应；可选字段用 Option，
 //! 缺省值在派发层解释。这里只描述形状，不做业务校验。
@@ -244,6 +244,15 @@ pub struct RobotsParams {
 /// caps：内置能力与版本自检。
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
 pub struct CapsParams {
-    /// 是否附带 16 个工具逐项可用性（默认 true）。
+    /// 是否附带 17 个工具逐项可用性（默认 true）。
     pub include_tools: Option<bool>,
+}
+
+/// resolve_site：按站点名定位入口候选（本地推理，不发起网络请求）。
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+pub struct ResolveSiteParams {
+    /// 站点名/品牌名（如 "知乎"、"hacker news"）；**不**接受完整 URL（有 URL 就直接用 `fetch`）。
+    pub site: String,
+    /// 最多返回的候选数（默认 5，上限 10）。
+    pub max_candidates: Option<usize>,
 }

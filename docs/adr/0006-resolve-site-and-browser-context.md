@@ -37,7 +37,7 @@
 
 ## 后果
 
-- 工具面 **16 → 17**：真源是 `crates/webctl-mcp/src/tools.rs` 的 `TOOL_NAMES`（`[&str; 16]`）与 `TOOL_SPECS`；`scripts/check-tool-face.py` 还会校验 `SKILL.md` 的标题与 `tools:start..end` 清单、`README.md` 的名单与逐名出现，并解析 `PLAN §3.7` 的**表格**（行数/名字/顺序；PLAN.md 不在其 SCAN_FILES 里，标题不单独校验）。**因此同步清单必须包含**：`TOOL_NAMES`/`TOOL_SPECS`、`SKILL.md`、`README.md`、`PLAN §3.7`，否则守卫会红。
+- 工具面 **16 → 17**：真源是 `crates/webctl-mcp/src/tools.rs` 的 `TOOL_NAMES`（`[&str; 17]`）与 `TOOL_SPECS`；`scripts/check-tool-face.py` 还会校验 `SKILL.md` 的标题与 `tools:start..end` 清单、`README.md` 的名单与逐名出现，并解析 `PLAN §3.7` 的**表格**（行数/名字/顺序；PLAN.md 不在其 SCAN_FILES 里，标题不单独校验）。**因此同步清单必须包含**：`TOOL_NAMES`/`TOOL_SPECS`、`SKILL.md`、`README.md`、`PLAN §3.7`，否则守卫会红。
 - `PLAN §1` 的形态约束在 `docs/PLAN.md:7`「零外部进程、零外部浏览器依赖」与 `docs/PLAN.md:48`（§1 目标 1：纯 Rust、无 Python/Node/浏览器）；本 ADR 提议把这些表述**补充**为"浏览器不作为依赖；可注入宿主提供的浏览器上下文"——**该措辞是新增的，不是 PLAN 现有文字**，不得反向引用为 PLAN 原文。
 - `resolve_site` **绝不返回"看起来像"的单一答案**：多候选 + 证据 + 置信度，低置信时给 `actionable.next_steps`；
 - L5 兜底必须**默认关**、日志留痕"已启用兜底"、失败如实 `BLOCKED`。
@@ -47,3 +47,4 @@
 - 用户决策来源：本会话用户明确回复（四个决定 + 浏览器上下文注入的原话指示），并见 [ROADMAP-0.2](../ROADMAP-0.2.md)；
 - 现状依据：[PLAN §1](../PLAN.md)（无浏览器的形态约束）、[ADR-0004](0004-politeness-by-default.md)、[ROADMAP-0.2 §4](../ROADMAP-0.2.md)；
 - **本 ADR 为草案**：实现完成前，文中"实现时必须补测试断言"等条目**不得**被引用为已实现。
+- **2026-10-25 补记（M0 部分 + M1 仅 L1 已落地）**：浏览器上下文为环境变量入口（`WEBCTL_BROWSER_CONTEXT`）；`resolve_site` 已作为第 17 个工具上线，但**只有 L1**（内置表 + 直推），L2–L5 未实现；未落地项已逐条登记在 [PLAN §9](../PLAN.md) 与 [ROADMAP-0.2 §4.1](../ROADMAP-0.2.md)。
