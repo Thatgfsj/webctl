@@ -18,8 +18,9 @@
 |---|---|
 | `site` | 站点名/品牌名（必填）；**不接受 URL**（有 URL 直接用 `fetch`） |
 | `max_candidates` | 可选，默认 5，上限 10 |
+| `allow_serp_fallback` | 可选，**默认 false**；M5 落地，显式开启 L5 兜底（结果不可靠、被拦即 BLOCKED） |
 
-目标形态里还需要（**M2–M5 落地后**才允许进 schema）：`hint_domain`（已知域名时缩小范围）、`channels`（限制启用哪些通道 `direct`/`site-search`/`public-api`/`sitemap`/`serp-fallback`）、`allow_serp_fallback`（**默认 false**，显式开启 L5）。
+仍需要（**M2 落地后**才允许进 schema）：`hint_domain`（已知域名时缩小范围）、`channels`（限制启用哪些通道 `direct`/`site-search`/`public-api`/`sitemap`/`serp-fallback`）。
 
 输出：`{query, candidates:[{url, score, evidence, channel}], confidence, channel_note}` + 降级时的 `meta.actionable`。
 
@@ -55,7 +56,8 @@
 | M1 | **完成（仅 L1）** | ✓ `resolve_site`（第 17 个工具）+ 内置表 36 条 + 域名直推 + 全局去重 + 多候选/证据/置信度 + 低置信 `DEGRADED` + `actionable`；✗ 真实站点命中率未验（`PLAN §9` 第 6 条）；✗ L2–L5 未开始 |
 | M3 | **完成（L3 通道）** | ✓ 免 key 公共只读 API：Wikidata P856（官方网站），两步请求都过 politeness（robots/限速/429 退避），被 robots 拦下**不请求**且如实回报；endpoint 可注入，6 条离线 fixture 用例钉住请求形状/解析/阻断/显式失败；offline 模式不尝试 L3 |
 | M4 | **完成（L4 通道）** | ✓ robots.rs 支持 `Sitemap:`（大小写不敏感、只收 http(s)、去重、保持顺序）；L4 对**直推候选**探测 robots.txt，三态如实分（声明 / 可读但无声明 / 拿不到）；**只报告声明，不提升置信度**（『站点在运营』≠『就是你要的那个站』）；4 条 fixture 用例 + 2 条 robots 解析单测 |
-| M2 / M5 | **未开始** | L2 站点内建搜索、L5 SERP 兜底（默认关 + 显式 opt-in） |
+| M5 | **完成（L5 通道）** | ✓ 显式 opt-in（`allow_serp_fallback=true`，**默认 false**）：抓 SERP、抽结果链接（含引擎跳转链接还原）、引擎自身域名过滤、结果低分（45，不跨 60 阈值）、robots 拦下不请求、429 退避；stderr 留痕；4 条 fixture 用例 + 6 条单测 |
+| M2 | **未开始** | L2 站点内建搜索（模板化搜索入口，先过 politeness） |
 
 ## 6. 风险
 
