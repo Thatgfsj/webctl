@@ -46,9 +46,9 @@
 
 ## 4. 工具面与打包
 
-- [x] `caps --json` **如实反映**已实现能力，并**枚举 PLAN §3.7 的 16 个工具**（议题 #68 已关闭）—— 实测 5 个域 available + 枚举 16 个工具
-- [x] MCP `tools/list` 恰好 **16** 个且与 §3.7 逐字同序（MCP-02）；`check-skill-tools.sh` 校验 SKILL.md 一致（MCP-12）
-- [x] 服务器指令 **2807** 字节 ≤ 32768（MCP-05；2026-10-17 四次重测：ADR-0005 文案 2441 → #114 第 16 个工具 2531 → #115 可行动降级 2692 → **#115 复审收窄口径 2807**，余量 **11.7×**）；配置不写 `toolOrder`（MCP-08）
+- [x] `caps --json` **如实反映**已实现能力，并**枚举 PLAN §3.7 的 17 个工具**（议题 #68 已关闭）—— 实测 5 个域 available + 枚举 17 个工具
+- [x] MCP `tools/list` 恰好 **17** 个且与 §3.7 逐字同序（MCP-02）；`check-skill-tools.sh` 校验 SKILL.md 一致（MCP-12）
+- [x] 服务器指令 **2973** 字节 ≤ 32768（MCP-05；历次重测：ADR-0005 文案 2441 → #114 加入 embedded_data（当时 16 个工具）2531 → #115 可行动降级 2692 → #115 复审收窄口径 2807 → **0.2 加入 resolve_site 2973**，余量 **11.0×**）；配置不写 `toolOrder`（MCP-08）
 - [x] Release 资产在**干净环境**可下载即用（PKG-06）：**v0.1.1** 资产（glibc 与 **musl 静态**）下载 + `sha256sum -c` 校验通过 + `scripts/release-e2e.sh`（musl 加 `--static`）PASS；musl 资产另在**真实 Alpine(musl) 用户态**实测（§7）
 - [x] README 双语；安装命令已改为 **v0.1.1 真实资产**的 URL（不再声明「尚无发布版」）；无虚构徽章（PKG-07）
 - [x] 体积基线已从**v0.1.1 真实发布资产**回填（PKG-05）：glibc **22,867,752** 字节 / p50 6ms；musl 静态 **22,612,520** 字节 / p50 4ms（见 `docs/size-baseline.json`）

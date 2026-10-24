@@ -13,19 +13,20 @@ pub const MAX_INSTRUCTIONS_BYTES: usize = 32 * 1024;
 pub const INSTRUCTIONS: &str = r#"webctl MCP server：纯内置的网页取回 / 解析 / 抽取层。零外部进程、零外部浏览器；**默认不执行页面 JavaScript**。
 
 ## 工具边界
-本服务器只注册 16 个工具（仅这些，没有截图、没有坐标点击、没有 evaluate）：
+本服务器只注册 17 个工具（仅这些，没有截图、没有坐标点击、没有 evaluate）：
 - 取回：fetch（状态/头/重定向链/内容或落盘路径）、download（落盘到指定目录）。
 - 抽取：extract（CSS 选择器）、search（文本/正则）、links、tables、forms。
 - 会话：fill_form、paginate、session、cookies。
 - 数据：json_query、doc_text（PDF/HTML/XML 文本层）、embedded_data（页面内嵌 JSON：JSON-LD / script[type=json] / 框架状态容器）、robots、caps。
+- 定位：resolve_site（站点名 → 入口候选；内置映射 + 域名直推，多候选带证据与置信度，不联网）。
 
 ## 结果信封（所有工具统一）
 每次调用都返回 JSON 信封：ok / data / error / code / meta。
 - ok=true 且 code=OK：正常结果。
 - ok=true 且 code 为 DEGRADED / UNSUPPORTED / LIMIT：结果不完整，meta.degraded_from 非空，
-  说明降级来源。**JS 渲染降级（degraded_from=js-render）另带 meta.actionable**，给出机器可读的
-  reason、观察到的 detected 证据与建议的 next_steps 通道（都是真实工具名）——有就先读它再决定
-  换哪条通道。**其他降级路径目前不带该字段**，不要假设它一定存在。
+  说明降级来源。**部分降级另带 meta.actionable**（例如 degraded_from=js-render、resolve-site-l1），
+  给出机器可读的 reason、观察到的 detected 证据与建议的 next_steps 通道（都是真实工具名）——
+  有就先读它再决定换哪条通道。**并非所有降级都带该字段**（如 LIMIT），不要假设它一定存在。
 - ok=false：失败，error 是可读原因，code 属于封闭集
   （TIMEOUT / NETWORK / BLOCKED / BAD_URL / PARSE / SESSION_LOST / INTERNAL 等）。
 工具级失败一律以信封返回，而不是 JSON-RPC 协议错误。

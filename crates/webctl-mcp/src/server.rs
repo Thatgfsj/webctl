@@ -1,7 +1,7 @@
 //! rmcp ServerHandler 实现与 stdio 启动（MCP-01…MCP-11）。
 //!
 //! 关键契约：
-//! - tools/list 恰好返回 16 个工具（注册表在 tools.rs）；
+//! - tools/list 恰好返回 17 个工具（注册表在 tools.rs）；
 //! - tools/call 的失败走“结果信封”（CallToolResult::success 包住 ok=false 的信封），
 //!   只有未注册的工具名才映射成 JSON-RPC method not found；
 //! - 单次调用有显式预算（默认 60s，MCP-09），超时也以信封返回；

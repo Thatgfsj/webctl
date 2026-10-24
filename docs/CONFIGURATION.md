@@ -149,9 +149,10 @@ TTL、损坏恢复）属议题 #34；能力开关、MCP 工具面分别属其他
 | 取回路径 | 是否注入 | 依据 |
 |---|---|---|
 | MCP 工具的普通取回（`fetch` / `extract` / `links` / `tables` / `doc_text` 等走 `transport::fetch` 的请求） | **是** ✓ | `McpContext::fetch_options()` 是工具侧唯一的 `FetchOptions` 构造点，已带上 `browser_context`；`transport::fetch` 在拼头时调用 `inject_headers` |
-| `SessionEngine` 的页面 GET（`forms` / `paginate` / `session` / `fill_form` 取表单页） | **是** ✓ | 引擎的 GET 复用 `transport::fetch`，`with_browser_context` 把上下文写进引擎持有的 `FetchOptions` |
+| `SessionEngine` 的页面 GET（`paginate` 的翻页、`fill_form` 取表单页） | **是** ✓ | 引擎的 GET（`fetch_page`）复用 `transport::fetch`，`with_browser_context` 把上下文写进引擎持有的 `FetchOptions` |
 | `fill_form` 的表单提交（GET 与 POST 都走 `SessionEngine::send`） | **否** ✗ | `send` 自建 wreq client，只读 `user_agent` / cookie jar / `headers`，**不读** `browser_context`（已知缺口，待后续补齐） |
 | CLI `webctl fetch` | **否** ✗ | `WEBCTL_BROWSER_CONTEXT` 只在 MCP 入口（`webctl-mcp`）读取；CLI 侧尚未接线 |
 
 > `--browser-context <file>` CLI 开关尚未落地 ✗（当前入口是环境变量）；见议题 #158。
 > 上表第三、四行是**如实登记的缺口**：不要据此认为"带上会话 cookie 就能完成登录态提交"。
+> `forms` 不经过 `SessionEngine`：它走第 1 行的普通取回（`resolve_source` → `fetch_target`），因此**已注入**，不单列；`session` 的 list/show/load/save 都不取页面（Save 只落盘状态），也不单列。

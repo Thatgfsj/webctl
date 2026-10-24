@@ -1,4 +1,4 @@
-//! 工具注册表：16 个工具的名字、说明与 inputSchema（PLAN v0.4 §3.7 / MCP-02…04）。
+//! 工具注册表：17 个工具的名字、说明与 inputSchema（PLAN v0.4 §3.7 / MCP-02…04）。
 //!
 //! 名字是**契约**：与 PLAN §3.7 逐字一致，且 DSH 挂载后形如 mcp__webctl__<rawName>。
 //! 工具的 inputSchema 由 schemars 从 params.rs 的分支类型派生，保证合法 JSON Schema。
@@ -10,8 +10,8 @@ use crate::params;
 /// MCP server 名（DSH 工具名 mcp__<serverName>__<rawName> 的中间段）。
 pub const SERVER_NAME: &str = "webctl";
 
-/// 16 个工具的名字，顺序与 PLAN v0.4 §3.7 表格一致。
-pub const TOOL_NAMES: [&str; 16] = [
+/// 17 个工具的名字，顺序与 PLAN v0.4 §3.7 表格一致。
+pub const TOOL_NAMES: [&str; 17] = [
     "fetch",
     "extract",
     "search",
@@ -27,6 +27,7 @@ pub const TOOL_NAMES: [&str; 16] = [
     "embedded_data",
     "download",
     "robots",
+    "resolve_site",
     "caps",
 ];
 
@@ -51,8 +52,8 @@ pub fn qualified_name(raw: &str) -> String {
     format!("mcp__{SERVER_NAME}__{raw}")
 }
 
-/// 16 个工具的静态清单（顺序同 TOOL_NAMES）。
-pub const TOOL_SPECS: [ToolSpec; 16] = [
+/// 17 个工具的静态清单（顺序同 TOOL_NAMES）。
+pub const TOOL_SPECS: [ToolSpec; 17] = [
     ToolSpec {
         name: "fetch",
         description: "取回 http(s) URL：状态、头、重定向链、内容或落盘路径",
@@ -114,8 +115,12 @@ pub const TOOL_SPECS: [ToolSpec; 16] = [
         description: "robots.txt 与站点策略查询（礼貌爬取依据）",
     },
     ToolSpec {
+        name: "resolve_site",
+        description: "按站点名给出入口候选（内置映射 + 域名直推；多候选、带证据与置信度，不单选）",
+    },
+    ToolSpec {
         name: "caps",
-        description: "内置能力与版本自检，逐项列出 16 个工具的可用性",
+        description: "内置能力与版本自检，逐项列出 17 个工具的可用性",
     },
 ];
 
@@ -124,7 +129,7 @@ fn tool<P: schemars::JsonSchema + 'static>(name: &'static str, description: &'st
     Tool::new(name, description, serde_json::Map::new()).with_input_schema::<P>()
 }
 
-/// 供 tools/list 使用的 16 个工具定义（顺序与 TOOL_NAMES 一致）。
+/// 供 tools/list 使用的 17 个工具定义（顺序与 TOOL_NAMES 一致）。
 pub fn tool_definitions() -> Vec<Tool> {
     let [
         fetch,
@@ -142,6 +147,7 @@ pub fn tool_definitions() -> Vec<Tool> {
         embedded_data,
         download,
         robots,
+        resolve_site,
         caps,
     ] = TOOL_NAMES;
     vec![
@@ -160,7 +166,8 @@ pub fn tool_definitions() -> Vec<Tool> {
         tool::<params::EmbeddedDataParams>(embedded_data, TOOL_SPECS[12].description),
         tool::<params::DownloadParams>(download, TOOL_SPECS[13].description),
         tool::<params::RobotsParams>(robots, TOOL_SPECS[14].description),
-        tool::<params::CapsParams>(caps, TOOL_SPECS[15].description),
+        tool::<params::ResolveSiteParams>(resolve_site, TOOL_SPECS[15].description),
+        tool::<params::CapsParams>(caps, TOOL_SPECS[16].description),
     ]
 }
 

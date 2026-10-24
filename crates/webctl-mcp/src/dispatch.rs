@@ -1,4 +1,4 @@
-//! 工具派发：把 16 个工具接到既有能力（MCP-10/MCP-11/MCP-13/SEC-09）。
+//! 工具派发：把 17 个工具接到既有能力（MCP-10/MCP-11/MCP-13/SEC-09）。
 //!
 //! 约定：
 //! - 已知工具的**任何**执行失败都以结果信封返回（ok=false + code + 可读 error），
@@ -48,6 +48,7 @@ pub async fn dispatch(ctx: &McpContext, name: &str, args: Value) -> Option<Value
         "embedded_data" => tool_embedded_data(ctx, &args).await,
         "download" => tool_download(ctx, &args).await,
         "robots" => tool_robots(ctx, &args).await,
+        "resolve_site" => crate::site::tool_resolve_site(&args).await,
         "caps" => tool_caps(ctx, &args).await,
         _ => return None,
     };
@@ -56,12 +57,12 @@ pub async fn dispatch(ctx: &McpContext, name: &str, args: Value) -> Option<Value
 
 // ---------------------------------------------------------------- 基础设施
 
-fn parse<P: DeserializeOwned>(args: &Value) -> Result<P, Value> {
+pub(crate) fn parse<P: DeserializeOwned>(args: &Value) -> Result<P, Value> {
     serde_json::from_value::<P>(args.clone())
         .map_err(|error| fail(ErrorCode::Parse, format!("工具参数非法：{error}")))
 }
 
-fn to_value<T: serde::Serialize>(value: T) -> Value {
+pub(crate) fn to_value<T: serde::Serialize>(value: T) -> Value {
     serde_json::to_value(value).unwrap_or_else(|error| {
         json!({
             "ok": false,
@@ -73,7 +74,7 @@ fn to_value<T: serde::Serialize>(value: T) -> Value {
     })
 }
 
-fn fail(code: ErrorCode, message: impl Into<String>) -> Value {
+pub(crate) fn fail(code: ErrorCode, message: impl Into<String>) -> Value {
     to_value(Envelope::<()>::fail(code, message, 0))
 }
 
@@ -209,7 +210,7 @@ async fn resolve_source(
     }
 }
 
-// ---------------------------------------------------------------- 16 个工具
+// ---------------------------------------------------------------- 17 个工具
 
 async fn tool_fetch(ctx: &McpContext, args: &Value) -> Value {
     let params = match parse::<FetchParams>(args) {
