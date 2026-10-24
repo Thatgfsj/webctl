@@ -570,6 +570,29 @@ impl SessionEngine {
                 }
                 request = request.header(name.as_str(), value.as_str());
             }
+            // 0.2 M0-b：注入宿主提供的浏览器上下文（与 transport 同一套规则）。
+            // 去重优先级：jar 实际发出的 Cookie / 显式 user_agent / 调用方 headers  >  上下文。
+            if let Some(context) = &self.options.browser_context {
+                let host = current.host_str().unwrap_or_default();
+                let mut taken: Vec<String> = Vec::new();
+                if self.jar.cookie_header(&current).is_some() {
+                    taken.push("cookie".to_owned());
+                }
+                for (name, _) in &self.options.headers {
+                    taken.push(name.to_ascii_lowercase());
+                }
+                for (name, value) in crate::browser_context::inject_headers(
+                    context,
+                    host,
+                    !cross_origin,
+                    self.options.user_agent.as_deref(),
+                ) {
+                    if taken.iter().any(|t| t == &name) {
+                        continue;
+                    }
+                    request = request.header(name, value);
+                }
+            }
             // 重定向可能重发同一请求体（307/308），因此这里只能借用而不能 take()；
             // 303（以及 POST 的 301/302）会在下面把 current_body 清空，转成无体 GET。
             if let Some((content_type, bytes)) = &current_body {
