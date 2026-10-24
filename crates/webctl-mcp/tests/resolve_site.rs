@@ -14,6 +14,15 @@ async fn invoke(mcp: &WebctlMcp, name: &str, args: Value) -> Value {
         .await
         .unwrap_or_else(|| panic!("工具 {name} 未注册"))
 }
+
+/// 离线上下文：resolve_site 的 L3 会联网，**测试必须显式 offline**，否则会打真实外网。
+fn offline_ctx(tag: &str) -> webctl_mcp::McpContext {
+    webctl_mcp::McpContext::unbound(webctl_core::Config {
+        state_dir: temp_dir(tag),
+        offline: true,
+        ..webctl_core::Config::default()
+    })
+}
 /// 0.2 M1：`resolve_site` 必须在工具面上，并且真的接到 L1 层（内置映射命中）。
 #[tokio::test]
 async fn resolve_site_builtin_hit_is_wired() {
@@ -39,13 +48,21 @@ async fn resolve_site_builtin_hit_is_wired() {
 /// 0.2 M1：低置信必须显式降级，`next_steps` 只能提真实工具（用派发表反查）。
 #[tokio::test]
 async fn resolve_site_low_confidence_degrades_with_real_next_steps() {
-    let mcp = WebctlMcp::new(in_process_context("resolve-site-low"));
+    let mcp = WebctlMcp::new(offline_ctx("resolve-site-low"));
     let envelope = invoke(&mcp, "resolve_site", json!({"site": "example"})).await;
     assert_eq!(envelope["ok"], true, "{envelope}");
     assert_eq!(envelope["code"], "DEGRADED");
-    assert_eq!(envelope["meta"]["degraded_from"], "resolve-site-l1");
+    assert_eq!(envelope["meta"]["degraded_from"], "resolve-site");
+    assert_eq!(
+        envelope["data"]["layers"],
+        json!(["l1"]),
+        "offline 不得尝试 L3"
+    );
     let actionable = &envelope["meta"]["actionable"];
-    assert_eq!(actionable["reason"], "resolve-site-low-confidence");
+    assert_eq!(
+        actionable["reason"], "resolve-site-offline",
+        "离线时要如实说是 offline 卡住的：{envelope}"
+    );
     for step in actionable["next_steps"].as_array().expect("next_steps") {
         let name = step.as_str().expect("channel name");
         assert!(

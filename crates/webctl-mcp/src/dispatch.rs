@@ -48,7 +48,7 @@ pub async fn dispatch(ctx: &McpContext, name: &str, args: Value) -> Option<Value
         "embedded_data" => tool_embedded_data(ctx, &args).await,
         "download" => tool_download(ctx, &args).await,
         "robots" => tool_robots(ctx, &args).await,
-        "resolve_site" => crate::site::tool_resolve_site(&args).await,
+        "resolve_site" => crate::site::tool_resolve_site(ctx, &args).await,
         "caps" => tool_caps(ctx, &args).await,
         _ => return None,
     };

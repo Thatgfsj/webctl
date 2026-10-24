@@ -18,13 +18,13 @@ pub const INSTRUCTIONS: &str = r#"webctl MCP server：纯内置的网页取回 /
 - 抽取：extract（CSS 选择器）、search（文本/正则）、links、tables、forms。
 - 会话：fill_form、paginate、session、cookies。
 - 数据：json_query、doc_text（PDF/HTML/XML 文本层）、embedded_data（页面内嵌 JSON：JSON-LD / script[type=json] / 框架状态容器）、robots、caps。
-- 定位：resolve_site（站点名 → 入口候选；内置映射 + 域名直推，多候选带证据与置信度，不联网）。
+- 定位：resolve_site（站点名 → 入口候选；L1 内置映射/域名直推 + L3 Wikidata P856。L3 **会联网**且过 politeness；offline 模式只走 L1。始终给多候选 + 证据，不单选）。
 
 ## 结果信封（所有工具统一）
 每次调用都返回 JSON 信封：ok / data / error / code / meta。
 - ok=true 且 code=OK：正常结果。
 - ok=true 且 code 为 DEGRADED / UNSUPPORTED / LIMIT：结果不完整，meta.degraded_from 非空，
-  说明降级来源。**部分降级另带 meta.actionable**（例如 degraded_from=js-render、resolve-site-l1），
+  说明降级来源。**部分降级另带 meta.actionable**（例如 degraded_from=js-render、resolve-site），
   给出机器可读的 reason、观察到的 detected 证据与建议的 next_steps 通道（都是真实工具名）——
   有就先读它再决定换哪条通道。**并非所有降级都带该字段**（如 LIMIT），不要假设它一定存在。
 - ok=false：失败，error 是可读原因，code 属于封闭集
