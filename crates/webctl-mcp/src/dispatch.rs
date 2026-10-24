@@ -401,7 +401,9 @@ async fn tool_fill_form(ctx: &McpContext, args: &Value) -> Value {
         Ok(session) => session,
         Err(error) => return fail(ErrorCode::Blocked, error.to_string()),
     };
-    let engine = match SessionEngine::with_store(&session, ctx.session_store()) {
+    let engine = match SessionEngine::with_store(&session, ctx.session_store())
+        .map(|engine| engine.with_browser_context(ctx.browser_context.clone()))
+    {
         Ok(engine) => engine,
         Err(error) => return fail(ErrorCode::SessionLost, error.message()),
     };
@@ -438,7 +440,9 @@ async fn tool_paginate(ctx: &McpContext, args: &Value) -> Value {
         Ok(session) => session,
         Err(error) => return fail(ErrorCode::Blocked, error.to_string()),
     };
-    let engine = match SessionEngine::with_store(&session, ctx.session_store()) {
+    let engine = match SessionEngine::with_store(&session, ctx.session_store())
+        .map(|engine| engine.with_browser_context(ctx.browser_context.clone()))
+    {
         Ok(engine) => engine,
         Err(error) => return fail(ErrorCode::SessionLost, error.message()),
     };
@@ -509,7 +513,9 @@ async fn tool_session(ctx: &McpContext, args: &Value) -> Value {
                 Ok(name) => name,
                 Err(value) => return value,
             };
-            let engine = match SessionEngine::with_store(&name, ctx.session_store()) {
+            let engine = match SessionEngine::with_store(&name, ctx.session_store())
+                .map(|engine| engine.with_browser_context(ctx.browser_context.clone()))
+            {
                 Ok(engine) => engine,
                 Err(error) => return fail(ErrorCode::SessionLost, error.message()),
             };
