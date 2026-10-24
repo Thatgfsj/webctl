@@ -52,18 +52,21 @@
 
 ## 5. 必需检查清单（分支保护）
 
-要在 `main` 上强制的检查名（**必须与作业名逐字一致**，否则会把所有合并卡死）：
+`main` 上强制的检查名（**必须与作业名逐字一致**，否则会把所有合并卡死）：
 
 ~~~text
 static · fmt / scripts / config
-clippy (ubuntu-latest)      clippy (macos-latest)      clippy (windows-latest)
-test (ubuntu-latest)        test (macos-latest)        test (windows-latest)
 guards · 锁文件 / 工具面 / 行数口径
-musl-static (x86_64-unknown-linux-musl)
 ~~~
 
-> `pr-size` 已并入 `guards`（只在 PR 上跑那一项）。要不要把 `enforce_admins` 也打开是取舍：打开后连管理员也必须走 PR + 绿检查，**紧急直推 main 会被挡住**；本仓当前选择"检查强制、管理员不豁免"，理由见 `CONTRIBUTING.md` 的评审纪律。
+> **2026-10-24 变更**：按用户要求"PR 不跑完整 CI"，`clippy` / `test` / `musl-static` 三个作业在 PR 上被 job 级 `if` 跳过，因此它们**不再是必需检查**（否则 PR 永远 BLOCKED）。
+> **覆盖面的减少（如实登记）** ✗：
+> - PR 阶段**不再有**三平台编译/测试与 musl 静态验证，这些只在 **push main**、`workflow_dispatch` 与发布 tag（`release.yml`）时跑；
+> - 合并红线从 9 项降为 **2 项**（`static` + `guards`）；
+> - 这是**政策选择**，不是能力提升：PR 阶段的回归保护明显变弱。
+> - 回滚：把三个作业的 job 级 `if` 删掉，并把 7 个检查名加回分支保护。
 
+> `pr-size` 已并入 `guards`（只在 PR 上跑那一项）。要不要把 `enforce_admins` 也打开是取舍：打开后连管理员也必须走 PR + 绿检查。
 ## 6. 本地怎么复现 CI
 
 ~~~bash
