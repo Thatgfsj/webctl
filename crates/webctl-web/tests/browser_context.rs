@@ -158,7 +158,10 @@ async fn t1_jar_wins_over_context_cookie() {
     assert_eq!(cookies[0], "sid=JAR");
     assert_eq!(server.values("accept"), vec!["text/html".to_owned()]);
     assert_eq!(server.values("accept-language").len(), 1);
-    assert_eq!(server.values("sec-ch-ua").len(), 1);
+    assert_eq!(
+        server.values("sec-ch-ua"),
+        vec!["\"Chromium\";v=\"130\"".to_string()]
+    );
 }
 
 /// 2) options.headers 的 User-Agent（混合大小写）+ 上下文 UA：只有一个 UA，来自显式。
@@ -258,7 +261,10 @@ async fn t5_no_over_dedup_of_context_headers() {
     get(&server, &options).await;
     assert_eq!(server.values("accept"), vec!["text/html".to_owned()]);
     assert_eq!(server.values("accept-language"), vec!["zh-CN".to_owned()]);
-    assert_eq!(server.values("sec-ch-ua").len(), 1);
+    assert_eq!(
+        server.values("sec-ch-ua"),
+        vec!["\"Chromium\";v=\"130\"".to_string()]
+    );
     assert_eq!(server.values("referer").len(), 1);
     assert_eq!(
         server.values("user-agent"),
@@ -283,7 +289,7 @@ async fn t5b_explicit_cookie_header_wins() {
     assert_eq!(cookies[0], "explicit=1");
 }
 
-/// 6) 探针（不判失败）：jar 存在但对该 host 无 cookie 时，上下文 cookie 是否被压制。
+/// 6) 精确断言（#165 复审要求：不能只断言非空或上界）：jar 存在但对该 host 无 cookie 时，上下文 cookie 是否被压制。
 #[tokio::test]
 async fn t6_empty_jar_falls_back_to_context_cookie() {
     let server = RawServer::start().await;
