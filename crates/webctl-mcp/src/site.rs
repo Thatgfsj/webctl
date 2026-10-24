@@ -5,7 +5,10 @@
 //!
 //! 通道：
 //! - L1（本地、不联网）：内置映射表 + 域名直推；
-//! - L3（联网、过 politeness）：Wikidata P856 官方网站（offline 模式下不尝试）。
+//! - L3（联网、过 politeness）：Wikidata P856 官方网站（offline 模式下不尝试）；
+//! - L4（联网、过 politeness）：候选域名 robots.txt 的 Sitemap 声明（只报告，不提升置信度）；
+//! - L5（联网、过 politeness）：**显式 opt-in** 的 SERP 兜底（参数 allow_serp_fallback=true），
+//!   默认关闭；结果按不可靠来源处理，被拦即如实报 BLOCKED。
 //!
 //! 诚实性（ADR-0006）：
 //! - 永远给**候选列表**（绝不单选），每条带 url/score/evidence/channel；
@@ -16,6 +19,7 @@
 use serde_json::{Value, json};
 use webctl_core::{Actionable, Envelope, ErrorCode, Trust};
 use webctl_web::politeness::{PoliteFetcher, PolitenessConfig};
+use webctl_web::resolve_site::serp::{self, SerpConfig, SerpFailure};
 use webctl_web::resolve_site::sitemap::{self, SitemapReport, SitemapStatus};
 use webctl_web::resolve_site::wikidata::{self, L3Config, L3Failure};
 use webctl_web::resolve_site::{Candidate, merge, resolve_l1};
@@ -39,15 +43,23 @@ struct Resolution {
     candidates: Vec<Candidate>,
     layers: Vec<&'static str>,
     l3_failure: Option<L3Failure>,
+    serp_failure: Option<SerpFailure>,
     sitemaps: Vec<SitemapReport>,
 }
 
-/// 依次跑 L1；仍不可靠时跑 L3；还有直推候选时再跑 L4（只报告 sitemap 声明）。
-async fn resolve_with_layers(ctx: &McpContext, site: &str, max_candidates: usize) -> Resolution {
+/// 依次跑 L1；仍不可靠时跑 L3；还有直推候选时再跑 L4（只报告 sitemap 声明）；
+/// 调用方**显式**开启时才跑 L5（SERP 兜底）。
+async fn resolve_with_layers(
+    ctx: &McpContext,
+    site: &str,
+    max_candidates: usize,
+    allow_serp: bool,
+) -> Resolution {
     let l1 = resolve_l1(site, max_candidates);
     let mut layers = vec!["l1"];
     let mut candidates = l1;
     let mut l3_failure = None;
+    let mut serp_failure = None;
     let mut sitemaps = Vec::new();
     // offline 模式不联网：L1 之外一律不尝试（并在降级原因里说清楚）。
     if best_score(&candidates) < CONFIDENT_SCORE && !ctx.config.offline {
@@ -61,11 +73,22 @@ async fn resolve_with_layers(ctx: &McpContext, site: &str, max_candidates: usize
             layers.push("sitemap");
             sitemaps = sitemap::probe_top(&candidates, SITEMAP_PROBE_LIMIT, &fetcher).await;
         }
+        // L5 是显式 opt-in 的最后一招：调用方没写 allow_serp_fallback=true 就绝不触发。
+        if allow_serp && best_score(&candidates) < CONFIDENT_SCORE {
+            eprintln!(
+                "webctl: resolve_site 已启用 L5 兜底（allow_serp_fallback=true，query={site:?}）"
+            );
+            let outcome = serp::search(site, &SerpConfig::default(), &fetcher).await;
+            layers.push("serp-fallback");
+            candidates = merge(vec![candidates, outcome.candidates], max_candidates);
+            serp_failure = outcome.failure;
+        }
     }
     Resolution {
         candidates,
         layers,
         l3_failure,
+        serp_failure,
         sitemaps,
     }
 }
@@ -85,15 +108,26 @@ fn classify(
     site: &str,
     offline: bool,
     l3_failure: Option<&L3Failure>,
+    serp_failure: Option<&SerpFailure>,
 ) -> (String, Vec<String>) {
     let best = best_score(candidates);
     let mut detected = Vec::new();
     if let Some(failure) = l3_failure {
         detected.push(failure.describe());
+        if let Some(serp) = serp_failure {
+            detected.push(serp.describe());
+        }
         detected.push(format!(
             "L1 也没有可靠命中（最高分 {best} < {CONFIDENT_SCORE}）"
         ));
         return ("resolve-site-l3-failed".to_owned(), detected);
+    }
+    if let Some(failure) = serp_failure {
+        detected.push(failure.describe());
+        detected.push(format!(
+            "L1/L3/L4 也没有可靠命中（最高分 {best} < {CONFIDENT_SCORE}）"
+        ));
+        return ("resolve-site-serp-failed".to_owned(), detected);
     }
     if offline {
         detected.push("offline 模式已启用：未尝试 L3（Wikidata P856）".to_owned());
@@ -134,7 +168,9 @@ pub(crate) async fn tool_resolve_site(ctx: &McpContext, args: &Value) -> Value {
         .max_candidates
         .unwrap_or(DEFAULT_MAX_CANDIDATES)
         .clamp(1, MAX_CANDIDATES_CAP);
-    let resolution = resolve_with_layers(ctx, site, max_candidates).await;
+    // L5 默认关：只有显式 true 才开（参数缺省 / false 都不触发）。
+    let allow_serp = params.allow_serp_fallback.unwrap_or(false);
+    let resolution = resolve_with_layers(ctx, site, max_candidates, allow_serp).await;
     let best = best_score(&resolution.candidates);
     let confident = best >= CONFIDENT_SCORE;
     let data = json!({
@@ -143,7 +179,8 @@ pub(crate) async fn tool_resolve_site(ctx: &McpContext, args: &Value) -> Value {
         "confidence": if confident { "high" } else if resolution.candidates.is_empty() { "none" } else { "low" },
         "layers": resolution.layers,
         "sitemaps": resolution.sitemaps,
-        "channel_note": "builtin=内置映射表（可靠）；public-api=Wikidata P856 官方网站声明（可靠）；direct=按常见 TLD 直推（猜测，需自行验证）；sitemaps=候选域名 robots.txt 的 Sitemap 声明（只证明站点在运营，不证明是你要的那个站）",
+        "serp_fallback": allow_serp,
+        "channel_note": "builtin=内置映射表（可靠）；public-api=Wikidata P856 官方网站声明（可靠）；direct=按常见 TLD 直推（猜测，需自行验证）；sitemaps=候选域名 robots.txt 的 Sitemap 声明（只证明站点在运营，不证明是你要的那个站）；serp-fallback=显式开启的 SERP 兜底（最不可靠，低分且不跨阈值）",
     });
     if confident {
         // 本地推理 + 结构化声明，不是页面内容。
@@ -156,7 +193,11 @@ pub(crate) async fn tool_resolve_site(ctx: &McpContext, args: &Value) -> Value {
         site,
         ctx.config.offline,
         resolution.l3_failure.as_ref(),
+        resolution.serp_failure.as_ref(),
     );
+    if allow_serp && ctx.config.offline {
+        detected.push("offline 模式已启用：请求了 L5 兜底也不会联网执行".to_owned());
+    }
     // L4 的声明只作为**证据**补充，不改变 reason（它证明"站点在运营"，不证明"就是它"）。
     for report in &resolution.sitemaps {
         match report.status {
@@ -320,7 +361,7 @@ mod tests {
             code: "BLOCKED".to_owned(),
             message: "robots.txt disallows https://example.com/api".to_owned(),
         };
-        let (reason, detected) = classify(&[], "某站", false, Some(&failure));
+        let (reason, detected) = classify(&[], "某站", false, Some(&failure), None);
         assert_eq!(reason, "resolve-site-l3-failed");
         assert!(
             detected.iter().any(|item| item.contains("robots.txt")),
@@ -330,17 +371,76 @@ mod tests {
 
     #[test]
     fn classify_offline_says_offline() {
-        let (reason, detected) = classify(&[candidate(55)], "example", true, None);
+        let (reason, detected) = classify(&[candidate(55)], "example", true, None, None);
         assert_eq!(reason, "resolve-site-offline");
         assert!(detected.iter().any(|item| item.contains("offline")));
     }
 
     #[test]
     fn classify_no_match_vs_low_confidence() {
-        let (reason, _) = classify(&[], "某站", false, None);
+        let (reason, _) = classify(&[], "某站", false, None, None);
         assert_eq!(reason, "resolve-site-no-match");
-        let (reason, detected) = classify(&[candidate(55)], "example", false, None);
+        let (reason, detected) = classify(&[candidate(55)], "example", false, None, None);
         assert_eq!(reason, "resolve-site-low-confidence");
         assert!(detected.iter().any(|item| item.contains("55")));
+    }
+
+    #[test]
+    fn classify_serp_failure_is_named_and_keeps_evidence() {
+        let serp = SerpFailure::Unavailable {
+            code: "BLOCKED".to_owned(),
+            message: "robots.txt disallows https://example.com/serp".to_owned(),
+        };
+        let (reason, detected) = classify(&[], "某站", false, None, Some(&serp));
+        assert_eq!(reason, "resolve-site-serp-failed");
+        assert!(
+            detected.iter().any(|item| item.contains("SERP")),
+            "证据要说清是 SERP 失败：{detected:?}"
+        );
+    }
+
+    #[test]
+    fn classify_reports_both_l3_and_serp_failures() {
+        let l3 = L3Failure::NoMatch;
+        let serp = SerpFailure::Empty;
+        let (reason, detected) = classify(&[], "某站", false, Some(&l3), Some(&serp));
+        assert_eq!(reason, "resolve-site-l3-failed", "L3 失败优先");
+        assert!(
+            detected.iter().any(|item| item.contains("SERP")),
+            "同时跑了 L5 时证据不能丢：{detected:?}"
+        );
+    }
+
+    /// L5 默认关：不写 allow_serp_fallback 时连层都不出现，data 里也标 false。
+    #[tokio::test]
+    async fn serp_fallback_is_off_by_default() {
+        let value = tool_resolve_site(&offline_ctx("serp-off"), &json!({"site": "example"})).await;
+        assert_eq!(value["data"]["serp_fallback"], false);
+        assert_eq!(value["data"]["layers"], json!(["l1"]));
+    }
+
+    /// offline 下即使显式开启 L5 也不会联网，且要如实说明。
+    #[tokio::test]
+    async fn serp_fallback_never_networks_in_offline_mode() {
+        let value = tool_resolve_site(
+            &offline_ctx("serp-offline"),
+            &json!({"site": "example", "allow_serp_fallback": true}),
+        )
+        .await;
+        assert_eq!(value["data"]["serp_fallback"], true);
+        assert_eq!(
+            value["data"]["layers"],
+            json!(["l1"]),
+            "offline 不得出现 serp-fallback 层"
+        );
+        let detected = value["meta"]["actionable"]["detected"]
+            .as_array()
+            .expect("detected");
+        assert!(
+            detected
+                .iter()
+                .any(|item| item.as_str().is_some_and(|text| text.contains("offline"))),
+            "要如实说 offline：{detected:?}"
+        );
     }
 }
