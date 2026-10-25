@@ -590,8 +590,10 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 
 `crates/webctl-mcp/tests/mcp.rs` **35 条通过 + 0 ignored**（#82 转正后 20 条，#114 增 3 条 + 2 条 schema 守卫，#115 增 5 条，#119 补 1 条，#128 接线增 4 条）；另 `tests/resolve_site.rs` **3 条**（0.2 M1，单独成文件以免 `mcp.rs` 破 1000 行）：
 
-- **resolve_site**（0.2 M1，`tests/resolve_site.rs`；L3 落地后低置信用例改为 `offline` 上下文，避免测试联网）：`resolve_site_builtin_hit_is_wired`（内置命中 = `OK` + `confidence=high` + **无** actionable）、`resolve_site_low_confidence_degrades_with_real_next_steps`（只有直推 → `DEGRADED` + `degraded_from=resolve-site` + `next_steps` 用派发表反查）、`resolve_site_schema_declares_only_wired_parameters`（**声明必须等于实现**：只有 `site` / `max_candidates`）
+- **resolve_site**（0.2 M1，`tests/resolve_site.rs`；L3 落地后低置信用例改为 `offline` 上下文，避免测试联网）：`resolve_site_builtin_hit_is_wired`（内置命中 = `OK` + `confidence=high` + **无** actionable）、`resolve_site_low_confidence_degrades_with_real_next_steps`（只有直推 → `DEGRADED` + `degraded_from=resolve-site` + `next_steps` 用派发表反查）、`resolve_site_schema_declares_only_wired_parameters`（**声明必须等于实现**：0.2 M1 只有 `site` / `max_candidates`，0.2 M5 增 `allow_serp_fallback` 后恰为三个参数）
 
+
+- **L2 通道**（0.2 M2，`tests/resolve_site_site_search.rs`，4 条，纯本地 fixture）：`matching_external_links_become_candidates`（只收名称匹配的外部链接，内部/无关链接被过滤，65 分）、`robots_disallow_is_reported_per_site`（robots 禁止时**不请求**且 note 保留 robots 原因）、`page_without_matches_is_empty`（可读但无匹配 = Empty）、`max_sites_limits_probing`（探测站点数受上限约束）。另有 `resolve_site::site_search` 单测 5 条（模板数量 20–50、https + 占位符、名称匹配、后缀规范化、查询编码）。
 
 - **L3 通道**（0.2 M3，`tests/resolve_site_l3.rs`，6 条，纯本地 fixture）：`p856_becomes_official_site_candidate`（搜索 → P856 → public-api 候选，http 规范成 https、去尾斜杠，证据含 Q 号与标签）、`robots_disallow_stops_before_requesting`（robots 禁止时**不发出**搜索请求且原因是 robots）、`empty_search_is_no_match`、`entity_without_p856_is_no_official_site`、`non_json_search_is_parse_failure`、`entities_error_is_reported_with_code`（500 → BLOCKED + 码）。
 

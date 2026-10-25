@@ -20,6 +20,9 @@ use serde_json::{Value, json};
 use webctl_core::{Actionable, Envelope, ErrorCode, Trust};
 use webctl_web::politeness::{PoliteFetcher, PolitenessConfig};
 use webctl_web::resolve_site::serp::{self, SerpConfig, SerpFailure};
+use webctl_web::resolve_site::site_search::{
+    self, SiteSearchConfig, SiteSearchReport, SiteSearchStatus,
+};
 use webctl_web::resolve_site::sitemap::{self, SitemapReport, SitemapStatus};
 use webctl_web::resolve_site::wikidata::{self, L3Config, L3Failure};
 use webctl_web::resolve_site::{Candidate, merge, resolve_l1};
@@ -45,9 +48,10 @@ struct Resolution {
     l3_failure: Option<L3Failure>,
     serp_failure: Option<SerpFailure>,
     sitemaps: Vec<SitemapReport>,
+    site_search: Vec<SiteSearchReport>,
 }
 
-/// 依次跑 L1；仍不可靠时跑 L3；还有直推候选时再跑 L4（只报告 sitemap 声明）；
+/// 依次跑 L1；仍不可靠时跑 L2（站点内建搜索）→ L3（Wikidata）→ L4（sitemap 声明）；
 /// 调用方**显式**开启时才跑 L5（SERP 兜底）。
 async fn resolve_with_layers(
     ctx: &McpContext,
@@ -61,13 +65,24 @@ async fn resolve_with_layers(
     let mut l3_failure = None;
     let mut serp_failure = None;
     let mut sitemaps = Vec::new();
+    let mut site_search = Vec::new();
     // offline 模式不联网：L1 之外一律不尝试（并在降级原因里说清楚）。
     if best_score(&candidates) < CONFIDENT_SCORE && !ctx.config.offline {
         let fetcher = PoliteFetcher::new(PolitenessConfig::default(), ctx.fetch_options());
+        // L2 站点内建搜索：最多探测 2 个模板，逐站点如实记录。
+        if best_score(&candidates) < CONFIDENT_SCORE {
+            let outcome = site_search::search(site, &SiteSearchConfig::default(), &fetcher).await;
+            layers.push("site-search");
+            candidates = merge(vec![candidates, outcome.candidates], max_candidates);
+            site_search = outcome.reports;
+        }
+        // L3 Wikidata P856（只有还没可靠时才跑，命中即停）。
         let outcome = wikidata::resolve(site, &L3Config::default(), &fetcher).await;
-        layers.push("public-api");
-        candidates = merge(vec![candidates, outcome.candidates], max_candidates);
         l3_failure = outcome.failure;
+        if best_score(&candidates) < CONFIDENT_SCORE {
+            layers.push("public-api");
+            candidates = merge(vec![candidates, outcome.candidates], max_candidates);
+        }
         // L4 只对**已有候选**做声明探测；命中 P856 后已可靠，就不再多发请求。
         if best_score(&candidates) < CONFIDENT_SCORE && !candidates.is_empty() {
             layers.push("sitemap");
@@ -90,6 +105,7 @@ async fn resolve_with_layers(
         l3_failure,
         serp_failure,
         sitemaps,
+        site_search,
     }
 }
 
@@ -181,8 +197,9 @@ pub(crate) async fn tool_resolve_site(ctx: &McpContext, args: &Value) -> Value {
         "confidence": if confident { "high" } else if resolution.candidates.is_empty() { "none" } else { "low" },
         "layers": resolution.layers,
         "sitemaps": resolution.sitemaps,
+        "site_search": resolution.site_search,
         "serp_fallback": allow_serp,
-        "channel_note": "builtin=内置映射表（可靠）；public-api=Wikidata P856 官方网站声明（可靠）；direct=按常见 TLD 直推（猜测，需自行验证）；sitemaps=候选域名 robots.txt 的 Sitemap 声明（只证明站点在运营，不证明是你要的那个站）；serp-fallback=显式开启的 SERP 兜底（最不可靠，低分且不跨阈值）；serp_fallback 字段只表示『调用方请求开启』，offline 时不会执行",
+        "channel_note": "builtin=内置映射表（可靠）；public-api=Wikidata P856 官方网站声明（可靠）；direct=按常见 TLD 直推（猜测，需自行验证）；site-search=站点内建搜索（逐站点报告状态，只收名称匹配的外部链接）；sitemaps=候选域名 robots.txt 的 Sitemap 声明（只证明站点在运营，不证明是你要的那个站）；serp-fallback=显式开启的 SERP 兜底（最不可靠，低分且不跨阈值）；serp_fallback 字段只表示『调用方请求开启』，offline 时不会执行",
     });
     if confident {
         // 本地推理 + 结构化声明，不是页面内容。
@@ -217,6 +234,18 @@ pub(crate) async fn tool_resolve_site(ctx: &McpContext, args: &Value) -> Value {
                 report.candidate_url
             )),
         }
+    }
+    // L2 的逐站点结果也是证据：说清哪个站被拦、哪个站没匹配到，而不是一句"没找到"。
+    for report in &resolution.site_search {
+        let label = match report.status {
+            SiteSearchStatus::Hit => "命中",
+            SiteSearchStatus::Empty => "无匹配",
+            SiteSearchStatus::Unavailable => "不可用",
+        };
+        detected.push(format!(
+            "站点内建搜索 {}（{}）：{}（{} 条候选）",
+            report.site, label, report.note, report.candidates
+        ));
     }
     to_value(
         Envelope::degraded(data, "resolve-site", ErrorCode::Degraded, 0).with_actionable(
