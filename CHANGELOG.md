@@ -4,7 +4,7 @@
 [语义化版本](https://semver.org/lang/zh-CN/)。格式约定、发版步骤与 release note 模板见
 [docs/RELEASE.md](docs/RELEASE.md)。
 
-## [0.2.0] - 未发布
+## [0.2.0] - 2026-10-25
 
 本版主题：**站点定位兜底**（用户说得出站点名、给不出 URL 时给出带证据的候选）
 与**浏览器上下文注入**（借用宿主/设备浏览器的 HTTP 头与 Cookie）。决策依据：ADR-0006。
@@ -31,7 +31,7 @@
 
 ### Notes
 
-- **尚未发布**（无 tag / 无 Release）。发布需用户显式授权；发布时按 `docs/RELEASE.md` 重跑资产 E2E 与体积回填。
+- **发布**：本条目即 **v0.2.0** 的发布说明；资产清单与校验和见 Release 页（tag `v0.2.0`）与 `docs/RELEASE.md`。若资产有问题，按 `docs/RELEASE.md §3` 的回滚步骤处理。
 
 ## [0.1.2] - 2026-10-19
 
