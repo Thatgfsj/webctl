@@ -18,14 +18,14 @@
   - **L3** Wikidata P856 官方网站（免 key 只读 API；两步请求都过 politeness）（[#175](https://github.com/Thatgfsj/webctl/pull/175)）；
   - **L4** 候选域名 robots.txt 的 `Sitemap:` 声明（**只报告声明**，不提升置信度）（[#176](https://github.com/Thatgfsj/webctl/pull/176)）；
   - **L5** 显式 opt-in 的 SERP 兜底（`allow_serp_fallback` **默认 false**、结果低分、被拦即 `BLOCKED`）（[#177](https://github.com/Thatgfsj/webctl/pull/177)）。
-- **浏览器上下文注入**（[#161](https://github.com/Thatgfsj/webctl/pull/161)…[#169](https://github.com/Thatgfsj/webctl/pull/169)）：`WEBCTL_BROWSER_CONTEXT` 指向的 JSON 文件；
+- **浏览器上下文注入**系列（[#161](https://github.com/Thatgfsj/webctl/pull/161)…[#169](https://github.com/Thatgfsj/webctl/pull/169)）：`WEBCTL_BROWSER_CONTEXT` 指向的 JSON 文件；
   `user_agent` / `accept` / `accept_language` / `sec_ch_ua` / `referer` / `cookies[]`；凭据类头**只同源携带**；
   cookie 值**不落盘/不落日志/不进 envelope**（`BrowserContext` 刻意不实现 `Serialize`）；TLS/JS 指纹不可借用（诚实边界）。
 - **robots.txt 支持 `Sitemap:` 解析**（`RobotsRules::sitemaps()`）。
 
 ### Changed
 
-- **CI 政策（用户要求）**：**PR 只跑 `static` + `guards`**；三平台矩阵与 musl 静态改到 **push main / 手动 / 发布**；
+- **CI 政策（用户要求）**（[#166](https://github.com/Thatgfsj/webctl/pull/166)）：**PR 只跑 `static` + `guards`**；三平台矩阵与 musl 静态改到 **push main / 手动 / 发布**；
   分支保护的必需检查同步收敛为 2 项。覆盖面变化如实登记在 `docs/CI.md §8`（合并红线 9 → 2）。
 - 大文件拆分（[#171](https://github.com/Thatgfsj/webctl/issues/171)）：`tests/mcp.rs`、`session/form.rs`、`tests/session.rs` 均拆到 < 1000 行，全仓无超限文件。
 

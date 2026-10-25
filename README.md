@@ -11,7 +11,7 @@
 
 [项目状态](#项目状态) · [安装](#安装) · [快速开始](#快速开始) · [能力与现状](#能力与现状) · [English](#english) · [计划](docs/PLAN.md) · [发布流程](docs/RELEASE.md) · [贡献指南](CONTRIBUTING.md) · [议题](https://github.com/Thatgfsj/webctl/issues)
 
-> **v0.1.2 已发布**（[Release v0.1.2](https://github.com/Thatgfsj/webctl/releases/tag/v0.1.2)）：5 个目标、6 个产物（`webctl` 与 `webctl-mcp`）+ shell / PowerShell 安装器；**Linux 另提供 musl 静态资产**。
+> **v0.1.2 已发布**（[Release v0.1.2](https://github.com/Thatgfsj/webctl/releases/tag/v0.1.2)）：5 个目标、10 个压缩包 / 28 个资产（`webctl` 与 `webctl-mcp`）+ shell / PowerShell 安装器；**Linux 另提供 musl 静态资产**。
 > **0.2.0 已在源码中就绪但尚未发布**（版本号已升；站点定位 L1–L5 与浏览器上下文注入已合并，见 [CHANGELOG](CHANGELOG.md)）——发布需显式授权后按 [docs/RELEASE.md](docs/RELEASE.md) 走 tag。
 
 ---
@@ -158,7 +158,7 @@ crates/
 
 **webctl is a web-control layer for AI agents** — a single pure-Rust binary with everything built in: no external processes, no browser, no JS engine. It provides an HTTP fetch engine, HTML/JSON/XML/PDF extraction, a protocol-level session engine, and a CLI plus an MCP server.
 
-- **Status:** **v0.1.2 released** (https://github.com/Thatgfsj/webctl/releases/tag/v0.1.2) for Linux (**glibc** and **musl static**), macOS (aarch64 / x86_64) and Windows, with shell/PowerShell installers; see [docs/RELEASE.md](docs/RELEASE.md). The musl asset is produced by the release pipeline and statically asserted (`ldd` = `statically linked`).
+- **Status:** **v0.1.2 released** (https://github.com/Thatgfsj/webctl/releases/tag/v0.1.2) for Linux (**glibc** and **musl static**), macOS (aarch64 / x86_64) and Windows, with shell/PowerShell installers; see [docs/RELEASE.md](docs/RELEASE.md). The musl asset is produced by the release pipeline and statically asserted (`ldd` = `statically linked`). **Source version 0.2.0 is ready but not released** (tagging requires explicit approval).
 - **Runtime:** zero subprocesses, zero browser, zero JS execution. JS-heavy pages degrade explicitly to `DEGRADED`/`UNSUPPORTED` instead of silently returning "success with 0 results".
 - **Capabilities shipped (PR 03–14 all merged):** fetch (PR 02/08), parsing (PR 03), extraction (PR 06), document/data (PR 07), politeness (PR 08), degradation semantics (PR 09), CLI and config (PR 10), MCP server with 17 tools (PR 11 built 15; #114 added `embedded_data`; 0.2 M1 added `resolve_site`), security hardening (PR 12), packaging (PR 14). The README table above is the source of truth.
 - **Commands available today:** `webctl caps`, `webctl fetch <url>`, `webctl config`, `webctl cookies`, `webctl mcp` (the 17-tool surface).
