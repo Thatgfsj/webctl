@@ -26,7 +26,7 @@ description: 纯内置的网页取回/解析/抽取 MCP server（零外部进程
 - `embedded_data` — 抽取页面**内嵌**的结构化数据（JSON-LD / `script[type=json]` / 框架状态容器 / `data-page`）；**零 JS 执行**，零结果是合法空结果。
 - `download` — 文件下载到指定目录（尺寸上限与落盘路径）。
 - `robots` — robots.txt 与站点策略查询（礼貌爬取依据；含 `Sitemap:` 声明清单）。
-- `resolve_site` — 按站点名给出入口候选（L1 内置映射/域名直推 + L3 Wikidata P856 + L4 候选域名的 sitemap 声明 + **显式 opt-in** 的 L5 SERP 兜底；多候选、带证据与置信度，**绝不单选**；L3/L4/L5 会联网且过 politeness，offline 模式只走 L1；sitemap 声明只作证据，L5 默认关且结果不跨可靠阈值）。
+- `resolve_site` — 按站点名给出入口候选（L1 内置映射/域名直推 + L2 站点内建搜索 + L3 Wikidata P856 + L4 候选域名的 sitemap 声明 + **显式 opt-in** 的 L5 SERP 兜底；多候选、带证据与置信度，**绝不单选**；L2/L3/L4/L5 会联网且过 politeness，offline 模式只走 L1；sitemap 声明只作证据，L5 默认关且结果不跨可靠阈值）。
 - `caps` — 内置能力与版本自检，逐项列出 17 个工具的可用性。
 <!-- tools:end -->
 
