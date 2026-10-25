@@ -27,7 +27,8 @@ const _: () = assert!(SCORE_CORROBORATED < 60);
 const _: () = assert!(SCORE_CORROBORATED > SCORE_SINGLE);
 
 /// 单站点命中的置信分：**低于可靠阈值（工具的 60）**，也低于内置表 95 / P856 90，
-/// 只略高于 TLD 直推 —— L2 是"子串命中 + 外部链接"，不足以算可靠定位。
+/// 与 .com 直推同档（55），低于"名称本身即域名"的直推（70）——
+/// L2 只是"名称匹配的外部链接"，不足以算可靠定位。
 pub const SCORE_SINGLE: u8 = 55;
 
 /// 跨站点互证（≥2 个模板都命中）时的分值：仍**低于**可靠阈值 60，
@@ -303,10 +304,10 @@ pub async fn search(
                 SiteSearchStatus::Hit
             },
             candidates: matched,
-            note: if hits == 0 {
+            note: if matched == 0 {
                 "结果页没有与名称匹配的外部链接".to_owned()
             } else {
-                format!("{hits} 条匹配的外部链接")
+                format!("{matched} 条匹配的外部链接（其中 {hits} 条新增候选）")
             },
         });
     }
@@ -324,7 +325,9 @@ pub async fn search(
         .map(|(_, mut candidate)| {
             candidate.score = score;
             if corroborated {
-                candidate.evidence.push_str("（≥2 个站点互证）");
+                candidate
+                    .evidence
+                    .push_str("（本批站点搜索有 ≥2 个站点命中）");
             }
             candidate
         })

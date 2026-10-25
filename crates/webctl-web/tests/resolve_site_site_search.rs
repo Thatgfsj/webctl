@@ -163,10 +163,19 @@ async fn two_sites_hitting_raises_corroborated_score() {
     for candidate in &outcome.candidates {
         assert_eq!(candidate.score, SCORE_CORROBORATED);
         assert!(
-            candidate.evidence.contains("互证"),
-            "证据要说明互证：{}",
+            candidate.evidence.contains("≥2 个站点命中"),
+            "证据要说明是站点维度的互证：{}",
             candidate.evidence
         );
         assert!(candidate.score < 60, "互证也不能跨可靠阈值");
     }
+    // 逐站点报告必须自洽：第二个站点命中的候选可能全被去重，但 note 不能说"没有匹配"
+    // （回归：曾用去重后的计数拼 note，导致 status=Hit 而 note 说无匹配）。
+    assert_eq!(outcome.reports[1].status, SiteSearchStatus::Hit);
+    assert_eq!(outcome.reports[1].candidates, 2);
+    assert!(
+        outcome.reports[1].note.contains("2 条匹配的外部链接"),
+        "命中站点的 note 必须与 status/candidates 一致：{}",
+        outcome.reports[1].note
+    );
 }
