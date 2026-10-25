@@ -2,9 +2,9 @@
 
 | 项 | 值 |
 |---|---|
-| 适用 | v0.1.2（**当前 release**，2026-10-20）与 v0.1.1（上一版） |
+| 适用 | **v0.2.0（当前源码版本，未发布）**、v0.1.2（**当前 release**，2026-10-20）与 v0.1.1（上一版） |
 | 流水线 | cargo-dist 0.33.0：`dist-workspace.toml` + `.github/workflows/release.yml` |
-| 状态 | **v0.1.1 与 v0.1.2 均已发布**。安装命令与资产数字取自 **v0.1.2 真实资产**（2026-10-20 实测：sha256 匹配、`--version`=0.1.2、musl 静态、Alpine 用户态可跑，见 ACCEPTANCE §7） |
+| 状态 | **v0.2.0 尚未发布**（源码版本号已升；发布需显式授权后再打 tag，届时重跑资产 E2E 与体积回填）。**v0.1.1 与 v0.1.2 均已发布**。安装命令与资产数字取自 **v0.1.2 真实资产**（2026-10-20 实测：sha256 匹配、`--version`=0.1.2、musl 静态、Alpine 用户态可跑，见 ACCEPTANCE §7） |
 | 相关 | [TESTING §2.16 PKG](TESTING.md) · [PLAN §5.2 PR 14](PLAN.md) · [体积基线](size-baseline.json) |
 
 ## 1. 流水线结构
