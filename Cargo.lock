@@ -3100,7 +3100,7 @@ dependencies = [
 
 [[package]]
 name = "webctl"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "clap",
  "regex",
@@ -3114,7 +3114,7 @@ dependencies = [
 
 [[package]]
 name = "webctl-core"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "fslock",
  "serde",
@@ -3124,14 +3124,14 @@ dependencies = [
 
 [[package]]
 name = "webctl-js"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "boa_engine",
 ]
 
 [[package]]
 name = "webctl-mcp"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "encoding_rs",
  "rmcp",
@@ -3147,7 +3147,7 @@ dependencies = [
 
 [[package]]
 name = "webctl-web"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "dom_smoothie",
  "encoding_rs",
