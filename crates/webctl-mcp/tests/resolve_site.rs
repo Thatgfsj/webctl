@@ -90,5 +90,5 @@ fn resolve_site_schema_declares_only_wired_parameters() {
         .map(String::as_str)
         .collect();
     props.sort_unstable();
-    assert_eq!(props, vec!["max_candidates", "site"]);
+    assert_eq!(props, vec!["allow_serp_fallback", "max_candidates", "site"]);
 }
