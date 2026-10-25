@@ -352,7 +352,7 @@ v0.3 的锚点（JS 页必须拿到 10 条）**作废**。v0.4 的锚点：
 4. 大响应（>50MB）下的内存表现与截断策略。
 5. 礼貌限速在真实站点上的实际有效性（不被封 vs 太慢）。
 6. `resolve_site` 的 L1 命中率：内置表 36 条是人工整理，直推只覆盖 6 个常见 TLD；**真实站点集上的命中率未验证**（M1 只证明了机制、去重与"不猜"）。
-7. `resolve_site` 的 **L3（Wikidata P856）已落地**（2026-10-25）；**L2 站点内建搜索仍未实现**；`hint_domain` / `channels` 仍未进 schema；L5 已落地（`allow_serp_fallback` **默认 false**、显式 opt-in、结果不跨可靠阈值）；`hint_domain` / `channels` / `allow_serp_fallback` 尚未进 schema（声明必须等于实现）。
+7. `resolve_site` 的 **L3（Wikidata P856）与 L4（robots.txt 的 `Sitemap:` 声明）已落地**（2026-10-25）；**L2 站点内建搜索仍未实现**；L5 已落地（`allow_serp_fallback` **默认 false**、显式 opt-in、结果不跨可靠阈值）；`hint_domain` / `channels` **仍未进 schema**（声明必须等于实现）。
 8. 浏览器上下文：`--browser-context` / `--no-browser-context` CLI 开关**未落地**（当前只认 `WEBCTL_BROWSER_CONTEXT` 环境变量）；`fill_form` 的表单提交与 CLI `fetch` **不注入**。
 9. 真实设备浏览器的 cookie 导出格式（含新版 Chrome 的 COOKIES 加密）**未验证**。
 

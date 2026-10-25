@@ -122,6 +122,8 @@ fn classify(
         ));
         return ("resolve-site-l3-failed".to_owned(), detected);
     }
+    // 可达性说明：L5 只在 L3 之后运行，所以 L3 有失败时上面的分支会先命中；
+    // 这个分支覆盖"L3 成功/无失败、但 L5 失败"（以及 L3 未被尝试的调用形态），并有用例钉住。
     if let Some(failure) = serp_failure {
         detected.push(failure.describe());
         detected.push(format!(
@@ -180,7 +182,7 @@ pub(crate) async fn tool_resolve_site(ctx: &McpContext, args: &Value) -> Value {
         "layers": resolution.layers,
         "sitemaps": resolution.sitemaps,
         "serp_fallback": allow_serp,
-        "channel_note": "builtin=内置映射表（可靠）；public-api=Wikidata P856 官方网站声明（可靠）；direct=按常见 TLD 直推（猜测，需自行验证）；sitemaps=候选域名 robots.txt 的 Sitemap 声明（只证明站点在运营，不证明是你要的那个站）；serp-fallback=显式开启的 SERP 兜底（最不可靠，低分且不跨阈值）",
+        "channel_note": "builtin=内置映射表（可靠）；public-api=Wikidata P856 官方网站声明（可靠）；direct=按常见 TLD 直推（猜测，需自行验证）；sitemaps=候选域名 robots.txt 的 Sitemap 声明（只证明站点在运营，不证明是你要的那个站）；serp-fallback=显式开启的 SERP 兜底（最不可靠，低分且不跨阈值）；serp_fallback 字段只表示『调用方请求开启』，offline 时不会执行",
     });
     if confident {
         // 本地推理 + 结构化声明，不是页面内容。
