@@ -11,7 +11,7 @@ use std::time::Duration;
 use http_fixture::{Response, Server};
 use webctl_web::politeness::{PoliteFetcher, PolitenessConfig};
 use webctl_web::resolve_site::site_search::{
-    self, SCORE, SearchTemplate, SiteSearchConfig, SiteSearchStatus,
+    self, SCORE_CORROBORATED, SCORE_SINGLE, SearchTemplate, SiteSearchConfig, SiteSearchStatus,
 };
 use webctl_web::transport::FetchOptions;
 
@@ -46,7 +46,7 @@ fn config_for(server: &Server, max_sites: usize) -> SiteSearchConfig {
     }
 }
 
-/// 正常路径：名称匹配的外部链接成为候选（65 分、site-search 通道），内部/无关链接被过滤。
+/// 正常路径：名称匹配的外部链接成为候选（单站点命中 55 分、site-search 通道），内部/无关链接被过滤。
 #[tokio::test]
 async fn matching_external_links_become_candidates() {
     let server = Server::start_with(vec![("/search", Response::html(SEARCH_HTML))]).await;
@@ -58,7 +58,7 @@ async fn matching_external_links_become_candidates() {
         "内部链接与无关结果必须被过滤"
     );
     for candidate in &outcome.candidates {
-        assert_eq!(candidate.score, SCORE);
+        assert_eq!(candidate.score, SCORE_SINGLE);
         assert_eq!(candidate.channel, "site-search");
         assert!(candidate.evidence.contains("fixture-search"));
     }
@@ -131,4 +131,42 @@ async fn max_sites_limits_probing() {
     assert_eq!(outcome.reports.len(), 1);
     assert_eq!(outcome.reports[0].site, "first");
     assert_eq!(server.count("/search2"), 0, "上限 1 时不得探测第二个模板");
+}
+
+/// 两个独立模板都命中：分值升到互证档（仍低于 60），证据里说明互证。
+#[tokio::test]
+async fn two_sites_hitting_raises_corroborated_score() {
+    let server = Server::start_with(vec![
+        ("/search", Response::html(SEARCH_HTML)),
+        ("/search2", Response::html(SEARCH_HTML)),
+    ])
+    .await;
+    let first = format!("{}/search?q={{query}}", server.base());
+    let second = format!("{}/search2?q={{query}}", server.base());
+    let config = SiteSearchConfig {
+        templates: vec![
+            SearchTemplate {
+                site: "first",
+                url: Box::leak(first.into_boxed_str()),
+            },
+            SearchTemplate {
+                site: "second",
+                url: Box::leak(second.into_boxed_str()),
+            },
+        ],
+        max_sites: 2,
+        max_results: 10,
+    };
+    let outcome = site_search::search("Example", &config, &fetcher()).await;
+    assert_eq!(outcome.reports.len(), 2);
+    assert!(outcome.candidates.len() >= 2);
+    for candidate in &outcome.candidates {
+        assert_eq!(candidate.score, SCORE_CORROBORATED);
+        assert!(
+            candidate.evidence.contains("互证"),
+            "证据要说明互证：{}",
+            candidate.evidence
+        );
+        assert!(candidate.score < 60, "互证也不能跨可靠阈值");
+    }
 }

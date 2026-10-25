@@ -21,8 +21,18 @@ use super::Candidate;
 use crate::extract::{self, ExtractOptions, LinkFilter};
 use crate::politeness::PoliteFetcher;
 
-/// L2 候选的置信分：低于 P856（90）与内置表（95），高于 TLD 直推。
-pub const SCORE: u8 = 65;
+// 编译期不变量：两种 L2 分值都必须低于工具的可靠阈值 60（L2 永远不能把 confidence 变成 high）。
+const _: () = assert!(SCORE_SINGLE < 60);
+const _: () = assert!(SCORE_CORROBORATED < 60);
+const _: () = assert!(SCORE_CORROBORATED > SCORE_SINGLE);
+
+/// 单站点命中的置信分：**低于可靠阈值（工具的 60）**，也低于内置表 95 / P856 90，
+/// 只略高于 TLD 直推 —— L2 是"子串命中 + 外部链接"，不足以算可靠定位。
+pub const SCORE_SINGLE: u8 = 55;
+
+/// 跨站点互证（≥2 个模板都命中）时的分值：仍**低于**可靠阈值 60，
+/// 只是排序更靠前 —— 互证提高可信度，但不改变"L2 不算可靠定位"的结论。
+pub const SCORE_CORROBORATED: u8 = 58;
 
 /// 每次调用最多探测几个站点模板。
 pub const MAX_SITES: usize = 2;
@@ -194,7 +204,8 @@ pub async fn search(
     fetcher: &PoliteFetcher,
 ) -> SiteSearchOutcome {
     let normalized = normalize_name(name);
-    let mut candidates: Vec<Candidate> = Vec::new();
+    let mut collected: Vec<(usize, Candidate)> = Vec::new();
+    let mut hit_templates: Vec<usize> = Vec::new();
     let mut reports: Vec<SiteSearchReport> = Vec::new();
     for template in config.templates.iter().take(config.max_sites.max(1)) {
         let url = template
@@ -239,6 +250,8 @@ pub async fn search(
             continue;
         };
         let mut hits = 0usize;
+        let mut matched = 0usize;
+        let template_index = reports.len();
         for link in filtered.links {
             if !matches_name(&link.text, &link.href, &normalized) {
                 continue;
@@ -253,31 +266,43 @@ pub async fn search(
             if target.host_str().is_some_and(|host| host == site_host) {
                 continue;
             }
+            matched += 1;
             let candidate_url = normalize_url(&target);
-            if candidates.iter().any(|known| known.url == candidate_url) {
+            // 去重只影响"要不要新增候选"，不影响"这个模板命中过"（互证按站点算）。
+            if collected
+                .iter()
+                .any(|(_, known)| known.url == candidate_url)
+            {
                 continue;
             }
-            candidates.push(Candidate {
-                url: candidate_url,
-                score: SCORE,
-                evidence: format!(
-                    "{} 站内搜索第 {} 条：{}",
-                    template.site,
-                    hits + 1,
-                    link.text.trim()
-                ),
-                channel: "site-search",
-            });
+            collected.push((
+                template_index,
+                Candidate {
+                    url: candidate_url,
+                    score: SCORE_SINGLE,
+                    evidence: format!(
+                        "{} 站内搜索第 {} 条：{}",
+                        template.site,
+                        matched,
+                        link.text.trim()
+                    ),
+                    channel: "site-search",
+                },
+            ));
             hits += 1;
+        }
+        if matched > 0 {
+            // 记录"哪个模板命中"——互证是**站点维度**的证据，不能被 URL 去重抹掉。
+            hit_templates.push(template_index);
         }
         reports.push(SiteSearchReport {
             site: template.site.to_owned(),
-            status: if hits == 0 {
+            status: if matched == 0 {
                 SiteSearchStatus::Empty
             } else {
                 SiteSearchStatus::Hit
             },
-            candidates: hits,
+            candidates: matched,
             note: if hits == 0 {
                 "结果页没有与名称匹配的外部链接".to_owned()
             } else {
@@ -285,6 +310,25 @@ pub async fn search(
             },
         });
     }
+    // 互证：有多少个不同模板真的命中了（≥2 才把分数提到 SCORE_CORROBORATED）。
+    hit_templates.sort_unstable();
+    hit_templates.dedup();
+    let corroborated = hit_templates.len() >= 2;
+    let score = if corroborated {
+        SCORE_CORROBORATED
+    } else {
+        SCORE_SINGLE
+    };
+    let candidates: Vec<Candidate> = collected
+        .into_iter()
+        .map(|(_, mut candidate)| {
+            candidate.score = score;
+            if corroborated {
+                candidate.evidence.push_str("（≥2 个站点互证）");
+            }
+            candidate
+        })
+        .collect();
     SiteSearchOutcome {
         candidates,
         reports,
@@ -302,19 +346,42 @@ fn normalize_name(name: &str) -> String {
     text
 }
 
-/// 链接文本或 URL 里是否包含名称（大小写不敏感、忽略空白）。
+/// 结果是否与该名称有关。
+///
+/// 只认两条**保守**判据（不再对原始 href 做子串匹配——短名 ai/app 会误配 detail/download）：
+/// 1. 链接文本里名称按**词边界**出现（前后不是字母数字）；
+/// 2. 目标 host 的某个 label（去掉 www 与连字符）与规范化名称完全相等。
 fn matches_name(text: &str, href: &str, normalized: &str) -> bool {
     if normalized.is_empty() {
         return false;
     }
-    let haystack = format!(
-        "{} {}",
-        text.to_ascii_lowercase(),
-        href.to_ascii_lowercase()
-    );
-    let compact: String = haystack.split_whitespace().collect();
-    let needle: String = normalized.split_whitespace().collect();
-    compact.contains(&needle)
+    let needle = normalized
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_ascii_lowercase();
+    if let Some(position) = text.to_ascii_lowercase().find(&needle) {
+        let before = text[..position].chars().next_back();
+        let after = text[position + needle.len()..].chars().next();
+        let boundary = |ch: Option<char>| ch.is_none_or(|c| !c.is_alphanumeric());
+        if boundary(before) && boundary(after) {
+            return true;
+        }
+    }
+    let Some(host) = url::Url::parse(href)
+        .ok()
+        .and_then(|url| url.host_str().map(str::to_owned))
+    else {
+        return false;
+    };
+    let compact_name: String = normalized
+        .chars()
+        .filter(|ch| !ch.is_whitespace() && *ch != '-')
+        .collect();
+    host.to_ascii_lowercase()
+        .split('.')
+        .filter(|label| *label != "www")
+        .any(|label| label.replace('-', "") == compact_name)
 }
 
 /// 规范化候选 URL：https、去尾斜杠。
@@ -378,6 +445,23 @@ mod tests {
         ));
         assert!(matches_name("GitHub", "https://github.com/x", "github"));
         assert!(!matches_name("无关结果", "https://example.com", "某站"));
+    }
+
+    /// 短名不得在**单词内部**误配（否则 ai/app/news 这类名字会把 detail/download 当命中）。
+    #[test]
+    fn short_names_do_not_match_inside_words() {
+        assert!(!matches_name("detail page", "https://example.com/x", "ai"));
+        assert!(!matches_name("downloads", "https://example.com/x", "app"));
+        // 注意：host label 等于名称是**设计上的命中**，所以这里用无关 host 验证"不误配"。
+        assert!(!matches_name("unrelated", "https://example.com", "news"));
+    }
+
+    /// host label 完全相等也算命中（名称与域名同形时，文本里不一定出现）。
+    #[test]
+    fn host_label_equal_to_name_counts_as_match() {
+        assert!(matches_name("某站首页", "https://github.com/x", "github"));
+        assert!(matches_name("某站", "https://www.example.com/", "example"));
+        assert!(!matches_name("某站", "https://notexample.com/", "example"));
     }
 
     #[test]

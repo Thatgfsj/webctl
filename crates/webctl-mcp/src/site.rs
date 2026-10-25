@@ -5,6 +5,7 @@
 //!
 //! 通道：
 //! - L1（本地、不联网）：内置映射表 + 域名直推；
+//! - L2（联网、过 politeness）：站点内建搜索（模板化；每次最多 2 个站点，逐站点如实报告）；
 //! - L3（联网、过 politeness）：Wikidata P856 官方网站（offline 模式下不尝试）；
 //! - L4（联网、过 politeness）：候选域名 robots.txt 的 Sitemap 声明（只报告，不提升置信度）；
 //! - L5（联网、过 politeness）：**显式 opt-in** 的 SERP 兜底（参数 allow_serp_fallback=true），
@@ -12,8 +13,8 @@
 //!
 //! 诚实性（ADR-0006）：
 //! - 永远给**候选列表**（绝不单选），每条带 url/score/evidence/channel；
-//! - 内置映射（95 分）或 Wikidata P856（90 分）才算"可靠定位"；只有直推（≤70 分）
-//!   或零命中时**显式降级**并给 actionable（reason/detected/next_steps）；
+//! - 内置映射（95 分）或 Wikidata P856（90 分）才算"可靠定位"；直推（≤70）、
+//!   站点内建搜索（55/58，**永远低于可靠阈值**）、sitemap 声明（不参与打分）或零命中都显式降级；
 //! - L3 失败/被 robots 拦下时**如实说卡在哪一步**（不静默当成"没找到"）。
 
 use serde_json::{Value, json};
@@ -32,6 +33,10 @@ use crate::dispatch::{fail, parse, to_value};
 use crate::params::ResolveSiteParams;
 
 /// 可靠定位阈值：内置映射 95、Wikidata P856 90；直推最高 70。60 分及以上算可靠。
+///
+/// 编译期不变量：L2 的两种分值都必须低于该阈值（L2 永远不能把 confidence 变成 high）。
+const _: () = assert!(webctl_web::resolve_site::site_search::SCORE_SINGLE < CONFIDENT_SCORE);
+const _: () = assert!(webctl_web::resolve_site::site_search::SCORE_CORROBORATED < CONFIDENT_SCORE);
 const CONFIDENT_SCORE: u8 = 60;
 
 /// 默认候选数。
@@ -76,10 +81,10 @@ async fn resolve_with_layers(
             candidates = merge(vec![candidates, outcome.candidates], max_candidates);
             site_search = outcome.reports;
         }
-        // L3 Wikidata P856（只有还没可靠时才跑，命中即停）。
-        let outcome = wikidata::resolve(site, &L3Config::default(), &fetcher).await;
-        l3_failure = outcome.failure;
+        // L3 Wikidata P856：**只有还没可靠时才发请求**（L2 命中即零请求）。
         if best_score(&candidates) < CONFIDENT_SCORE {
+            let outcome = wikidata::resolve(site, &L3Config::default(), &fetcher).await;
+            l3_failure = outcome.failure;
             layers.push("public-api");
             candidates = merge(vec![candidates, outcome.candidates], max_candidates);
         }
