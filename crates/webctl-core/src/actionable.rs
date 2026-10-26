@@ -260,6 +260,19 @@ mod tests {
         );
     }
 
+    /// 加号组合（引擎聚合分页时用 `from+limit`）：按段匹配到已知来源。
+    #[test]
+    fn plus_separated_from_matches_any_token() {
+        assert_eq!(
+            plan_for("pagination-loop+js-render").map(|plan| plan.reason),
+            Some("pagination-loop-detected")
+        );
+        assert_eq!(
+            plan_for("js-render+pagination-max-pages").map(|plan| plan.reason),
+            Some("page-limit-reached")
+        );
+    }
+
     /// 动态前缀：`content-type:pdf` 这类形态按前缀命中。
     #[test]
     fn prefix_rules_cover_dynamic_sources() {
