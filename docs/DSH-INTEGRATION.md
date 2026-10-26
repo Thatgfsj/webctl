@@ -14,7 +14,7 @@
 | # | DSH 约束 | 代码位置 | 验证方式 | 结论 |
 |---|---|---|---|---|
 | 1 | `toolCallTimeoutMs` 默认 **60,000ms** | **工具调用预算**：`DEFAULT_CALL_BUDGET_MS = 60_000`（[`crates/webctl-mcp/src/server.rs`](../crates/webctl-mcp/src/server.rs)，生产 `run_stdio → WebctlMcp::new()` 采用，MCP-09 断言 60s）；**网络请求预算**：`timeout_ms = 30_000`（[`crates/webctl-core/src/config.rs`](../crates/webctl-core/src/config.rs)，可配置，只影响单次取回） | 代码核对 + MCP-09 用例 | **通过，但有边界**：调用预算与 DSH 默认工具超时**相等**（都是 60s），极端情况下可能被 harness 先截断；长任务仍应分片（§3） |
-| 2 | `maxInstructionBytes` 默认 **32,768** | [`crates/webctl-mcp/src/instructions.rs`](../crates/webctl-mcp/src/instructions.rs)：`MAX_INSTRUCTIONS_BYTES = 32 * 1024` | 实测 `initialize` 响应 `instructions`：**v0.1.0 资产 = 2222 字节**（见 §2.1）；**2026-10-17 重测：PR #121（随 ADR-0005 同步文案）= 2441 字节；#114（第 16 个工具）= 2531 字节；#115（可行动降级 + 复审收窄口径）≈ 2807 字节**；2026-10-25（0.2 M1 第 17 个工具 `resolve_site`）= 2973 字节；0.2 M3 让 resolve_site 联网（L3）= 3049 字节；0.2 M4 增 L4 的 sitemap 声明 = 3095 字节；0.2 M5 增 L5 兜底说明 = 3162 字节；0.2 M2 增 L2 说明 = 3164 字节；**#124 降级可行动信息全量覆盖 = 3183 字节**，余量 **10.3×** | **通过** |
+| 2 | `maxInstructionBytes` 默认 **32,768** | [`crates/webctl-mcp/src/instructions.rs`](../crates/webctl-mcp/src/instructions.rs)：`MAX_INSTRUCTIONS_BYTES = 32 * 1024` | 实测 `initialize` 响应 `instructions`：**v0.1.0 资产 = 2222 字节**（见 §2.1）；**2026-10-17 重测：PR #121（随 ADR-0005 同步文案）= 2441 字节；#114（第 16 个工具）= 2531 字节；#115（可行动降级 + 复审收窄口径）≈ 2807 字节**；2026-10-25（0.2 M1 第 17 个工具 `resolve_site`）= 2973 字节；0.2 M3 让 resolve_site 联网（L3）= 3049 字节；0.2 M4 增 L4 的 sitemap 声明 = 3095 字节；0.2 M5 增 L5 兜底说明 = 3162 字节；0.2 M2 增 L2 说明 = 3164 字节；**#124 降级可行动信息全量覆盖 = 3098 字节**，余量 **10.6×** | **通过** |
 | 3 | stdio 协商：**先起探测进程，再起服务进程** | 无全局锁/单实例限制；状态只在 state dir（cookie 会话） | 实测"探测→服务"与"两个并发服务"四种启动全部正常应答（见 §2.2） | **通过** |
 | 4 | 连接失败：harness 仍启动但**工具不出现** | — | 排查法见 §4 | **已记录**（属 DSH 侧行为） |
 | 5 | 工具名 `mcp__<serverName>__<rawName>` | [`crates/webctl-mcp/src/tools.rs`](../crates/webctl-mcp/src/tools.rs)：`TOOL_NAMES` 17 个**裸名** | `webctl mcp --list-tools` 输出 17 个裸名（`fetch` / `extract` / …） | **通过**（前缀由 DSH 施加，webctl 不自行加前缀） |
@@ -31,7 +31,7 @@ $ ./webctl mcp   # 发送 initialize（JSON-RPC over stdio）
   serverInfo = {'name': 'webctl', 'version': '0.1.0'}
 ~~~
 
-> **2026-10-17 重测三次**：随 [ADR-0005](../docs/adr/0005-embedded-js-engine.md) 同步文案（PR #121）= **2441 字节**；#114 新增第 16 个工具 `embedded_data` = **2531 字节**；#115 增补可行动降级说明（含复审后的口径收窄）= **2807 字节**；0.2 M1 增第 17 个工具 `resolve_site` = 2973 字节；0.2 M3 让 resolve_site 联网（L3）= 3049 字节；0.2 M4 增 L4 的 sitemap 声明 = 3095 字节；0.2 M5 增 L5 兜底说明 = 3162 字节；0.2 M2 增 L2 说明 = 3164 字节；**#124 降级可行动信息全量覆盖 = 3183 字节**（上限 32,768，余量 **10.3×**）。上面的 2222 是 **v0.1.0** 当时的快照，保留为历史。
+> **2026-10-17 重测三次**：随 [ADR-0005](../docs/adr/0005-embedded-js-engine.md) 同步文案（PR #121）= **2441 字节**；#114 新增第 16 个工具 `embedded_data` = **2531 字节**；#115 增补可行动降级说明（含复审后的口径收窄）= **2807 字节**；0.2 M1 增第 17 个工具 `resolve_site` = 2973 字节；0.2 M3 让 resolve_site 联网（L3）= 3049 字节；0.2 M4 增 L4 的 sitemap 声明 = 3095 字节；0.2 M5 增 L5 兜底说明 = 3162 字节；0.2 M2 增 L2 说明 = 3164 字节；**#124 降级可行动信息全量覆盖 = 3098 字节**（上限 32,768，余量 **10.6×**）。上面的 2222 是 **v0.1.0** 当时的快照，保留为历史。
 
 ### 2.2 二次启动 / 并发启动（约束 3）
 

@@ -488,7 +488,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 ### 6.8a2 #124 降级可行动信息全量覆盖（`webctl_core::actionable` + 扫描用例）
 
 - `crates/webctl-core/src/actionable.rs` 单测 **4 条**：`combined_from_matches_any_token`（组合串 `char-budget,max-results` 按段匹配）、`prefix_rules_cover_dynamic_sources`（`content-type:pdf` 前缀规则）、`attach_fills_actionable_but_respects_existing_and_no_channel`（已降级才补、已有不覆盖、`NO_CHANNEL` 不补）、`registry_is_well_formed`（键唯一、reason 非空、通道名是小写工具名）。
-- `crates/webctl-mcp/tests/degrade_reasons.rs` **5 条**：`every_degraded_from_in_source_is_registered`（**扫描 `crates/*/src` 里 `Envelope::degraded(` 附近的来源字面量**，未登记即失败）、`fetch_truncation_carries_actionable`（传输截断 → `response-truncated` + `download`）、`extract_max_results_carries_actionable`（`result-limit-reached` + `paginate`）、`table_span_clamp_carries_actionable`（`table-span-clamped`，通道为空数组）、`ok_envelope_has_no_actionable`（干净成功不得带）。
+- `crates/webctl-mcp/tests/degrade_reasons.rs` **6 条**：`every_degraded_from_in_source_is_registered`（**扫描 `crates/*/src` 里 `Envelope::degraded(` 附近的来源字面量**，未登记即失败）、`fetch_truncation_carries_actionable`（传输截断 → `response-truncated` + `download`）、`extract_max_results_carries_actionable`（`result-limit-reached` + `paginate`）、`table_span_clamp_carries_actionable`（`table-span-clamped`，通道为空数组）、`ok_envelope_has_no_actionable`（干净成功不得带）、`pagination_fetch_failure_carries_actionable`（分页聚合失败 `pagination-fetch-failed` 也带 actionable——复审指出的真实路径）。另：分页的 `pagination-loop` / `pagination-max-pages` / `pagination-degraded-page` 均已在 `webctl_core::actionable` 登记，组合来源按 `,` 与 `+` 两种拼法分段匹配。
 - MCP 侧 `limit_degradation_carries_actionable`（原 `limit_degradation_has_no_actionable_yet` 已改写）断言 LIMIT 也带 actionable 且通道是真工具。
 
 ### 6.8b #114 内嵌结构化数据（EMBED-01…EMBED-13）

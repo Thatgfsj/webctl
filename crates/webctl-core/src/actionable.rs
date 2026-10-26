@@ -2,7 +2,7 @@
 //!
 //! **单一来源**：`Envelope::degraded` 在构造时按 `degraded_from` 自动补 `meta.actionable`。
 //! 新增一条降级路径必须在这里登记（给出 reason + next_steps），或显式登记进 `NO_CHANNEL`
-//! （表示"确实没有别的通道可试"，不是漏登记）。`crates/webctl-web/tests/degrade_reasons.rs`
+//! （表示"由上层自带精确 actionable"，不是漏登记）。`crates/webctl-web/tests/degrade_reasons.rs`
 //! 会扫描源码里的 `degraded_from` 字面量做机械核对。
 //!
 //! 纪律：`next_steps` 里只能是**真实存在的工具名**（`check-skill-tools` 与 MCP 侧反查用例守护）。
@@ -59,6 +59,20 @@ pub const PLANS: &[(&str, Plan)] = &[
         "pagination-loop",
         Plan {
             reason: "pagination-loop-detected",
+            next_steps: &["session"],
+        },
+    ),
+    (
+        "pagination-fetch-failed",
+        Plan {
+            reason: "page-fetch-failed",
+            next_steps: &["session", "paginate"],
+        },
+    ),
+    (
+        "pagination-degraded-page",
+        Plan {
+            reason: "page-degraded",
             next_steps: &["session"],
         },
     ),
@@ -155,16 +169,16 @@ pub const NO_CHANNEL: &[&str] = &[
     // 由 degrade::guard 自带完整 actionable（reason/detected/next_steps）。
     "js-render",
     "js-render-failed",
-    // 由 session 引擎在聚合分页结果时自带。
-    "pagination-fetch-failed",
-    "content-requires-client-side-render",
+    // 分页聚合来源（pagination-*）已登记进 PLANS；这里只剩"由上层自带精确 actionable"的。
+
     // 由 resolve_site 工具自带（reason 随层数变化）。
     "resolve-site",
 ];
 
 /// 按 `degraded_from` 找计划：组合串（`a,b`）逐段匹配，先命中先用。
 pub fn plan_for(from: &str) -> Option<Plan> {
-    for token in from.split(',').map(str::trim) {
+    // 组合来源有两种拼法：逗号（extract 的截断原因）与加号（session 的 from+limit）。
+    for token in from.split([',', '+']).map(str::trim) {
         if let Some((_, plan)) = PLANS.iter().find(|(key, _)| *key == token) {
             return Some(*plan);
         }

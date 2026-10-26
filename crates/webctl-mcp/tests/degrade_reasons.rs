@@ -157,3 +157,33 @@ fn ok_envelope_has_no_actionable() {
     assert!(envelope.meta.actionable.is_none());
     assert_eq!(envelope.validate(), Ok(()));
 }
+
+/// 分页聚合失败（后续页 404）：`pagination-fetch-failed` 也必须带 actionable（#124）。
+///
+/// 复审指出的真实路径：前面页面都是干净 OK（没有可继承的 actionable），后续页 fetch 失败——
+/// 这条信封以前不带任何 actionable，"所有降级都带"就成了过度宣称。
+#[tokio::test]
+async fn pagination_fetch_failure_carries_actionable() {
+    let page1 = "<html><body><p>page one</p><a rel=\"next\" href=\"/page2\">next</a></body></html>";
+    let server = http_fixture::Server::start_with(vec![
+        ("/page1", http_fixture::Response::html(page1)),
+        ("/page2", http_fixture::Response::status(404)),
+    ])
+    .await;
+    let dir = std::env::temp_dir().join(format!("webctl-124-paginate-{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&dir);
+    let engine = webctl_web::session::SessionEngine::with_store(
+        "pagination-124",
+        webctl_web::session::SessionStore::new(dir),
+    )
+    .expect("engine");
+    let envelope = engine.paginate(&server.url("/page1"), Some(3)).await;
+    assert_eq!(envelope.code, ErrorCode::Degraded, "{}", envelope.error);
+    assert_eq!(
+        envelope.meta.degraded_from.as_deref(),
+        Some("pagination-fetch-failed")
+    );
+    let actionable = envelope.meta.actionable.expect("必须带 actionable");
+    assert_eq!(actionable.reason, "page-fetch-failed");
+    assert!(actionable.next_steps.contains(&"session".to_owned()));
+}
