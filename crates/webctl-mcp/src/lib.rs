@@ -24,6 +24,7 @@ pub mod caps;
 pub mod context;
 mod degradation;
 pub mod dispatch;
+mod embedded_tool;
 pub mod instructions;
 pub mod ownership;
 pub mod params;

@@ -70,6 +70,13 @@ pub const PLANS: &[(&str, Plan)] = &[
         },
     ),
     (
+        "channel-fetch-failed",
+        Plan {
+            reason: "feed-unavailable",
+            next_steps: &["fetch"],
+        },
+    ),
+    (
         "pagination-degraded-page",
         Plan {
             reason: "page-degraded",

@@ -333,7 +333,7 @@ fn element_text(html: &str, name: &str) -> Option<String> {
 }
 
 /// 取属性值（支持单/双引号，也支持无引号；属性名大小写不敏感）。
-fn attr(attrs: &str, name: &str) -> Option<String> {
+pub(crate) fn attr(attrs: &str, name: &str) -> Option<String> {
     let lowered = attrs.to_ascii_lowercase();
     let mut cursor = 0usize;
     while let Some(rel) = lowered[cursor..].find(name) {

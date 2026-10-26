@@ -15,7 +15,6 @@ use url::Url;
 use webctl_core::{CapsReport, Envelope, ErrorCode, Trust};
 use webctl_web::doc::{DocOptions, doc_text, json_query};
 use webctl_web::extract::{self, ExtractOptions, LinkFilter, SearchOptions};
-use webctl_web::parse::{EmbeddedOptions, extract_embedded};
 use webctl_web::politeness::{PoliteFetcher, PolitenessConfig};
 use webctl_web::session::{FormFill, SessionEngine, SessionState};
 use webctl_web::transport::{Fetched, fetch};
@@ -45,7 +44,7 @@ pub async fn dispatch(ctx: &McpContext, name: &str, args: Value) -> Option<Value
         "cookies" => tool_cookies(ctx, &args).await,
         "json_query" => tool_json_query(ctx, &args).await,
         "doc_text" => tool_doc_text(ctx, &args).await,
-        "embedded_data" => tool_embedded_data(ctx, &args).await,
+        "embedded_data" => crate::embedded_tool::tool_embedded_data(ctx, &args).await,
         "download" => tool_download(ctx, &args).await,
         "robots" => tool_robots(ctx, &args).await,
         "resolve_site" => crate::site::tool_resolve_site(ctx, &args).await,
@@ -103,28 +102,28 @@ async fn fetch_target(ctx: &McpContext, url: &str) -> Envelope<Fetched> {
 
 /// 解析 html/text 输入：url 与 html 二选一。
 /// 页面 HTML 的来源结果。`render` 记录"是否尝试渲染、以及渲染失败的原因"。
-struct Source {
+pub(crate) struct Source {
     /// 供解析/抽取使用的 HTML（渲染成功时是渲染后的，失败时是原始 HTML）。
-    html: String,
+    pub(crate) html: String,
     /// 渲染失败的说明；`None` 表示没渲染或渲染成功。
-    render: Option<RenderNote>,
+    pub(crate) render: Option<RenderNote>,
 }
 
 /// 渲染失败时写进信封的降级说明（A3：不许伪装成功）。
-struct RenderNote {
+pub(crate) struct RenderNote {
     /// 降级来源标签。
-    degraded_from: String,
+    pub(crate) degraded_from: String,
     /// 机器可读原因（引擎给出的类别）。
-    reason: String,
+    pub(crate) reason: String,
     /// 观察到的证据（原始错误文本）。
-    detected: Vec<String>,
+    pub(crate) detected: Vec<String>,
 }
 
 /// 把渲染失败的降级**如实**写进工具自己的信封：置 `DEGRADED`、写 `degraded_from`，
 /// 并带上 `meta.actionable`（原因 + 证据 + 建议通道）。
 ///
 /// 注意：**不**把原本可用的结果改成失败——原始 HTML 仍然可用，所以是降级而不是失败。
-fn apply_render_degradation(mut envelope: Value, note: Option<&RenderNote>) -> Value {
+pub(crate) fn apply_render_degradation(mut envelope: Value, note: Option<&RenderNote>) -> Value {
     let Some(note) = note else {
         return envelope;
     };
@@ -163,7 +162,7 @@ fn render_if_enabled(ctx: &McpContext, html: &str, is_html: bool) -> (String, Op
     }
 }
 
-async fn resolve_source(
+pub(crate) async fn resolve_source(
     ctx: &McpContext,
     url: Option<&str>,
     html: Option<&str>,
@@ -721,36 +720,6 @@ async fn tool_doc_text(ctx: &McpContext, args: &Value) -> Value {
     apply_upstream_degradation(
         to_value(doc_text(&bytes, &DocOptions::default())),
         upstream.as_ref(),
-    )
-}
-
-/// embedded_data：抽取页面内嵌的结构化数据。
-///
-/// 零 JS 执行：只解析 HTML 里已经存在的 JSON 载荷（JSON-LD / script[type=json] /
-/// 内联状态 / data-page）。语义与 `webctl_web::parse::extract_embedded` 一致：
-/// 零结果是合法的空结果，容器在但全部解析失败才是 PARSE。
-async fn tool_embedded_data(ctx: &McpContext, args: &Value) -> Value {
-    let params = match parse::<EmbeddedDataParams>(args) {
-        Ok(params) => params,
-        Err(value) => return value,
-    };
-    let source = match resolve_source(ctx, params.url.as_deref(), params.html.as_deref()).await {
-        Ok(source) => source,
-        Err(value) => return value,
-    };
-    let mut options = EmbeddedOptions::default();
-    if let Some(value) = params.max_entries {
-        options.max_entries = value;
-    }
-    if let Some(value) = params.max_entry_bytes {
-        options.max_entry_bytes = value;
-    }
-    if let Some(value) = params.include_inline_state {
-        options.include_inline_state = value;
-    }
-    apply_render_degradation(
-        to_value(extract_embedded(&source.html, &options)),
-        source.render.as_ref(),
     )
 }
 

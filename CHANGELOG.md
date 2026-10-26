@@ -8,6 +8,7 @@
 
 ### Added
 
+- **站点级通道取回**（[#117](https://github.com/Thatgfsj/webctl/issues/117)）：`embedded_data` 新增 `fetch_channels`（**默认 false**）——把页面声明的 RSS/Atom 通道过 politeness 取回并解析条目（每次最多 2 个通道、每通道 10 条）；robots 拦下**不请求**并逐通道如实报 `blocked`；全失败显式 `DEGRADED` + `channel-fetch-failed` + `feed-unavailable`；oEmbed 只报声明不拉取；元数据/条目与正文严格分开（`source` 区分）。
 - **浏览器上下文 CLI 开关**（[#183](https://github.com/Thatgfsj/webctl/issues/183)）：`--browser-context <PATH>` / `--no-browser-context`（互斥；显式开关优先于 `WEBCTL_BROWSER_CONTEXT`；显式文件坏了**失败**而不是静默）。
 - **表单提交与 CLI `fetch` 也注入浏览器上下文**（同 #183）：`SessionEngine::send` 改用 `inject_headers`（同一 SEC-06 跨源规则与去重优先级），四条取回路径行为一致。
 

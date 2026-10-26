@@ -11,6 +11,7 @@
 //! 只是离线通道的显式标记；默认门禁 `cargo test` 同样离线（见 `tests/offline_lane.rs`）。
 
 pub mod browser_context;
+pub mod channels;
 pub mod content_type;
 pub mod degrade;
 pub mod doc;
