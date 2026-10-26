@@ -40,7 +40,7 @@
 
 | 资产 | 类型 | 内容 / 目标 |
 |---|---|---|
-| `webctl-x86_64-unknown-linux-musl.tar.xz` (+ `.sha256`) | 压缩包 | **v0.1.1 起产出**（33,864,888 字节（解压后二进制），`ldd` 报 `statically linked`）；`webctl-mcp` 同款 |
+| `webctl-x86_64-unknown-linux-musl.tar.xz` (+ `.sha256`) | 压缩包 | **v0.1.1 起产出**（**v0.2.0 实测 34,122,368 字节**（解压后二进制），`ldd` 报 `statically linked`）；`webctl-mcp` 同款 |
 | `webctl-x86_64-unknown-linux-gnu.tar.xz` (+ `.sha256`) | 压缩包 | 同上（glibc） |
 | `webctl-aarch64-apple-darwin.tar.xz` (+ `.sha256`) | 压缩包 | 同上 |
 | `webctl-x86_64-apple-darwin.tar.xz` (+ `.sha256`) | 压缩包 | 同上 |
@@ -53,7 +53,7 @@
 以下安装命令取自 **v0.2.0 的真实资产**（`dist plan` 的 `install_hint`；2026-10-26 实测可用）：
 
 ~~~bash
-# Linux / macOS（v0.1.2）
+# Linux / macOS（v0.2.0）
 curl --proto '=https' --tlsv1.2 -LsSf https://github.com/Thatgfsj/webctl/releases/download/v0.2.0/webctl-installer.sh | sh
 
 # Windows PowerShell

@@ -400,7 +400,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 | **状态环境工具** | 临时 state dir、权限检查、并发进程编排、文件损坏注入 | STATE-*、SEC-03,12 |
 | **资源观测工具** | fd 计数、RSS 采样、子进程计数、CPU 空闲采样 | RES-*、SEC-10、MCP-14 |
 | **真站 smoke 脚本** | `tests/e2e/run-real.sh`，可跳过、遵守 robots | E2E-* |
-| **体积基线记录** | 见 `docs/size-baseline.json`（**v0.1.2 真实发布资产实测，2026-10-20**）：glibc **34,496,768 B**（动态）、musl **33,864,888 B**（静态）；两者 `source=release-asset`、`commit=30d1593`（sha256 已校验） |
+| **体积基线记录** | 见 `docs/size-baseline.json`（**v0.2.0 真实发布资产实测，2026-10-26**）：glibc **34,767,656 B**（动态，p50 6ms）、musl **34,122,368 B**（静态，p50 5ms）；两者 `source=release-asset`、`commit=b2185b3`（sha256 已校验） |
 
 ## 5. 覆盖缺口（不假装能测）
 
