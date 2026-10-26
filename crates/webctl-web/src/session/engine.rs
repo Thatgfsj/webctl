@@ -579,6 +579,34 @@ impl SessionEngine {
                 }
                 request = request.header(name.as_str(), value.as_str());
             }
+            // 0.2 M0 收尾（#183）：会话 GET/表单 POST 同样注入宿主浏览器上下文。
+            // 规则与 transport 完全一致：SEC-06 跨源不带凭据 + 去重优先级
+            // （显式 user_agent / jar cookie / 调用方 headers  >  上下文）。
+            if let Some(context) = &self.options.browser_context {
+                let host = current.host_str().unwrap_or_default();
+                let mut taken: Vec<String> = Vec::new();
+                if self.options.user_agent.is_some() {
+                    taken.push("user-agent".to_owned());
+                }
+                // 只有 jar 真的会发 Cookie 时才让上下文让位（空 jar 不得压制上下文 cookie）。
+                if self.jar.cookie_header(&current).is_some() {
+                    taken.push("cookie".to_owned());
+                }
+                for (name, _) in &self.options.headers {
+                    taken.push(name.to_ascii_lowercase());
+                }
+                for (name, value) in crate::browser_context::inject_headers(
+                    context,
+                    host,
+                    !cross_origin,
+                    self.options.user_agent.as_deref(),
+                ) {
+                    if taken.iter().any(|item| item == &name) {
+                        continue;
+                    }
+                    request = request.header(name, value);
+                }
+            }
             // 重定向可能重发同一请求体（307/308），因此这里只能借用而不能 take()；
             // 303（以及 POST 的 301/302）会在下面把 current_body 清空，转成无体 GET。
             if let Some((content_type, bytes)) = &current_body {

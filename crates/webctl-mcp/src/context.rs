@@ -30,6 +30,17 @@ impl McpContext {
         }
     }
 
+    /// 覆盖浏览器上下文（CLI 开关解析后的结果，见 #183）。
+    ///
+    /// 传 None 表示**显式不注入**（对应 --no-browser-context），而不是"沿用环境变量"。
+    pub fn with_browser_context(
+        mut self,
+        context: Option<webctl_web::browser_context::BrowserContext>,
+    ) -> Self {
+        self.browser_context = context;
+        self
+    }
+
     /// 未绑定的上下文（测试或独立运行）。
     pub fn unbound(config: Config) -> Self {
         Self {
@@ -64,11 +75,10 @@ impl McpContext {
 ///
 /// 解析失败会向 stderr 打印原因并返回 `None` —— **不静默**（用户需要知道上下文没生效）。
 pub fn parse_browser_context(text: &str) -> Option<webctl_web::browser_context::BrowserContext> {
-    match serde_json::from_str::<webctl_web::browser_context::BrowserContext>(text) {
-        Ok(context) if context.is_empty() => None,
-        Ok(context) => Some(context),
+    match webctl_web::browser_context::parse_json(text) {
+        Ok(context) => context,
         Err(error) => {
-            eprintln!("webctl: 浏览器上下文解析失败，已忽略：{error}");
+            eprintln!("webctl: {error}，已忽略");
             None
         }
     }
@@ -76,11 +86,10 @@ pub fn parse_browser_context(text: &str) -> Option<webctl_web::browser_context::
 
 /// 环境变量 `WEBCTL_BROWSER_CONTEXT` 指向 JSON 文件；未设置即 `None`。
 pub fn browser_context_from_env() -> Option<webctl_web::browser_context::BrowserContext> {
-    let path = std::env::var("WEBCTL_BROWSER_CONTEXT").ok()?;
-    match std::fs::read_to_string(&path) {
-        Ok(text) => parse_browser_context(&text),
+    match webctl_web::browser_context::load_from_env() {
+        Ok(context) => context,
         Err(error) => {
-            eprintln!("webctl: 读取浏览器上下文文件失败（{path}）：{error}");
+            eprintln!("webctl: {error}，已忽略");
             None
         }
     }

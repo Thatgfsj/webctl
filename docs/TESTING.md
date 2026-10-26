@@ -278,6 +278,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 | CLI-06 | offline | `--offline` 下零网络访问（fixture 计数为 0） | L0 | PR 10 |
 | CLI-07 | 帮助 | `--help` 列出全部子命令且与文档一致 | L0 | PR 10 |
 | CLI-08 | 未知参数 | 非零退出 + 可读提示 | L0 | PR 10 |
+| CLI-13 | 浏览器上下文 CLI 开关 | `--browser-context` 注入 UA/accept-language/cookie；`--no-browser-context` 压过环境变量；两开关互斥（退出码 2）；坏文件**失败**不静默（[#183](https://github.com/Thatgfsj/webctl/issues/183)） | L0 | 0.2.1 |
 | CLI-09 | 管道友好 | 单行 JSON 输出可直接管道给下游工具 | L0 | PR 10 |
 | CLI-10 | 无凭据输出 | 任何输出/日志不含 cookie/令牌（正则） | L0+L3 | PR 12 |
 | CLI-11 | 环境变量文档 | 代码使用的环境变量全部在文档中列出 | L0 | PR 10 |
@@ -641,6 +642,12 @@ PR 11 留下的 `#[ignore]` 交接哨兵及其常量已随 #82 删除；随后 `
 服务 ENV-06、STATE-06、MCP-01…14、SEC-09。
 - **MCP-SEC09-ISO（隔离度补充）**：`crates/webctl-mcp/src/dispatch.rs` 的 `sec_09_mcp_dispatcher_is_the_one_that_redacts` —— 手工构造**仍含明文凭据**的 `Fetched`，只调 `dispatch::redact_fetched_envelope`（**不经过** `transport::finish`），断言明文消失且非敏感头保留。
   为什么需要它：走完整取回流程的用例（`sec_09_mcp_fetch_redacts_credentials`）**删掉 MCP 侧那次调用仍会通过**（取回层已脱敏），只能证明"系统整体会脱敏"；本用例删掉 `redact_fetched` 调用则**必须失败**（反向对照已实测）。
+
+### 6.9b #183 浏览器上下文：CLI 开关与两处注入
+
+`crates/webctl-web/tests/browser_context_session.rs` **4 条**（原始 socket fixture，记录请求头）：`session_get_injects_context_headers`（会话 GET 注入 UA / accept / accept-language / referer + 同域 cookie，跨域 cookie 不出现）、`session_post_injects_context_headers`（**表单 POST** 同样注入——此前 `SessionEngine::send` 不读上下文）、`jar_cookie_wins_over_context_cookie`（jar 发 Cookie 时上下文让位，只有一个 Cookie 行与一个 UA）、`without_context_nothing_is_injected`（无上下文时不注入，行为不变）。
+
+`crates/webctl/tests/cli.rs` 增 **5 条**：`browser_context_flag_injects_headers_on_fetch`（`--browser-context` 的 UA / accept-language / cookie 真的到了 fixture）、`no_browser_context_overrides_env`（`--no-browser-context` 压过 `WEBCTL_BROWSER_CONTEXT`）、`env_browser_context_is_still_honored`（不给开关仍认环境变量）、`browser_context_flags_are_mutually_exclusive`（clap 退出码 2）、`broken_browser_context_file_fails_loudly`（显式文件坏了必须失败，不静默）。共享装载逻辑在 `webctl-web/src/browser_context.rs` 的 `parse_json` / `load_file` / `load_from_env`，MCP 与环境变量入口复用同一实现。
 
 ### 6.10 PR 12 安全与凭据（议题 #21）
 

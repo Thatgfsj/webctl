@@ -14,6 +14,7 @@
 //! - 不保证绕过任何反爬；被拦即 `BLOCKED`（由上层判定）。
 
 use std::fmt;
+use std::path::Path;
 
 use serde::Deserialize;
 
@@ -87,6 +88,30 @@ impl BrowserContext {
             out.push(("cookie", cookies.join("; ")));
         }
         out
+    }
+}
+
+/// 从 JSON 文本解析上下文（CLI / MCP 共用）：空上下文返回 `Ok(None)`。
+///
+/// 解析失败返回 `Err(可读说明)` 而不是静默忽略——上下文没生效时必须让人看得见。
+pub fn parse_json(text: &str) -> Result<Option<BrowserContext>, String> {
+    let context: BrowserContext = serde_json::from_str(text)
+        .map_err(|error| format!("浏览器上下文 JSON 解析失败：{error}"))?;
+    Ok((!context.is_empty()).then_some(context))
+}
+
+/// 从 JSON 文件装载上下文：读失败 / 解析失败都是 `Err`。
+pub fn load_file(path: &Path) -> Result<Option<BrowserContext>, String> {
+    let text = std::fs::read_to_string(path)
+        .map_err(|error| format!("读取浏览器上下文文件失败（{}）：{error}", path.display()))?;
+    parse_json(&text)
+}
+
+/// 环境变量 `WEBCTL_BROWSER_CONTEXT` 指向的文件（未设置或为空 → `Ok(None)`）。
+pub fn load_from_env() -> Result<Option<BrowserContext>, String> {
+    match std::env::var("WEBCTL_BROWSER_CONTEXT") {
+        Ok(path) if !path.trim().is_empty() => load_file(Path::new(path.trim())),
+        _ => Ok(None),
     }
 }
 
