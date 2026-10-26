@@ -577,6 +577,9 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 
 ### 6.8e #117 站点级通道与元数据（`parse/site_channels.rs`，第 1 步）
 
+- `crates/webctl-web/src/parse/feed.rs` 单元 **5 条**（#117 第 2 步）：`parses_rss_items_in_order`、`parses_atom_links_via_href`（Atom 的 `link href`）、`unknown_document_is_empty_with_note`、`empty_feed_is_not_an_error`、`entity_decoded_once`。
+- `crates/webctl-web/src/channels.rs` 单测 **2 条**：状态序列化、`oembed_is_skipped_without_network`（oEmbed 只报声明、不拉取）。
+- `crates/webctl-mcp/tests/channel_fetch.rs` **5 条**（#117 第 2 步接线，纯本地 fixture）：`feed_channels_are_off_by_default`（默认 **零请求**）、`feed_channels_opt_in_parses_rss`（取回并解析条目；**og:title 只作为 og-meta 元数据条目**，不冒充正文）、`feed_channels_opt_in_parses_atom`、`robots_disallow_blocks_feed_without_request`（**requests==0** 且 status=blocked）、`all_channels_failing_degrades_explicitly`（全失败 → `DEGRADED` + `channel-fetch-failed` + `feed-unavailable`）。
 - `crates/webctl-web/src/parse/site_channels.rs` 单元 **11 条**（议题 [#117](https://github.com/Thatgfsj/webctl/issues/117) 第 1 步，**尚未接线**）：
   `metadata_carries_an_explicit_source`（**每条元数据带 `source`**，据此区分"元数据"与"正文"——验收要求）、
   `channels_are_discovered_in_document_order`（rss/atom/oembed 保文档序）、

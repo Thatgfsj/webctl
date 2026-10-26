@@ -94,6 +94,12 @@ pub struct EmbeddedReport {
     ///
     /// 只报告声明，**本函数不拉取任何网络**；可达性判定属接线后的取回步骤（含 politeness）。
     pub channels: Vec<Channel>,
+    /// **实际取回**的通道结果（`embedded_data` 的 `fetch_channels=true` 才有；默认 None）。
+    ///
+    /// 与 `metadata` 一样是"线索"而非正文：每条带 `status`（hit/empty/unavailable/blocked/skipped），
+    /// 被 robots 拦下的通道保留原因且**未发请求**。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub feed_channels: Option<Vec<crate::channels::FetchedChannel>>,
 }
 
 /// 从 HTML 中抽取内嵌结构化数据。
@@ -168,6 +174,7 @@ pub fn extract_embedded(html: &str, options: &EmbeddedOptions) -> Envelope<Embed
         failed,
         metadata,
         channels,
+        feed_channels: None,
     };
 
     // 找到容器但一条也没解析成功 → 这是真正的 PARSE（不是"零结果"）。

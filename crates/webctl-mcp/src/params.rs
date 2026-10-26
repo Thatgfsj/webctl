@@ -217,6 +217,10 @@ pub struct EmbeddedDataParams {
     pub max_entry_bytes: Option<usize>,
     /// 是否抽取内联状态赋值（window.__NUXT__ 这类）；默认 true。
     pub include_inline_state: Option<bool>,
+    /// 是否**取回**页面声明的 RSS/Atom 通道（默认 false；只处理 rss/atom，oEmbed 只报声明）。
+    ///
+    /// 取回一律过 politeness：robots 不允许就不请求（结果里 `status=blocked` 且保留原因）。
+    pub fetch_channels: Option<bool>,
 }
 
 /// download：文件下载到指定目录。
