@@ -48,7 +48,7 @@
 
 - [x] `caps --json` **如实反映**已实现能力，并**枚举 PLAN §3.7 的 17 个工具**（议题 #68 已关闭）—— 实测 5 个域 available + 枚举 17 个工具
 - [x] MCP `tools/list` 恰好 **17** 个且与 §3.7 逐字同序（MCP-02）；`check-skill-tools.sh` 校验 SKILL.md 一致（MCP-12）
-- [x] 服务器指令 **3164** 字节 ≤ 32768（MCP-05；历次重测：ADR-0005 文案 2441 → #114 加入 embedded_data（当时 16 个工具）2531 → #115 可行动降级 2692 → #115 复审收窄口径 2807 → 0.2 M1 加入 resolve_site 2973 → 0.2 M3 让 resolve_site 联网（L3）3049 → 0.2 M4 增 sitemap 声明（L4）3095 → 0.2 M5 增 L5 兜底说明 3162 → **0.2 M2 增 L2 说明 3164**，余量 **10.4×**）；配置不写 `toolOrder`（MCP-08）
+- [x] 服务器指令 **3098** 字节 ≤ 32768（MCP-05；历次重测：ADR-0005 文案 2441 → #114 加入 embedded_data（当时 16 个工具）2531 → #115 可行动降级 2692 → #115 复审收窄口径 2807 → 0.2 M1 加入 resolve_site 2973 → 0.2 M3 让 resolve_site 联网（L3）3049 → 0.2 M4 增 sitemap 声明（L4）3095 → 0.2 M5 增 L5 兜底说明 3162 → 0.2 M2 增 L2 说明 3164 → **#124 降级可行动信息全量覆盖 3098**，余量 **10.6×**）；配置不写 `toolOrder`（MCP-08）
 - [x] Release 资产在**干净环境**可下载即用（PKG-06）：**v0.1.1** 资产（glibc 与 **musl 静态**）下载 + `sha256sum -c` 校验通过 + `scripts/release-e2e.sh`（musl 加 `--static`）PASS；musl 资产另在**真实 Alpine(musl) 用户态**实测（§7）
 - [x] README 双语；安装命令已改为 **v0.1.1 真实资产**的 URL（不再声明「尚无发布版」）；无虚构徽章（PKG-07）
 - [x] 体积基线已从**v0.2.0 真实发布资产**回填（PKG-05）：glibc **34,767,656** 字节 / p50 6ms；musl 静态 **34,122,368** 字节 / p50 5ms；`source=release-asset`、`commit=b2185b3`（见 `docs/size-baseline.json`；v0.1.2 历史数字保留在 RELEASE §7）

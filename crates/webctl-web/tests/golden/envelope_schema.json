@@ -6,6 +6,15 @@
     },
     "error": "",
     "meta": {
+      "actionable": {
+        "detected": [
+          "degraded_from: response-body-truncated"
+        ],
+        "next_steps": [
+          "download"
+        ],
+        "reason": "response-truncated"
+      },
       "degraded_from": "response-body-truncated",
       "elapsed_ms": 7,
       "engine": "builtin",

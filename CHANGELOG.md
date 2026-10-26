@@ -11,6 +11,10 @@
 - **浏览器上下文 CLI 开关**（[#183](https://github.com/Thatgfsj/webctl/issues/183)）：`--browser-context <PATH>` / `--no-browser-context`（互斥；显式开关优先于 `WEBCTL_BROWSER_CONTEXT`；显式文件坏了**失败**而不是静默）。
 - **表单提交与 CLI `fetch` 也注入浏览器上下文**（同 #183）：`SessionEngine::send` 改用 `inject_headers`（同一 SEC-06 跨源规则与去重优先级），四条取回路径行为一致。
 
+### Changed
+
+- **所有降级信封都带 `meta.actionable`**（[#124](https://github.com/Thatgfsj/webctl/issues/124)）：原因码表集中到 `webctl_core::actionable`，由 `Envelope::degraded` 统一补（覆盖 LIMIT 截断、`extract` max-results、会话分页、文档/PDF、表格跨行列裁剪等）；`next_steps` 为空数组表示"确实没有别的通道"，不许编造。新增扫描用例防止"新增降级路径却忘登记"。
+
 ### Fixed
 
 - `doc_text` / `json_query` / `download` 在 JS 空壳页上**静默返回 OK**（[#125](https://github.com/Thatgfsj/webctl/issues/125)，[#182](https://github.com/Thatgfsj/webctl/pull/182)）：现在继承上游的 `DEGRADED` + `degraded_from=js-render` + `meta.actionable`，只继承 OK 结果（本工具自己的失败不被伪装成降级）。

@@ -24,9 +24,9 @@ pub const INSTRUCTIONS: &str = r#"webctl MCP server：纯内置的网页取回 /
 每次调用都返回 JSON 信封：ok / data / error / code / meta。
 - ok=true 且 code=OK：正常结果。
 - ok=true 且 code 为 DEGRADED / UNSUPPORTED / LIMIT：结果不完整，meta.degraded_from 非空，
-  说明降级来源。**部分降级另带 meta.actionable**（例如 degraded_from=js-render、resolve-site），
+  说明降级来源。**降级都带 meta.actionable**（reason/detected/next_steps；next_steps 为空表示没有别的通道），
   给出机器可读的 reason、观察到的 detected 证据与建议的 next_steps 通道（都是真实工具名）——
-  有就先读它再决定换哪条通道。**并非所有降级都带该字段**（如 LIMIT），不要假设它一定存在。
+  有就先读它再决定换哪条通道。
 - ok=false：失败，error 是可读原因，code 属于封闭集
   （TIMEOUT / NETWORK / BLOCKED / BAD_URL / PARSE / SESSION_LOST / INTERNAL 等）。
 工具级失败一律以信封返回，而不是 JSON-RPC 协议错误。

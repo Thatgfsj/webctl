@@ -5,6 +5,7 @@
 //!
 //! 本 crate 不含网络、解析或子进程逻辑：运行时零外部进程是硬约束（PLAN v0.4 §3.1）。
 
+pub mod actionable;
 pub mod caps;
 pub mod config;
 pub mod envelope;
