@@ -503,13 +503,12 @@ async fn ok_envelope_has_no_actionable() {
     assert!(envelope["meta"]["actionable"].is_null(), "{envelope}");
 }
 
-/// #115 的口径边界：**只有** JS 渲染降级带 `meta.actionable`。
+/// #124：**所有**降级都带 `meta.actionable`（原因码 + 建议通道）。
 ///
-/// 这条用例把"当前事实"钉住，防止两种偏差：① 文档说得比实现多（复审在 #123 抓到过）；
-/// ② 悄悄改了行为。等 [#124](https://github.com/Thatgfsj/webctl/issues/124) 把其余降级
-/// 路径接上后，本用例应当改成断言"该路径也带 actionable"。
+/// #115 只接了 JS 渲染一条路径，本用例当时钉的是"LIMIT 暂时没有 actionable"；
+/// #124 接线后改成断言**存在**且通道是真实工具（文档/实现不许再说两套）。
 #[tokio::test]
-async fn limit_degradation_has_no_actionable_yet() {
+async fn limit_degradation_carries_actionable() {
     let server = http_fixture::Server::start_with(vec![(
         "/static",
         http_fixture::Response::html(STATIC_QUOTES),
@@ -523,10 +522,22 @@ async fn limit_degradation_has_no_actionable_yet() {
     )
     .await;
     assert_eq!(code_of(&limited), "LIMIT", "{limited}");
+    let actionable = &limited["meta"]["actionable"];
     assert!(
-        limited["meta"]["actionable"].is_null(),
-        "LIMIT 路径目前不带 actionable（见 #124）；若要改，先改这条用例与文档：{limited}"
+        actionable.is_object(),
+        "LIMIT 降级必须带 actionable（#124）：{limited}"
     );
+    assert!(
+        actionable["reason"].as_str().is_some_and(|s| !s.is_empty()),
+        "原因码不得为空：{actionable}"
+    );
+    for step in actionable["next_steps"].as_array().expect("next_steps") {
+        let name = step.as_str().expect("channel");
+        assert!(
+            webctl_mcp::dispatch::is_known_tool(name),
+            "通道 {name} 必须是真实工具"
+        );
+    }
 }
 
 /// #115 复审修正：**传播路径不得丢掉 actionable**。

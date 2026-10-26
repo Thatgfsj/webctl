@@ -485,6 +485,12 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 - SESS-10 由既有 `crates/webctl-web/tests/session.rs::sess_10_spa_degrades`（连同 `sess_15_paginate_spa_stays_degraded`）覆盖；接入守卫后仍全绿。
 - **L1（可跳过、不作 CI 门禁）**：`crates/webctl-web/tests/e2e/run-real.sh` 承载 DEGRADE-01/02 与 E2E-01/02——静态锚点计数 10 条、JS 页断言降级码非 OK 且 `degraded_from` 非空；`WEBCTL_REAL!=1` 或无网络/缺 curl/cargo 时显式 SKIP。
 
+### 6.8a2 #124 降级可行动信息全量覆盖（`webctl_core::actionable` + 扫描用例）
+
+- `crates/webctl-core/src/actionable.rs` 单测 **4 条**：`combined_from_matches_any_token`（组合串 `char-budget,max-results` 按段匹配）、`prefix_rules_cover_dynamic_sources`（`content-type:pdf` 前缀规则）、`attach_fills_actionable_but_respects_existing_and_no_channel`（已降级才补、已有不覆盖、`NO_CHANNEL` 不补）、`registry_is_well_formed`（键唯一、reason 非空、通道名是小写工具名）。
+- `crates/webctl-mcp/tests/degrade_reasons.rs` **5 条**：`every_degraded_from_in_source_is_registered`（**扫描 `crates/*/src` 里 `Envelope::degraded(` 附近的来源字面量**，未登记即失败）、`fetch_truncation_carries_actionable`（传输截断 → `response-truncated` + `download`）、`extract_max_results_carries_actionable`（`result-limit-reached` + `paginate`）、`table_span_clamp_carries_actionable`（`table-span-clamped`，通道为空数组）、`ok_envelope_has_no_actionable`（干净成功不得带）。
+- MCP 侧 `limit_degradation_carries_actionable`（原 `limit_degradation_has_no_actionable_yet` 已改写）断言 LIMIT 也带 actionable 且通道是真工具。
+
 ### 6.8b #114 内嵌结构化数据（EMBED-01…EMBED-13）
 
 `crates/webctl-web/tests/embedded.rs` **13 条**（离线；只读内存里的 HTML 字符串，不联网、不执行 JS）：

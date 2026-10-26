@@ -139,14 +139,19 @@ impl<T> Envelope<T> {
     }
 
     /// 降级执行：data 仍可用，但必须显式记录来源与原因码。
+    ///
+    /// #124：构造时按 `degraded_from` 自动补 `meta.actionable`（原因码 + 建议通道），
+    /// 表见 `crate::actionable`。上层（degrade::guard / session / resolve_site）可以再用
+    /// `with_actionable` 覆盖成更精确的版本。
     pub fn degraded(data: T, from: impl Into<String>, code: ErrorCode, elapsed_ms: u64) -> Self {
-        Self {
+        let envelope = Self {
             ok: true,
             data: Some(data),
             error: String::new(),
             code,
             meta: Self::meta(Trust::UntrustedPageContent, Some(from.into()), elapsed_ms),
-        }
+        };
+        crate::actionable::attach(envelope)
     }
 
     /// 附加降级时的可行动信息（#115）。链式调用，便于在 `Envelope::degraded` 之后补。
