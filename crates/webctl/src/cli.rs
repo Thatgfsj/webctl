@@ -89,6 +89,19 @@ struct Cli {
     #[arg(long, global = true, value_name = "MS")]
     timeout_ms: Option<u64>,
 
+    /// 宿主浏览器上下文 JSON 文件（借 HTTP 头与 Cookie；TLS/JS 指纹不可借用）。
+    #[arg(
+        long,
+        global = true,
+        value_name = "PATH",
+        conflicts_with = "no_browser_context"
+    )]
+    browser_context: Option<PathBuf>,
+
+    /// 不注入任何浏览器上下文（忽略 --browser-context 与 WEBCTL_BROWSER_CONTEXT）。
+    #[arg(long, global = true)]
+    no_browser_context: bool,
+
     #[command(subcommand)]
     command: Command,
 }
@@ -244,15 +257,45 @@ fn execute(cli: Cli) -> ExitCode {
     // 配置层 3/3：CLI 参数，优先级最高。
     let config = resolve(&file_layer, &env_layer, &cli.to_layer());
 
+    // #183：浏览器上下文（显式开关 > 环境变量）；显式给的文件坏了要失败，不静默。
+    let browser_context = match resolve_browser_context(&cli) {
+        Ok(context) => context,
+        Err(message) => return fail(ErrorCode::BadUrl, &message, config.output, started),
+    };
+
     match cli.command {
         Command::Caps => run_caps(&config, started),
         Command::Config => run_config(&config, started),
-        Command::Fetch { url } => run_fetch(&config, &url, started),
+        Command::Fetch { url } => run_fetch(&config, &url, browser_context.as_ref(), started),
         Command::Cookies { action } => run_cookies(&config, action, started),
         Command::Mcp {
             owner_session,
             list_tools,
-        } => run_mcp(&config, owner_session, list_tools),
+        } => run_mcp(&config, owner_session, list_tools, browser_context.as_ref()),
+    }
+}
+
+/// 解析浏览器上下文（#183）：显式开关 > 环境变量。
+///
+/// - --no-browser-context：显式不注入（压过环境变量）；
+/// - --browser-context PATH：读文件，失败是**硬错误**（不静默：上下文没生效必须让人看见）；
+/// - 否则沿用 WEBCTL_BROWSER_CONTEXT；环境变量本身有问题只告警，不阻断命令。
+fn resolve_browser_context(
+    cli: &Cli,
+) -> Result<Option<webctl_web::browser_context::BrowserContext>, String> {
+    if cli.no_browser_context {
+        return Ok(None);
+    }
+    if let Some(path) = &cli.browser_context {
+        return webctl_web::browser_context::load_file(path)
+            .map_err(|error| format!("--browser-context 无效：{error}"));
+    }
+    match webctl_web::browser_context::load_from_env() {
+        Ok(context) => Ok(context),
+        Err(error) => {
+            eprintln!("webctl: {error}（已忽略，继续执行）");
+            Ok(None)
+        }
     }
 }
 
@@ -286,7 +329,12 @@ fn run_config(config: &Config, started: Instant) -> ExitCode {
     emit(envelope, config.output, render_config)
 }
 
-fn run_fetch(config: &Config, url: &str, started: Instant) -> ExitCode {
+fn run_fetch(
+    config: &Config,
+    url: &str,
+    browser_context: Option<&webctl_web::browser_context::BrowserContext>,
+    started: Instant,
+) -> ExitCode {
     // CLI-06：offline 下不发起任何连接。
     if config.offline {
         return fail(
@@ -303,6 +351,8 @@ fn run_fetch(config: &Config, url: &str, started: Instant) -> ExitCode {
     let options = FetchOptions {
         timeout: Duration::from_millis(config.timeout_ms),
         proxy: config.proxy.clone(),
+        // #183：CLI fetch 也要注入宿主上下文（与 MCP fetch / 会话路径一致）。
+        browser_context: browser_context.cloned(),
         ..FetchOptions::default()
     };
     let envelope = match block_on(fetch(url, &options)) {
@@ -559,7 +609,12 @@ fn render_caps(report: &CapsReport) {
 }
 
 /// MCP server：以 stdio 运行到对端关闭（MCP-01…MCP-11）。
-fn run_mcp(config: &Config, owner_session: Option<String>, list_tools: bool) -> ExitCode {
+fn run_mcp(
+    config: &Config,
+    owner_session: Option<String>,
+    list_tools: bool,
+    browser_context: Option<&webctl_web::browser_context::BrowserContext>,
+) -> ExitCode {
     if list_tools {
         // MCP-12：与 tools/list 同源的静态清单，供校验脚本比对 SKILL.md。
         for tool in webctl_mcp::TOOL_NAMES {
@@ -568,7 +623,9 @@ fn run_mcp(config: &Config, owner_session: Option<String>, list_tools: bool) -> 
         return ExitCode::SUCCESS;
     }
     let owner = owner_session.or_else(webctl_mcp::owner_from_env);
-    let context = webctl_mcp::McpContext::new(config.clone(), owner);
+    // 显式覆盖（含 --no-browser-context 的 None），不再二次读环境变量。
+    let context = webctl_mcp::McpContext::new(config.clone(), owner)
+        .with_browser_context(browser_context.cloned());
     match block_on(webctl_mcp::run_stdio(context)) {
         Ok(Ok(())) => ExitCode::SUCCESS,
         Ok(Err(message)) | Err(message) => {

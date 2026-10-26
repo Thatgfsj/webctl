@@ -25,6 +25,7 @@ fn webctl() -> Command {
         "WEBCTL_TIMEOUT_MS",
         "WEBCTL_OFFLINE",
         "WEBCTL_PROXY",
+        "WEBCTL_BROWSER_CONTEXT",
         "XDG_CONFIG_HOME",
     ] {
         command.env_remove(key);
@@ -484,5 +485,111 @@ fn cli_11_env_vars_are_documented() {
     assert!(
         readme.contains("CONFIGURATION.md"),
         "README 必须链接配置文档"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// #183：浏览器上下文的 CLI 开关（--browser-context / --no-browser-context）
+// ---------------------------------------------------------------------------
+
+const CONTEXT_JSON: &str = r#"{"user_agent":"ctx-agent/1.0","accept_language":"zh-CN","cookies":[{"domain":"127.0.0.1","name":"sid","value":"CTX"}]}"#;
+
+fn context_file(tag: &str) -> TempFile {
+    TempFile::new(tag, CONTEXT_JSON)
+}
+
+/// #183：--browser-context 把 UA / accept-language / cookie 注入到 CLI fetch。
+#[test]
+fn browser_context_flag_injects_headers_on_fetch() {
+    let fixture = Fixture::start("ok");
+    let context = context_file("ctx-flag");
+    let context_path = path_str(context.path());
+    let url = fixture.url("/page");
+    let result = run(
+        &mut webctl(),
+        &["--browser-context", &context_path, "fetch", &url],
+    );
+    assert_eq!(result.code, 0, "stderr={}", result.stderr);
+    let head = fixture.last_head().to_ascii_lowercase();
+    assert!(
+        head.contains("user-agent: ctx-agent/1.0"),
+        "缺少 UA：{head}"
+    );
+    assert!(
+        head.contains("accept-language: zh-cn"),
+        "缺少 accept-language：{head}"
+    );
+    assert!(head.contains("sid=ctx"), "缺少上下文 cookie：{head}");
+}
+
+/// #183：--no-browser-context 压过 WEBCTL_BROWSER_CONTEXT（显式优于环境）。
+#[test]
+fn no_browser_context_overrides_env() {
+    let fixture = Fixture::start("ok");
+    let context = context_file("ctx-off");
+    let mut command = webctl();
+    command.env("WEBCTL_BROWSER_CONTEXT", path_str(context.path()));
+    let result = run(
+        &mut command,
+        &["--no-browser-context", "fetch", &fixture.url("/page")],
+    );
+    assert_eq!(result.code, 0, "stderr={}", result.stderr);
+    let head = fixture.last_head().to_ascii_lowercase();
+    assert!(!head.contains("ctx-agent"), "不应注入 UA：{head}");
+    assert!(!head.contains("sid=ctx"), "不应注入 cookie：{head}");
+}
+
+/// #183：未给开关时仍认环境变量（既有行为不回退）。
+#[test]
+fn env_browser_context_is_still_honored() {
+    let fixture = Fixture::start("ok");
+    let context = context_file("ctx-env");
+    let mut command = webctl();
+    command.env("WEBCTL_BROWSER_CONTEXT", path_str(context.path()));
+    let result = run(&mut command, &["fetch", &fixture.url("/page")]);
+    assert_eq!(result.code, 0, "stderr={}", result.stderr);
+    let head = fixture.last_head().to_ascii_lowercase();
+    assert!(
+        head.contains("user-agent: ctx-agent/1.0"),
+        "缺少 UA：{head}"
+    );
+}
+
+/// #183：两个开关互斥（clap 参数错误 → 退出码 2）。
+#[test]
+fn browser_context_flags_are_mutually_exclusive() {
+    let result = run(
+        &mut webctl(),
+        &[
+            "--browser-context",
+            "ctx.json",
+            "--no-browser-context",
+            "caps",
+        ],
+    );
+    assert_eq!(
+        result.code, 2,
+        "stdout={} stderr={}",
+        result.stdout, result.stderr
+    );
+    assert!(
+        result.stderr.contains("cannot be used with"),
+        "clap 应报互斥：{}",
+        result.stderr
+    );
+}
+
+/// #183：显式给的文件坏了必须**失败**，不静默忽略（与 MCP 环境变量的宽容口径不同）。
+#[test]
+fn broken_browser_context_file_fails_loudly() {
+    let broken = TempFile::new("ctx-bad", "{ this is not json");
+    let broken_path = path_str(broken.path());
+    let result = run(&mut webctl(), &["--browser-context", &broken_path, "caps"]);
+    assert_ne!(result.code, 0, "坏文件不得静默成功");
+    assert!(
+        result.stderr.contains("浏览器上下文") || result.stdout.contains("BAD_URL"),
+        "必须给出可读原因：stdout={} stderr={}",
+        result.stdout,
+        result.stderr
     );
 }

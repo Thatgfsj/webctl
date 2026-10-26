@@ -354,7 +354,7 @@ v0.3 的锚点（JS 页必须拿到 10 条）**作废**。v0.4 的锚点：
 5. 礼貌限速在真实站点上的实际有效性（不被封 vs 太慢）。
 6. `resolve_site` 的 L1 命中率：内置表 36 条是人工整理，直推只覆盖 6 个常见 TLD；**真实站点集上的命中率未验证**（M1 只证明了机制、去重与"不猜"）。
 7. `resolve_site` 的 **L3（Wikidata P856）与 L4（robots.txt 的 `Sitemap:` 声明）已落地**（2026-10-25）；**L2 站点内建搜索也已落地**（2026-10-25：模板表 24 条、每次最多探测 2 个站点、robots 拦下不请求），0.2 的 L1–L5 通道全部就位；L5 已落地（`allow_serp_fallback` **默认 false**、显式 opt-in、结果不跨可靠阈值）；`hint_domain` / `channels` **仍未进 schema**（声明必须等于实现）；L2/L3/L5 在真实站点上的命中率**未验证**。
-8. 浏览器上下文：`--browser-context` / `--no-browser-context` CLI 开关**未落地**（当前只认 `WEBCTL_BROWSER_CONTEXT` 环境变量）；`fill_form` 的表单提交与 CLI `fetch` **不注入**。
+8. ~~浏览器上下文：CLI 开关与两处未注入路径~~ **已完成**（2026-10-27，议题 #183）：`--browser-context` / `--no-browser-context` 已落地（互斥、显式优于环境变量、坏文件硬失败）；`fill_form` 的表单提交（`SessionEngine::send`）与 CLI `fetch` 均已注入，规则与 MCP 一致（SEC-06 跨源不带凭据 + 去重优先级）。**仍未验证**的是第 9 条（真实设备浏览器的 cookie 导出格式 / 新版 Chrome COOKIES 加密）。
 9. 真实设备浏览器的 cookie 导出格式（含新版 Chrome 的 COOKIES 加密）**未验证**。
 
 ---

@@ -6,8 +6,8 @@
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// 固定注入的响应 cookie 值：任何输出都不允许出现它（CLI-10）。
@@ -17,6 +17,7 @@ pub const SECRET_COOKIE_VALUE: &str = "SUPER_SECRET_TOKEN";
 pub struct Fixture {
     addr: SocketAddr,
     hits: Arc<AtomicUsize>,
+    heads: Arc<Mutex<Vec<String>>>,
 }
 
 impl Fixture {
@@ -26,11 +27,14 @@ impl Fixture {
         let addr = listener.local_addr().expect("fixture addr");
         let hits = Arc::new(AtomicUsize::new(0));
         let counter = Arc::clone(&hits);
+        let heads: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let recorded = Arc::clone(&heads);
         std::thread::spawn(move || {
             for incoming in listener.incoming() {
                 let Ok(mut stream) = incoming else { break };
                 let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
-                read_request(&mut stream);
+                let head = read_request(&mut stream);
+                recorded.lock().expect("heads").push(head);
                 counter.fetch_add(1, Ordering::SeqCst);
                 let response = format!(
                     "HTTP/1.1 200 OK\r\ncontent-type: text/plain; charset=utf-8\r\nset-cookie: session={SECRET_COOKIE_VALUE}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
@@ -41,7 +45,7 @@ impl Fixture {
                 let _ = stream.flush();
             }
         });
-        Self { addr, hits }
+        Self { addr, hits, heads }
     }
 
     /// http://127.0.0.1:<port>
@@ -58,9 +62,19 @@ impl Fixture {
     pub fn hits(&self) -> usize {
         self.hits.load(Ordering::SeqCst)
     }
+
+    /// 最近一次请求的原始头（含请求行），用于断言注入行为。
+    pub fn last_head(&self) -> String {
+        self.heads
+            .lock()
+            .expect("heads")
+            .last()
+            .cloned()
+            .unwrap_or_default()
+    }
 }
 
-fn read_request(stream: &mut TcpStream) {
+fn read_request(stream: &mut TcpStream) -> String {
     let mut chunk = [0u8; 1024];
     let mut buffer = Vec::new();
     loop {
@@ -78,6 +92,7 @@ fn read_request(stream: &mut TcpStream) {
             Err(_) => break,
         }
     }
+    String::from_utf8_lossy(&buffer).into_owned()
 }
 
 /// 临时 TOML 配置文件，drop 时删除。
