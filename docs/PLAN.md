@@ -170,10 +170,10 @@ v0.3 的 aria ref 依赖"最近一次快照"的 live 页面，**在无浏览器�
 | 8 | `paginate` | 分页遍历（next 识别 + 上限） |
 | 9 | `session` | 会话查看/保存/加载/清理（cookie 持久化） |
 | 10 | `cookies` | 查看/导出 cookie（导出需 `--yes`、权限 600、值脱敏） |
-| 11 | `json_query` | 内置 JSON 查询子集（替代 `jq`） |
-| 12 | `doc_text` | PDF / HTML / XML 文本层提取（替代 `pdftotext`/`pandoc`） |
+| 11 | `json_query` | 内置 JSON 查询子集（替代 `jq`）；以 URL 为输入时**继承上游降级**（#125） |
+| 12 | `doc_text` | PDF / HTML / XML 文本层提取（替代 `pdftotext`/`pandoc`）；以 URL 为输入时**继承上游降级**（#125） |
 | 13 | `embedded_data` | 页面**内嵌**结构化数据抽取（JSON-LD / `script[type=json]` / 框架状态容器 / `data-page`），**零 JS 执行**（0.1.2，[#114](https://github.com/Thatgfsj/webctl/issues/114)） |
-| 14 | `download` | 文件下载到指定目录（尺寸上限、类型白名单、落盘路径） |
+| 14 | `download` | 文件下载到指定目录（尺寸上限、类型白名单、落盘路径）；以 URL 为输入时**继承上游降级**（#125） |
 | 15 | `robots` | robots.txt 与站点策略查询（礼貌爬取依据；含 `Sitemap:` 声明清单） |
 | 16 | `resolve_site` | 站点名 → 入口候选（L1 内置映射/域名直推 + L2 站点内建搜索 + L3 Wikidata P856 + L4 sitemap 声明 + **显式 opt-in** 的 L5 SERP 兜底；多候选 + 证据 + 置信度，**绝不单选**；offline 时只走 L1） |
 | 17 | `caps` | 内置能力与版本自检 |

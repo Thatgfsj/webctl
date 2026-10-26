@@ -99,4 +99,4 @@ embedded_data {"url": <URL>}                       # 看 code / data.entries 条
 - `extract` 的降级判定与**选择器是否命中**有关：用 `body` 这类"一定命中"的选择器会绕过 JS 空壳判定（实测 `body` → OK），
   所以基线统一用**内容选择器**；
 - 元数据通道本期只记录线索（RSS/JSON-LD 是否在头部），真正的发现与利用见 #117；
-- `doc_text`/`download`/`json_query` 在 JS 页上的"静默 OK"是另一个已立项的问题（#125），不在本基线口径内。
+- 曾记录：`doc_text`/`download`/`json_query` 在 JS 页上静默返回 OK（#125）。**已修**：三者以 URL 为输入时现在**继承上游 fetch 的降级**（`DEGRADED` + `degraded_from=js-render` + `meta.actionable`，data 仍是本工具结果）；反向守卫保证静态页仍 `OK`、本工具自己的失败（如 `json_query` 解析失败）不被伪装成降级。见 `tests/degradation_inherit.rs` 的 4 条用例与 `crates/webctl-mcp/src/degradation.rs`（`UpstreamDegrade` / `apply_upstream_degradation`）。

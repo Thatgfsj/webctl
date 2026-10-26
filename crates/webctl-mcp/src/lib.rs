@@ -22,6 +22,7 @@
 
 pub mod caps;
 pub mod context;
+mod degradation;
 pub mod dispatch;
 pub mod instructions;
 pub mod ownership;

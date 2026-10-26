@@ -590,6 +590,8 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 
 `crates/webctl-mcp/tests/mcp.rs` **35 条通过 + 0 ignored**（#82 转正后 20 条，#114 增 3 条 + 2 条 schema 守卫，#115 增 5 条，#119 补 1 条，#128 接线增 4 条）；另 `tests/resolve_site.rs` **3 条**（0.2 M1，单独成文件以免 `mcp.rs` 破 1000 行）：
 
+- **上游降级继承**（#125，`tests/degradation_inherit.rs`，**4 条**，纯本地 fixture）：`doc_text_inherits_upstream_js_render_degradation`（JS 空壳页 → `DEGRADED` + `degraded_from=js-render` + actionable，文本仍返回）、`doc_text_on_static_page_stays_ok`（反向守卫：静态页仍 `OK` 且无 `degraded_from`）、`download_inherits_upstream_js_render_degradation`（同样继承且文件确实落盘）、`json_query_keeps_parse_failure_instead_of_inheriting`（**只继承 OK**：本工具自己的解析失败不得被伪装成降级）。三个工具都以 URL 为输入、自己重建信封；此前会丢掉上游 meta 而静默返回 OK。
+
 - **resolve_site**（0.2 M1，`tests/resolve_site.rs`；L3 落地后低置信用例改为 `offline` 上下文，避免测试联网）：`resolve_site_builtin_hit_is_wired`（内置命中 = `OK` + `confidence=high` + **无** actionable）、`resolve_site_low_confidence_degrades_with_real_next_steps`（只有直推 → `DEGRADED` + `degraded_from=resolve-site` + `next_steps` 用派发表反查）、`resolve_site_schema_declares_only_wired_parameters`（**声明必须等于实现**：0.2 M1 只有 `site` / `max_candidates`，0.2 M5 增 `allow_serp_fallback` 后恰为三个参数）
 
 
