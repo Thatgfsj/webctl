@@ -2,9 +2,9 @@
 
 | 项 | 值 |
 |---|---|
-| 适用 | **v0.2.0（当前源码版本，未发布）**、v0.1.2（**当前 release**，2026-10-20）与 v0.1.1（上一版） |
+| 适用 | **v0.2.0（当前 release**，2026-10-25）、v0.1.2（上一版，2026-10-20）与 v0.1.1 |
 | 流水线 | cargo-dist 0.33.0：`dist-workspace.toml` + `.github/workflows/release.yml` |
-| 状态 | **v0.2.0 尚未发布**（源码版本号已升；发布需显式授权后再打 tag，届时重跑资产 E2E 与体积回填）。**v0.1.1 与 v0.1.2 均已发布**。安装命令与资产数字取自 **v0.1.2 真实资产**（2026-10-20 实测：sha256 匹配、`--version`=0.1.2、musl 静态、Alpine 用户态可跑，见 ACCEPTANCE §7） |
+| 状态 | **v0.2.0 已发布**（2026-10-25；5 目标 / 10 压缩包 / 28 资产；下载 + `sha256sum -c` + `--version`=0.2.0 + musl 静态 + `release-e2e.sh` + Alpine 用户态全部实测，见 ACCEPTANCE §7）；v0.1.1 与 v0.1.2 均已发布。安装命令与资产数字取自 **v0.2.0 真实资产**。 |
 | 相关 | [TESTING §2.16 PKG](TESTING.md) · [PLAN §5.2 PR 14](PLAN.md) · [体积基线](size-baseline.json) |
 
 ## 1. 流水线结构
@@ -36,11 +36,11 @@
 - **纳入条件（任一成立即开工）**：有真实 ARM64 使用诉求；或需要 Docker 多架构 / 边缘部署场景。
 - **纳入时要做的**（避免将来重新论证）：① 扩展 `scripts/install-musl-toolchain.sh` 使其按三元组选择 Bootlin 工具链（同样 pin 版本 + SHA256）；② 把 `ci.yml` 的 `musl-static` 作业扩为矩阵；③ 在 `dist-workspace.toml` 加目标并使 `cargo dist generate --mode ci --check` = 0；④ tag 后回填体积基线；⑤ README 中英 / 本文件 / ACCEPTANCE 同步。
 
-## 2. 安装（2026-10-20 实测，v0.1.2 真实资产）
+## 2. 安装（2026-10-26 实测，v0.2.0 真实资产）
 
 | 资产 | 类型 | 内容 / 目标 |
 |---|---|---|
-| `webctl-x86_64-unknown-linux-musl.tar.xz` (+ `.sha256`) | 压缩包 | **v0.1.1 起产出**（33,864,888 字节（解压后二进制），`ldd` 报 `statically linked`）；`webctl-mcp` 同款 |
+| `webctl-x86_64-unknown-linux-musl.tar.xz` (+ `.sha256`) | 压缩包 | **v0.1.1 起产出**（**v0.2.0 实测 34,122,368 字节**（解压后二进制），`ldd` 报 `statically linked`）；`webctl-mcp` 同款 |
 | `webctl-x86_64-unknown-linux-gnu.tar.xz` (+ `.sha256`) | 压缩包 | 同上（glibc） |
 | `webctl-aarch64-apple-darwin.tar.xz` (+ `.sha256`) | 压缩包 | 同上 |
 | `webctl-x86_64-apple-darwin.tar.xz` (+ `.sha256`) | 压缩包 | 同上 |
@@ -50,14 +50,14 @@
 | `webctl-mcp-<target>.tar.xz` / `.zip` (+ `.sha256`) | 压缩包 | **第二个二进制**：`webctl-mcp`（独立 MCP server 入口；与 `webctl mcp` 子命令等价）。`dist plan` 对 workspace 内该包同样产出资产 |
 | `webctl-mcp-installer.sh` / `.ps1` | 安装器 | 同上（对应 `webctl-mcp`） |
 
-以下安装命令取自 **v0.1.2 的真实资产**（`dist plan` 的 `install_hint`；2026-10-20 实测可用）：
+以下安装命令取自 **v0.2.0 的真实资产**（`dist plan` 的 `install_hint`；2026-10-26 实测可用）：
 
 ~~~bash
-# Linux / macOS（v0.1.2）
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/Thatgfsj/webctl/releases/download/v0.1.2/webctl-installer.sh | sh
+# Linux / macOS（v0.2.0）
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/Thatgfsj/webctl/releases/download/v0.2.0/webctl-installer.sh | sh
 
 # Windows PowerShell
-powershell -ExecutionPolicy Bypass -c "irm https://github.com/Thatgfsj/webctl/releases/download/v0.1.2/webctl-installer.ps1 | iex"
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/Thatgfsj/webctl/releases/download/v0.2.0/webctl-installer.ps1 | iex"
 ~~~
 
 ## 3. 发布步骤（维护者）
@@ -154,9 +154,11 @@ docker run --rm -v "$PWD:/w" -w /w debian:stable-slim ./webctl --version
 ## 7. 体积与冷启动基线（PKG-05、CLI-12）
 
 - 脚本：`scripts/size-baseline.sh`；记录：`docs/size-baseline.json`。
-- **本机实测（glibc release，2026-10-17，commit 5f10aa6）**：**7,978,256 字节（约 7.61 MiB）**；
-  `--version` 冷启动 p50 实测在 **10–24 ms** 之间波动（每轮 10 次采样；min 9 / max 179 为首次冷缓存），全部 **< 50 ms，CLI-12 本地通过**（基线文件记录 p50 = 24 ms）。
-- **musl 数字：33,864,888 字节（解压后二进制） / 冷启动 p50 4ms** —— 取自 **v0.1.2** 真实发布资产（`ldd` 报 `statically linked`）。
+- **v0.2.0 真实发布资产实测（2026-10-26）**：
+  - glibc：**34,767,656 字节** / `--version` 冷启动 p50 **6 ms**（min 5 / max 7，10 次采样），`ldd` 动态；
+  - musl：**34,122,368 字节** / 冷启动 p50 **5 ms**（min 4 / max 6），`ldd` 报 `statically linked`。
+  - 均较 v0.1.2（34,496,768 / 33,864,888）增约 **0.8%**，远低于 10% 容差；基线已回填 `docs/size-baseline.json`（`source=release-asset`、`commit=b2185b3`）。
+  - 历史：v0.1.2 的 glibc 34,496,768 字节（p50 6ms）、musl 33,864,888 字节（p50 4ms）仍保留在 git 历史与 CHANGELOG 中。
 - 比较方法（体积超过基线 10% 或冷启动 p50 > 50 ms 时退出码 1）：
 
 ~~~bash
@@ -174,9 +176,9 @@ scripts/size-baseline.sh --binary ./webctl --target x86_64-unknown-linux-gnu --r
 | 项 | 状态 | 接手 |
 |---|---|---|
 | musl 静态构建 | **已达成（v0.1.1）**：发布资产经 `sha256sum -c` + `ldd`（statically linked）+ `release-e2e.sh --static` PASS；CI 的 `musl-static` 作业在 push main 时同样断言（PR 阶段不跑） | 完成 |
-| 发布 E2E（PKG-04/06/08） | **已执行（2026-10-17）**：下载 + `sha256sum -c` 校验 + `release-e2e.sh` **PASS**，见 ACCEPTANCE §7 | 完成 |
-| PKG-05 musl 体积数字 | **已回填（v0.1.2 真实资产）**：33,864,888 字节（解压后二进制） / 冷启动 p50 4ms（`docs/size-baseline.json` 的 `source=release-asset`） | 完成 |
-| PKG-07 文档-资产一致 | **已完成**：README 安装命令与资产名已按 **v0.1.2** 真实资产逐项核对 | 完成 |
+| 发布 E2E（PKG-04/06/08） | **已执行（v0.2.0，2026-10-26）**：4 个 Linux 压缩包 `sha256sum -c` 全过 + gnu/musl 资产 `release-e2e.sh` **PASS** + Alpine 用户态可跑，见 ACCEPTANCE §7 | 完成 |
+| PKG-05 musl 体积数字 | **已回填（v0.2.0 真实资产）**：34,122,368 字节（解压后二进制） / 冷启动 p50 5ms；glibc 34,767,656 字节 / p50 6ms（`source=release-asset`、`commit=b2185b3`） | 完成 |
+| PKG-07 文档-资产一致 | **已完成**：README / 本文件的安装命令与资产名已按 **v0.2.0** 真实资产逐项核对（28 个资产） | 完成 |
 | `caps --json` 枚举工具 | 由 PR 11 / 议题 #68 落地（当时 15 个）；#114 起 16 个；0.2 M1 起 **17 个** | PR 11 / #114 |
 | 代码签名 / macOS 公证 | 未配置（需 Apple Developer 凭据与 Windows 证书） | 后续议题 |
 | `aarch64-unknown-linux-musl` | 未纳入 targets（交叉编译 BoringSSL 风险，先保守） | 后续议题 |

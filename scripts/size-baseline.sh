@@ -10,6 +10,7 @@
 #   scripts/size-baseline.sh --binary ./webctl --target x86_64-unknown-linux-musl
 #   scripts/size-baseline.sh --check                            # 与 docs/size-baseline.json 比较
 #   scripts/size-baseline.sh --record                           # 把本次实测写回基线文件
+#   scripts/size-baseline.sh --record --source release-asset    # 标注数字来源（默认 local）
 #   scripts/size-baseline.sh --json                             # 机器可读输出
 #
 # 基线文件：docs/size-baseline.json；bytes=null 表示待回填；source=deferred 表示该目标暂缓（见 [#90](https://github.com/Thatgfsj/webctl/issues/90)）。
@@ -27,6 +28,7 @@ BINARY=""
 DO_CHECK=0
 DO_RECORD=0
 AS_JSON=0
+SOURCE="local"
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -35,6 +37,7 @@ while [ "$#" -gt 0 ]; do
     --runs) RUNS="$2"; shift 2 ;;
     --check) DO_CHECK=1; shift ;;
     --record) DO_RECORD=1; shift ;;
+    --source) SOURCE="$2"; shift 2 ;;
     --json) AS_JSON=1; shift ;;
     -h|--help) sed -n "2,20p" "$0"; exit 0 ;;
     *) echo "未知参数：$1" >&2; exit 2 ;;
@@ -127,17 +130,17 @@ if [ "$DO_RECORD" -eq 1 ]; then
 p=sys.argv[1]
 d=json.load(open(p,encoding='utf-8'))
 e=d.setdefault('entries',{}).setdefault(sys.argv[2],{})
-e.update({'bytes':int(sys.argv[3]),'cold_start_ms_p50':int(sys.argv[4]),'linkage':sys.argv[5],'source':'local','recorded_at':sys.argv[6],'commit':sys.argv[7]})
+e.update({'bytes':int(sys.argv[3]),'cold_start_ms_p50':int(sys.argv[4]),'linkage':sys.argv[5],'source':sys.argv[8],'recorded_at':sys.argv[6],'commit':sys.argv[7]})
 with open(p,'w',encoding='utf-8') as f:
     json.dump(d,f,ensure_ascii=False,indent=2)
     f.write(chr(10))
-" "$BASELINE" "$TARGET" "$BYTES" "$COLD_P50" "$LINKAGE" "$TODAY" "$COMMIT"
+" "$BASELINE" "$TARGET" "$BYTES" "$COLD_P50" "$LINKAGE" "$TODAY" "$COMMIT" "$SOURCE"
   echo "==> 已回填基线：$BASELINE（$TARGET）" >&2
 fi
 
 if [ "$AS_JSON" -eq 1 ]; then
-  printf '{"target":"%s","binary":"%s","bytes":%s,"cold_start_ms_p50":%s,"cold_start_ms_min":%s,"cold_start_ms_max":%s,"linkage":"%s","baseline_bytes":%s,"limit_bytes":%s,"status":"%s"}\n' \
-    "$TARGET" "$BINARY" "$BYTES" "$COLD_P50" "$COLD_MIN" "$COLD_MAX" "$LINKAGE" "${BASELINE_BYTES:-null}" "${LIMIT:-null}" "$STATUS"
+  printf '{"target":"%s","binary":"%s","bytes":%s,"cold_start_ms_p50":%s,"cold_start_ms_min":%s,"cold_start_ms_max":%s,"linkage":"%s","source":"%s","baseline_bytes":%s,"limit_bytes":%s,"status":"%s"}\n' \
+    "$TARGET" "$BINARY" "$BYTES" "$COLD_P50" "$COLD_MIN" "$COLD_MAX" "$LINKAGE" "$SOURCE" "${BASELINE_BYTES:-null}" "${LIMIT:-null}" "$STATUS"
 else
   printf 'target       = %s\n' "$TARGET"
   printf 'binary       = %s\n' "$BINARY"
@@ -152,6 +155,9 @@ else
     else
       printf 'baseline     = 待回填（无基线数字）\n'
     fi
+  fi
+  if [ "$DO_RECORD" -eq 1 ]; then
+    printf 'source       = %s\n' "$SOURCE"
   fi
   printf 'status       = %s\n' "$STATUS"
 fi
