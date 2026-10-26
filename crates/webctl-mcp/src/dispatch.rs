@@ -142,6 +142,7 @@ fn apply_render_degradation(mut envelope: Value, note: Option<&RenderNote>) -> V
     envelope
 }
 
+use crate::degradation::{UpstreamDegrade, apply_upstream_degradation};
 /// 开关开启且内容像是 HTML 时，把页面内联脚本跑进沙箱，返回渲染后的 HTML。
 ///
 /// 失败**不**静默：返回原始 HTML + 降级说明，由调用方写进信封。
@@ -645,7 +646,7 @@ async fn read_source_bytes(
     json_text: Option<&str>,
     url: Option<&str>,
     path: Option<&str>,
-) -> Result<Vec<u8>, Value> {
+) -> Result<(Vec<u8>, Option<UpstreamDegrade>), Value> {
     let given = [json_text.is_some(), url.is_some(), path.is_some()]
         .iter()
         .filter(|present| **present)
@@ -657,10 +658,11 @@ async fn read_source_bytes(
         ));
     }
     if let Some(text) = json_text {
-        return Ok(text.as_bytes().to_vec());
+        return Ok((text.as_bytes().to_vec(), None));
     }
     if let Some(path) = path {
         return std::fs::read(path)
+            .map(|bytes| (bytes, None))
             .map_err(|error| fail(ErrorCode::BadUrl, format!("读取文件失败：{error}")));
     }
     let url = url.expect("checked above");
@@ -671,9 +673,10 @@ async fn read_source_bytes(
     if !envelope.ok {
         return Err(to_value(envelope));
     }
+    let upstream = UpstreamDegrade::capture(&envelope);
     let fetched = envelope.data.expect("ok envelope has data");
     match fetched.content.text {
-        Some(text) => Ok(text.into_bytes()),
+        Some(text) => Ok((text.into_bytes(), upstream)),
         None => Err(to_value(Envelope::degraded(
             json!({"content_kind": format!("{:?}", fetched.content.kind).to_lowercase()}),
             "transport:raw-bytes-unavailable",
@@ -688,7 +691,7 @@ async fn tool_json_query(ctx: &McpContext, args: &Value) -> Value {
         Ok(params) => params,
         Err(value) => return value,
     };
-    let bytes = match read_source_bytes(
+    let (bytes, upstream) = match read_source_bytes(
         ctx,
         params.json.as_deref(),
         params.url.as_deref(),
@@ -696,10 +699,13 @@ async fn tool_json_query(ctx: &McpContext, args: &Value) -> Value {
     )
     .await
     {
-        Ok(bytes) => bytes,
+        Ok(source) => source,
         Err(value) => return value,
     };
-    to_value(json_query(&bytes, &params.expression, &Default::default()))
+    apply_upstream_degradation(
+        to_value(json_query(&bytes, &params.expression, &Default::default())),
+        upstream.as_ref(),
+    )
 }
 
 async fn tool_doc_text(ctx: &McpContext, args: &Value) -> Value {
@@ -708,11 +714,14 @@ async fn tool_doc_text(ctx: &McpContext, args: &Value) -> Value {
         Err(value) => return value,
     };
     let (path, url) = (params.path.as_deref(), params.url.as_deref());
-    let bytes = match read_source_bytes(ctx, None, url, path).await {
-        Ok(bytes) => bytes,
+    let (bytes, upstream) = match read_source_bytes(ctx, None, url, path).await {
+        Ok(source) => source,
         Err(value) => return value,
     };
-    to_value(doc_text(&bytes, &DocOptions::default()))
+    apply_upstream_degradation(
+        to_value(doc_text(&bytes, &DocOptions::default())),
+        upstream.as_ref(),
+    )
 }
 
 /// embedded_data：抽取页面内嵌的结构化数据。
@@ -761,6 +770,7 @@ async fn tool_download(ctx: &McpContext, args: &Value) -> Value {
     if !envelope.ok {
         return to_value(envelope);
     }
+    let upstream = UpstreamDegrade::capture(&envelope);
     let fetched = envelope.data.expect("ok envelope has data");
     let Some(text) = fetched.content.text.as_deref() else {
         return to_value(Envelope::degraded(
@@ -791,16 +801,19 @@ async fn tool_download(ctx: &McpContext, args: &Value) -> Value {
     if let Err(error) = std::fs::write(&path, text.as_bytes()) {
         return fail(ErrorCode::Internal, format!("写入文件失败：{error}"));
     }
-    to_value(Envelope::ok(
-        json!({
-            "saved_to": path.to_string_lossy(),
-            "bytes": text.len(),
-            "status": fetched.status,
-            "content_type": fetched.content.content_type,
-        }),
-        Trust::UntrustedPageContent,
-        0,
-    ))
+    apply_upstream_degradation(
+        to_value(Envelope::ok(
+            json!({
+                "saved_to": path.to_string_lossy(),
+                "bytes": text.len(),
+                "status": fetched.status,
+                "content_type": fetched.content.content_type,
+            }),
+            Trust::UntrustedPageContent,
+            0,
+        )),
+        upstream.as_ref(),
+    )
 }
 
 fn default_filename(url: &str) -> Option<String> {
