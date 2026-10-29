@@ -20,6 +20,10 @@
 
 - `doc_text` / `json_query` / `download` 在 JS 空壳页上**静默返回 OK**（[#125](https://github.com/Thatgfsj/webctl/issues/125)，[#182](https://github.com/Thatgfsj/webctl/pull/182)）：现在继承上游的 `DEGRADED` + `degraded_from=js-render` + `meta.actionable`，只继承 OK 结果（本工具自己的失败不被伪装成降级）。
 
+### Notes
+
+- **发布**：本条目即 **v0.2.1** 的发布说明（tag `v0.2.1`，commit `4d8ac06`；5 目标 / 10 压缩包 / 28 资产，Linux 另含 musl 静态）。资产清单与校验和见 Release 页与 `sha256.sum`；体积与冷启动数字见 [RELEASE §7](../docs/RELEASE.md)。
+
 ## [0.2.0] - 2026-10-25
 
 本版主题：**站点定位兜底**（用户说得出站点名、给不出 URL 时给出带证据的候选）
@@ -73,7 +77,7 @@
 ### Fixed
 
 - **安全**：修掉沙箱的一处真实逃逸——Boa 默认模块加载器以**进程 CWD** 为根，页面脚本可用相对 `import()` 真实读取宿主文件（[#127](https://github.com/Thatgfsj/webctl/issues/127)）。
-> 已知**尚未进入本版**的改动：`doc_text` / `json_query` / `download` 在 JS 页的降级继承（[#125](https://github.com/Thatgfsj/webctl/issues/125)）——旧分支 #139 已关闭，改由 [#182](https://github.com/Thatgfsj/webctl/pull/182) 在 0.2.0 之后落地，见 Unreleased。
+> 已知**尚未进入本版**的改动：`doc_text` / `json_query` / `download` 在 JS 页的降级继承（[#125](https://github.com/Thatgfsj/webctl/issues/125)）——旧分支 #139 已关闭，改由 [#182](https://github.com/Thatgfsj/webctl/pull/182) 在 0.2.0 之后落地，见下方 [0.2.1] 段的 Fixed 项。
 
 - 最小 DOM：解析器补 RAWTEXT（`script`/`style`/`textarea`/`title` 按原文处理）、序列化函数防止被页面改写、垫片避开 Annex B 的 `substr`。
 - CI：`dist` 安装方式修正（`cargo-dist` 已更名 `dist`，crates.io 上无 0.33.0；改用官方脚本 + sha256 固定 + 版本断言），修掉 main 上长期红灯的 `static` 作业（[#140](https://github.com/Thatgfsj/webctl/pull/140)）。
