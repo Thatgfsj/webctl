@@ -285,7 +285,7 @@ webctl/
 | v0.1.1 | 2026-10-17 | #94 `a6bbca5`（行数门禁）、#95 `34f14a1`（musl CI）、#96 `956e428`（SEC-09 脱敏）、#99 `bb62283`（musl 哈希断言）、#100/#101（L4 性能通道） | 增加 **musl 静态**；MCP 降级传播收口 |
 | v0.1.2 | 2026-10-19/20 | #114 embedded_data、#115/#123 actionable、#119 SPA 基线、#127/#129 webctl-js、#132/#133 最小 DOM、#135/#136/#138 js_render 接线、#147/#153 站点级通道与元数据解析、#144/#146 版本与发布记录 | 0.1.2 主题：SPA 的有效信息获取（内嵌数据 + 可行动降级 + 受限 JS 引擎） |
 | v0.2.0 | 2026-10-25 | #161–#165/#169 浏览器上下文注入、#166 CI 政策、#167 e2e 修正、#170 resolve_site L1、#173 resolve_site M1（内置映射+直推）、#175 L3、#176 L4、#177 L5、#178 L2、#174 大文件拆分、#179–#181 版本与发布记录 | 第 17 个工具 `resolve_site`（L1–L5）；0.2 里程碑全部完成 |
-| v0.2.1 | 2026-10-29 | #112 `90f2627`（CI 自检条数）、#182 `050beba`（#125 降级继承）、#184 `46fd9e8`（#183 M0 收尾：CLI 开关 + 表单/CLI 注入）、#185 `690f413`（#124 actionable 全量覆盖 + 原因码表）、#186 `e132f6c`（#117 第 2 步：RSS/Atom 取回） | 发布后修真实缺陷 + 补齐诚实性口径；**未发布前本行标注见 §5.2.2** |
+| v0.2.1 | 2026-10-29 | #112 `90f2627`（CI 自检条数）、#182 `050beba`（#125 降级继承）、#184 `46fd9e8`（#183 M0 收尾：CLI 开关 + 表单/CLI 注入）、#185 `690f413`（#124 actionable 全量覆盖 + 原因码表）、#186 `e132f6c`（#117 第 2 步：RSS/Atom 取回） | 发布后修真实缺陷 + 补齐诚实性口径；**已发布**（tag/commit `4d8ac06`） |
 
 ### 5.2.2 发布记录
 
@@ -295,7 +295,7 @@ webctl/
 | v0.1.1 | [https://github.com/Thatgfsj/webctl/releases/tag/v0.1.1](https://github.com/Thatgfsj/webctl/releases/tag/v0.1.1) | 2026-10-17 | `x86_64-unknown-linux-gnu`、`x86_64-unknown-linux-musl`（**静态**）、`aarch64-apple-darwin`、`x86_64-apple-darwin`、`x86_64-pc-windows-msvc` | **5/5 目标成功**；musl 静态资产经 `sha256sum -c` + `ldd` + `release-e2e.sh --static` 验证（PKG-08 静态）；MCP 侧降级/SEC-09 收口；L4 性能通道与 CI 行数门禁落地 |
 | v0.1.2 | [https://github.com/Thatgfsj/webctl/releases/tag/v0.1.2](https://github.com/Thatgfsj/webctl/releases/tag/v0.1.2) | 2026-10-20（Release 标题沿用 CHANGELOG 的 2026-10-19） | `x86_64-unknown-linux-gnu`、`x86_64-unknown-linux-musl`、`x86_64-apple-darwin`、`aarch64-apple-darwin`、`x86_64-pc-windows-msvc`（**5 个**） | **已发布**（5 个目标、10 个压缩包 / 28 个资产）：验收锚点（诚实降级）达成；能力目标仅对内联脚本页达成 |
 | v0.2.0 | [https://github.com/Thatgfsj/webctl/releases/tag/v0.2.0](https://github.com/Thatgfsj/webctl/releases/tag/v0.2.0) | 2026-10-25 | `x86_64-unknown-linux-gnu`、`x86_64-unknown-linux-musl`（**静态**）、`x86_64-apple-darwin`、`aarch64-apple-darwin`、`x86_64-pc-windows-msvc`（**5 个**） | **已发布**（**10 个压缩包 / 28 个资产**）：第 17 个工具 `resolve_site`（L1–L5）+ 浏览器上下文注入；验收：`sha256sum -c` 全过、`--version`=0.2.0、musl `ldd` 静态、`release-e2e.sh` 两种资产 PASS、Alpine 用户态可跑（见 [ACCEPTANCE §7](../docs/ACCEPTANCE.md)、[RELEASE §2](RELEASE.md)） |
-| v0.2.1 | **待发布**（无 tag / 无 Release） | — | 计划同 v0.2.0 的 5 个目标 | 版本号已升到 **0.2.1**（2026-10-29）；内容见 [CHANGELOG](../CHANGELOG.md) 的 `[0.2.1]` 段与 §5.2.1b。发布需显式授权后按 [RELEASE](RELEASE.md) 打 tag，并重跑资产 E2E 与体积回填 |
+| v0.2.1 | [https://github.com/Thatgfsj/webctl/releases/tag/v0.2.1](https://github.com/Thatgfsj/webctl/releases/tag/v0.2.1) | 2026-10-29 | `x86_64-unknown-linux-gnu`、`x86_64-unknown-linux-musl`（**静态**）、`x86_64-apple-darwin`、`aarch64-apple-darwin`、`x86_64-pc-windows-msvc`（**5 个**） | **已发布**（**10 个压缩包 / 28 个资产**）：修复 JS 空壳页静默成功（#125）、浏览器上下文 CLI/注入收尾（#183）、全量降级可行动信息（#124）、RSS/Atom 通道取回（#117 第 2 步）；验收：`sha256sum -c` 全过、`--version`=0.2.1、musl `ldd` 静态、`release-e2e.sh` 两种资产 PASS、Alpine 用户态可跑（见 [ACCEPTANCE §7](ACCEPTANCE.md)） |
 
 ### 5.3 验收锚点（v0.4 重定）
 

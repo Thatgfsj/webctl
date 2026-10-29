@@ -5,22 +5,22 @@
   "cold_start_limit_ms": 50,
   "entries": {
     "x86_64-unknown-linux-gnu": {
-      "bytes": 34767656,
+      "bytes": 34911504,
       "cold_start_ms_p50": 6,
       "linkage": "dynamic",
       "source": "release-asset",
-      "recorded_at": "2026-10-26",
-      "commit": "b2185b3",
-      "note": "**v0.2.0 真实发布资产实测**（2026-10-25 发布，2026-10-26 记录；解压后二进制 34,767,656 B，动态链接）。较 v0.1.2 真实资产 34,496,768 B 增 0.8%（0.2 新增 resolve_site 的 L1–L5 与浏览器上下文注入，体积基本持平）。source=release-asset 表示数字取自真实 Release 资产（sha256.sum 已校验）。"
+      "recorded_at": "2026-10-30",
+      "commit": "4d8ac06",
+      "note": "**v0.2.1 真实发布资产实测**（2026-10-29 发布，2026-10-30 记录；解压后二进制 34,911,504 B，动态链接）。较 v0.2.0 真实资产 34,767,656 B 增 0.4%。source=release-asset 表示数字取自真实 Release 资产（sha256.sum 已校验）。"
     },
     "x86_64-unknown-linux-musl": {
-      "bytes": 34122368,
+      "bytes": 34250920,
       "cold_start_ms_p50": 5,
       "linkage": "static",
       "source": "release-asset",
-      "recorded_at": "2026-10-26",
-      "commit": "b2185b3",
-      "note": "**v0.2.0 真实发布资产实测**（2026-10-25 发布，2026-10-26 记录；解压后二进制 34,122,368 B，`ldd` 报 `statically linked`）。较 v0.1.2 真实资产 33,864,888 B 增 0.8%。source=release-asset 表示数字取自真实 Release 资产（sha256.sum 已校验）。"
+      "recorded_at": "2026-10-30",
+      "commit": "4d8ac06",
+      "note": "**v0.2.1 真实发布资产实测**（2026-10-29 发布，2026-10-30 记录；解压后二进制 34,250,920 B，`ldd` 报 `statically linked`）。较 v0.2.0 真实资产 34,122,368 B 增 0.4%。source=release-asset 表示数字取自真实 Release 资产（sha256.sum 已校验）。"
     }
   }
 }
