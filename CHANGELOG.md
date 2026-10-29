@@ -4,7 +4,7 @@
 [语义化版本](https://semver.org/lang/zh-CN/)。格式约定、发版步骤与 release note 模板见
 [docs/RELEASE.md](docs/RELEASE.md)。
 
-## [Unreleased]
+## [0.2.1] - 2026-10-29
 
 ### Added
 
