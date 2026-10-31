@@ -77,6 +77,41 @@ pub const PLANS: &[(&str, Plan)] = &[
         },
     ),
     (
+        "search-blocked",
+        Plan {
+            reason: "search-unavailable",
+            next_steps: &["fetch"],
+        },
+    ),
+    (
+        "search-timeout",
+        Plan {
+            reason: "search-unavailable",
+            next_steps: &["fetch"],
+        },
+    ),
+    (
+        "search-http-error",
+        Plan {
+            reason: "search-unavailable",
+            next_steps: &["fetch"],
+        },
+    ),
+    (
+        "search-not-html",
+        Plan {
+            reason: "search-unavailable",
+            next_steps: &["fetch"],
+        },
+    ),
+    (
+        "search-empty",
+        Plan {
+            reason: "search-empty",
+            next_steps: &["fetch"],
+        },
+    ),
+    (
         "pagination-degraded-page",
         Plan {
             reason: "page-degraded",

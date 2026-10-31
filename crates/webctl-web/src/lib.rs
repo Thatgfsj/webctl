@@ -24,6 +24,7 @@ pub mod redact;
 pub mod resolve_site;
 pub mod session;
 pub mod transport;
+pub mod web_search;
 
 pub use content_type::ContentKind;
 pub use degrade::{
