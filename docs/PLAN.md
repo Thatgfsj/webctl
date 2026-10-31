@@ -369,6 +369,7 @@ v0.3 的锚点（JS 页必须拿到 10 条）**作废**。v0.4 的锚点：
 8. ~~浏览器上下文：CLI 开关与两处未注入路径~~ **已完成**（2026-10-27，议题 #183）：`--browser-context` / `--no-browser-context` 已落地（互斥、显式优于环境变量、坏文件硬失败）；`fill_form` 的表单提交（`SessionEngine::send`）与 CLI `fetch` 均已注入，规则与 MCP 一致（SEC-06 跨源不带凭据 + 去重优先级）。**仍未验证**的是第 9 条（真实设备浏览器的 cookie 导出格式 / 新版 Chrome COOKIES 加密）。
 9. 真实设备浏览器的 cookie 导出格式（含新版 Chrome 的 COOKIES 加密）**未验证**。
 10. 站点级通道（RSS/Atom，`embedded_data` 的 `fetch_channels`）**真实站点命中率未统计**：离线 fixture 只证明机制与逐通道如实报告；不少站点只声明 feed 而实际 404、或被 robots 禁止。
+11. **0.2.2 全网搜索**（`web_search`）：默认走 Bing 的 HTML SERP（用户 2026-11-01 决策：搜索优先、合规其次），每次请求前加 **50–500ms 随机抖动**，LLM 摘要**必须回原始链接核对**；Bing/Mojeek/Marginalia/Baidu/360/Yandex 的 robots 均禁止搜索路径，本网络下没有「可达 + robots 允许」的免 key 通道——该事实与里程碑见 [ROADMAP-0.2.2](ROADMAP-0.2.2.md)。
 
 ---
 
