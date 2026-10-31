@@ -1,4 +1,4 @@
-//! 17 个工具的 MCP 输入参数（schemars 生成 inputSchema，MCP-03）。
+//! 18 个工具的 MCP 输入参数（schemars 生成 inputSchema，MCP-03）。
 //!
 //! 字段名与 PLAN v0.4 §3.7 的工具语义一一对应；可选字段用 Option，
 //! 缺省值在派发层解释。这里只描述形状，不做业务校验。
@@ -55,6 +55,22 @@ pub struct SearchParams {
     pub max_results: Option<usize>,
     /// 命中两侧保留的上下文字符数。
     pub context_chars: Option<usize>,
+}
+
+/// web_search：按查询词全网搜索（0.2.2，议题 #200；第 18 个工具）。
+///
+/// 默认引擎 bing；结果按**不可信页面内容**处理，正文仍需 `fetch`/`extract` 回原始链接。
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+pub struct WebSearchParams {
+    /// 查询词。
+    pub query: String,
+    /// 引擎列表（默认 `["bing"]`；0.2.2 M1 仅 bing 已接线）。
+    #[serde(default)]
+    pub engines: Option<Vec<String>>,
+    /// 最多返回条数（默认 10，上限 30）。
+    pub max_results: Option<usize>,
+    /// 页码（默认 1）。
+    pub page: Option<usize>,
 }
 
 /// links：链接清单与过滤。
@@ -248,7 +264,7 @@ pub struct RobotsParams {
 /// caps：内置能力与版本自检。
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
 pub struct CapsParams {
-    /// 是否附带 17 个工具逐项可用性（默认 true）。
+    /// 是否附带 18 个工具逐项可用性（默认 true）。
     pub include_tools: Option<bool>,
 }
 

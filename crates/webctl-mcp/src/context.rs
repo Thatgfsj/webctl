@@ -13,6 +13,10 @@ pub struct McpContext {
     pub config: Config,
     /// 会话归属绑定。
     pub binding: SessionBinding,
+    /// `web_search` 的 SERP 基址覆盖（调试/离线测试用；`None` 表示用内置 Bing 默认）。
+    ///
+    /// 优先级：本字段 > 环境变量 `WEBCTL_SEARCH_BASE` > 内置默认 `https://www.bing.com/search`。
+    pub search_base: Option<String>,
     /// 宿主注入的浏览器上下文（0.2 M0 / ADR-0006）。
     ///
     /// 来源：环境变量 `WEBCTL_BROWSER_CONTEXT` 指向的 JSON 文件（见 `browser_context_from_env`）。
@@ -26,8 +30,15 @@ impl McpContext {
         Self {
             config,
             binding: SessionBinding::new(owner),
+            search_base: search_base_from_env(),
             browser_context: browser_context_from_env(),
         }
+    }
+
+    /// 覆盖 `web_search` 的 SERP 基址（测试/调试用；生产不设置）。
+    pub fn with_search_base(mut self, base: Option<String>) -> Self {
+        self.search_base = base;
+        self
     }
 
     /// 覆盖浏览器上下文（CLI 开关解析后的结果，见 #183）。
@@ -46,6 +57,7 @@ impl McpContext {
         Self {
             config,
             binding: SessionBinding::unbound(),
+            search_base: search_base_from_env(),
             browser_context: browser_context_from_env(),
         }
     }
@@ -82,6 +94,14 @@ pub fn parse_browser_context(text: &str) -> Option<webctl_web::browser_context::
             None
         }
     }
+}
+
+/// 从环境变量读取 SERP 基址覆盖（读 env 是安全的；写 env 才需要 unsafe）。
+fn search_base_from_env() -> Option<String> {
+    std::env::var(webctl_web::web_search::bing::BASE_ENV)
+        .ok()
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
 }
 
 /// 环境变量 `WEBCTL_BROWSER_CONTEXT` 指向 JSON 文件；未设置即 `None`。

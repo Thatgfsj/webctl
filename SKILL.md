@@ -1,6 +1,6 @@
 ---
 name: webctl
-description: 纯内置的网页取回/解析/抽取 MCP server（零外部进程、零外部浏览器）。提供 17 个工具：取回、选择器抽取、页面内搜索、链接/表格/表单、填表、分页、会话、cookie、JSON 查询、文档文本、**内嵌结构化数据抽取**、下载、robots 与能力自检。默认**不执行页面 JavaScript**（保持诚实降级）；可显式开启受限内置 JS 引擎（ADR-0005，默认关闭、带硬限）。
+description: 纯内置的网页取回/解析/抽取 MCP server（零外部进程、零外部浏览器）。提供 18 个工具：取回、选择器抽取、页面内搜索、链接/表格/表单、填表、分页、会话、cookie、JSON 查询、文档文本、**内嵌结构化数据抽取**、下载、robots 与能力自检。默认**不执行页面 JavaScript**（保持诚实降级）；可显式开启受限内置 JS 引擎（ADR-0005，默认关闭、带硬限）。
 ---
 
 # webctl SKILL.md
@@ -8,7 +8,7 @@ description: 纯内置的网页取回/解析/抽取 MCP server（零外部进程
 本文件是 webctl MCP server 的**能力声明**。它列出的工具集合必须与运行期 `tools/list`
 完全一致；一致性由 `scripts/check-skill-tools.sh` 与 Rust 用例钉住（MCP-12）。
 
-## 工具（17 个，与 PLAN §3.7 一致）
+## 工具（18 个，与 PLAN §3.7 一致）
 
 <!-- tools:start -->
 - `fetch` — 取回 http(s) URL：状态、头、重定向链、内容或落盘路径。
@@ -27,7 +27,8 @@ description: 纯内置的网页取回/解析/抽取 MCP server（零外部进程
 - `download` — 文件下载到指定目录（尺寸上限与落盘路径）。
 - `robots` — robots.txt 与站点策略查询（礼貌爬取依据；含 `Sitemap:` 声明清单）。
 - `resolve_site` — 按站点名给出入口候选（L1 内置映射/域名直推 + L2 站点内建搜索 + L3 Wikidata P856 + L4 候选域名的 sitemap 声明 + **显式 opt-in** 的 L5 SERP 兜底；多候选、带证据与置信度，**绝不单选**；L2/L3/L4/L5 会联网且过 politeness，offline 模式只走 L1；sitemap 声明只作证据，L5 默认关且结果不跨可靠阈值）。
-- `caps` — 内置能力与版本自检，逐项列出 17 个工具的可用性。
+- `caps` — 内置能力与版本自检，逐项列出 18 个工具的可用性。
+- `web_search` — 全网搜索（默认 Bing）：查询词 → 结果卡片（title/url/snippet/rank/engine）；摘要解析在 **0.2.2 M2**（本版不返回）；摘要一旦出现必须打开原始链接核对；正文用 fetch/extract 取。
 <!-- tools:end -->
 
 工具在 DSH 中的限定名是 `mcp__webctl__<rawName>`（例如 `mcp__webctl__fetch`）。

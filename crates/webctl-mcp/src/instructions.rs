@@ -13,11 +13,12 @@ pub const MAX_INSTRUCTIONS_BYTES: usize = 32 * 1024;
 pub const INSTRUCTIONS: &str = r#"webctl MCP server：纯内置的网页取回 / 解析 / 抽取层。零外部进程、零外部浏览器；**默认不执行页面 JavaScript**。
 
 ## 工具边界
-本服务器只注册 17 个工具（仅这些，没有截图、没有坐标点击、没有 evaluate）：
+本服务器只注册 18 个工具（仅这些，没有截图、没有坐标点击、没有 evaluate）：
 - 取回：fetch（状态/头/重定向链/内容或落盘路径）、download（落盘到指定目录）。
 - 抽取：extract（CSS 选择器）、search（文本/正则）、links、tables、forms。
 - 会话：fill_form、paginate、session、cookies。
 - 数据：json_query、doc_text（PDF/HTML/XML 文本层）、embedded_data（页面内嵌 JSON：JSON-LD / script[type=json] / 框架状态容器）、robots、caps。
+- 搜索：web_search（全网搜索，默认 Bing；结果卡片含 title/url/snippet，摘要解析在 0.2.2 M2（本版不返回摘要）；一旦出现摘要必须回原始链接核对；正文用 fetch/extract 取）。
 - 定位：resolve_site（站点名 → 入口候选；L1 内置映射/域名直推 + L2 站点内建搜索 + L3 Wikidata P856 + L4 sitemap 声明 + **显式 opt-in** 的 L5 SERP 兜底（allow_serp_fallback=true，默认关）。L2/L3/L4/L5 会联网且过 politeness；offline 只走 L1。始终给多候选，不单选）。
 
 ## 结果信封（所有工具统一）

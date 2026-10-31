@@ -594,6 +594,12 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
   > `PR #149`（未合并）另加 3 条洪泛/预算用例；合并后本节应为 **14 条**。
 
 
+### 6.8f web_search（0.2.2 M1，议题 [#200](https://github.com/Thatgfsj/webctl/issues/200)）
+
+- `crates/webctl-web/src/web_search/` 单元 **14 条**：引擎名解析与大小写、抖动区间/可复现/覆盖全域/盐哈希、Bing SERP 解析、`/ck/a` 解包（合法/无前缀/非法 base64/非 http(s)）、host 归属判断（2 条结果 + 相关主题、max_results 截断、空页、验证码特征、URL 编码与分页、结果 URL 规范化、逐引擎状态映射）；
+- `crates/webctl-mcp/tests/web_search.rs` **6 条**（纯本地 fixture，零外网）：结果解析 + 合规/不可信披露 + **只发 1 次 SERP 请求** + 抖动下界、分页 first、拦截页 → `DEGRADED + search-blocked + actionable`、零结果 → `DEGRADED + search-empty`、未接线/未知引擎/空 query 不联网、`max_results` 截断（上限 30）。
+- 合规开关：`WEBCTL_SEARCH_STRICT_ROBOTS=1` 交给 polite 层拦截（单测只覆盖 note 文案；联网行为由 M4 真站慢速验证记录）。
+
 ### 6.9 PR 11 MCP server（议题 #19）
 
 `crates/webctl-mcp/src/` 单元 **29 条**（0.2 M1 增 `site.rs` 的 6 条 `resolve_site` 用例；0.2 M3 再增 3 条 `classify` 口径用例；0.2 M5 再增 4 条：`classify_serp_failure_is_named_and_keeps_evidence`、`classify_reports_both_l3_and_serp_failures`、`serp_fallback_is_off_by_default`、`serp_fallback_never_networks_in_offline_mode`）：`registry_is_exactly_the_plan_list`、`definitions_match_the_static_specs`、`qualified_names_follow_the_dsh_contract`、`all_plan_tools_are_registered_and_available`、`capabilities_mirror_the_dispatch_table`、`instructions_stay_under_limit`、`dsh_snippet_has_no_tool_order_and_no_tool_names`、`bound_session_accepts_only_itself`、`cross_session_error_is_readable_and_mentions_both`、`unbound_defaults_to_default_and_validates`、`small_result_stays_inline`、`large_result_is_spilled_and_keeps_degradation`、`sec_09_mcp_dispatcher_is_the_one_that_redacts`（[#82](https://github.com/Thatgfsj/webctl/issues/82) 补的隔离用例，详见本节末尾）；0.2 M1 的 `site.rs` 另有 **13 条**（0.2 M5 增 4 条，见下）：`builtin_hit_is_confident_and_not_degraded`、`direct_only_in_offline_mode_degrades_and_says_so`、`unknown_name_returns_empty_and_degraded`、`url_argument_is_bad_url`、`empty_site_is_parse_error`、`max_candidates_is_clamped`（以上 6 条为工具面），以及 0.2 M3 新增的 `classify_l3_failure_wins_over_other_reasons`、`classify_offline_says_offline`、`classify_no_match_vs_low_confidence`（降级原因口径，不依赖网络）。
