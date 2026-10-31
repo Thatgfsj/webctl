@@ -4,6 +4,12 @@
 [语义化版本](https://semver.org/lang/zh-CN/)。格式约定、发版步骤与 release note 模板见
 [docs/RELEASE.md](docs/RELEASE.md)。
 
+## [Unreleased]
+
+### Added
+
+- **第 18 个工具 `web_search`（0.2.2 M1，[#200](https://github.com/Thatgfsj/webctl/issues/200)）**：按查询词全网搜索，默认 **Bing**（HTML SERP）；返回结果卡片（title/url/snippet/rank/engine）与逐引擎状态，**不自动抓正文**（正文走 fetch/extract）；每次请求前 **50–500ms 随机抖动**，带简单反爬头（不做验证码/Cloudflare/代理）；被拦 / 零结果 / 超时显式 `DEGRADED` + `actionable`（`search-blocked` / `search-empty` / `search-timeout`）；结果与摘要按不可信页面内容处理，`notes` 明示 Bing 的 robots 事实，`WEBCTL_SEARCH_STRICT_ROBOTS=1` 可切严格模式。
+
 ## [0.2.1] - 2026-10-29
 
 ### Added

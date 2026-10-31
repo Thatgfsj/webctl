@@ -8,7 +8,7 @@
 | 依据 | 历史硬数据见 [SURVEY.md](SURVEY.md)；**但 §0 的方向变更已作废其中的 T2/T3 相关结论** |
 | Spike | [wreq 验证报告](spikes/wreq.md)（HTTP 选型已定点） |
 | 决策记录 | [docs/adr/](adr/README.md)：ADR-0001 单层内置 · ADR-0002 不做 JS 引擎（**被 ADR-0005 取代**）· ADR-0003 选择器取代 ref · ADR-0004 礼貌与限速 · **ADR-0005 引入受限内置 JS 引擎（0.1.2 起，默认关闭）** |
-| 工具面 | **已定稿**：17 个内置工具（§3.7；第 17 个 `resolve_site` 于 0.2 M1 加入），无截图、无坐标交互；**默认不执行页面 JS**（可选受限内置引擎见 [ADR-0005](adr/0005-embedded-js-engine.md)） |
+| 工具面 | **已定稿**：18 个内置工具（§3.7；第 17 个 `resolve_site` 于 0.2 M1 加入、第 18 个 `web_search` 于 0.2.2 M1 加入），无截图、无坐标交互；**默认不执行页面 JS**（可选受限内置引擎见 [ADR-0005](adr/0005-embedded-js-engine.md)） |
 | 规范核实 | 「每 1000 行 PR 需审批」在现有仓库中**无成文依据**（SURVEY §1.2）；本计划把它作为**待写入的新项目规则**执行，措辞已落地在 [CONTRIBUTING.md](../CONTRIBUTING.md) §2 |
 
 ---
@@ -155,7 +155,7 @@ v0.3 的 aria ref 依赖"最近一次快照"的 live 页面，**在无浏览器�
 - 服务器指令 **≤ 32KB**；工具名 `mcp__webctl__<rawName>`，满足 function-name 契约。
 - 会话归属：单 provider、绑定确切 live Agent+Session、跨 Session 调用拒绝；**不写入 `toolOrder`**。
 
-### 3.7 工具面（17 个，定稿）
+### 3.7 工具面（18 个，定稿）
 
 | # | 工具 | 说明 |
 |---|---|---|
@@ -176,6 +176,7 @@ v0.3 的 aria ref 依赖"最近一次快照"的 live 页面，**在无浏览器�
 | 15 | `robots` | robots.txt 与站点策略查询（礼貌爬取依据；含 `Sitemap:` 声明清单） |
 | 16 | `resolve_site` | 站点名 → 入口候选（L1 内置映射/域名直推 + L2 站点内建搜索 + L3 Wikidata P856 + L4 sitemap 声明 + **显式 opt-in** 的 L5 SERP 兜底；多候选 + 证据 + 置信度，**绝不单选**；offline 时只走 L1） |
 | 17 | `caps` | 内置能力与版本自检 |
+| 18 | `web_search` | 全网搜索（默认 Bing）：结果卡片 + 可选 LLM 摘要；摘要必须回原始链接核对，正文走 fetch/extract |
 
 **明确不做**：screenshot / pdf 打印 / click / hover / drag / press_key / upload_file / handle_dialog / wait_for / evaluate / console_messages / network_requests（这些都是浏览器语义）。
 
