@@ -1,4 +1,4 @@
-//! 工具派发：把 17 个工具接到既有能力（MCP-10/MCP-11/MCP-13/SEC-09）。
+//! 工具派发：把 18 个工具接到既有能力（MCP-10/MCP-11/MCP-13/SEC-09）。
 //!
 //! 约定：
 //! - 已知工具的**任何**执行失败都以结果信封返回（ok=false + code + 可读 error），
@@ -45,6 +45,7 @@ pub async fn dispatch(ctx: &McpContext, name: &str, args: Value) -> Option<Value
         "json_query" => tool_json_query(ctx, &args).await,
         "doc_text" => tool_doc_text(ctx, &args).await,
         "embedded_data" => crate::embedded_tool::tool_embedded_data(ctx, &args).await,
+        "web_search" => crate::web_search_tool::tool_web_search(ctx, &args).await,
         "download" => tool_download(ctx, &args).await,
         "robots" => tool_robots(ctx, &args).await,
         "resolve_site" => crate::site::tool_resolve_site(ctx, &args).await,
@@ -210,7 +211,7 @@ pub(crate) async fn resolve_source(
     }
 }
 
-// ---------------------------------------------------------------- 17 个工具
+// ---------------------------------------------------------------- 18 个工具
 
 async fn tool_fetch(ctx: &McpContext, args: &Value) -> Value {
     let params = match parse::<FetchParams>(args) {

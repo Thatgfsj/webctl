@@ -58,6 +58,8 @@ js_render = false     # 是否执行页面内联脚本；默认 false（ADR-0005
 | `WEBCTL_OFFLINE` | 离线模式 | `1/true/yes/on` 或 `0/false/no/off` |
 | `WEBCTL_PROXY` | 显式代理 URL | 例 `http://user:pass@host:8080` |
 | `WEBCTL_JS_RENDER` | 是否执行页面内联脚本（**默认关闭**） | `1/true/yes/on` 或 `0/false/no/off` |
+| `WEBCTL_SEARCH_STRICT_ROBOTS` | web_search 是否严格遵守 robots（**默认关闭**：用户决策「搜索优先、合规其次」） | `1/true/yes/on` 或 `0/false/no/off` |
+| `WEBCTL_SEARCH_BASE` | web_search 的 SERP 基址覆盖（**仅调试/离线测试**；默认 `https://www.bing.com/search`） | 任意 URL（离线 lane 指向 fixture） |
 | `XDG_CONFIG_HOME` | 配置文件目录基准 | 路径 |
 | `HOME` | 配置文件/状态目录基准 | 路径 |
 | `USERPROFILE` | Windows 上的 `HOME` 等价物 | 路径 |
