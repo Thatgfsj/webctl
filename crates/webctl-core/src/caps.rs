@@ -84,7 +84,7 @@ pub struct Capability {
     pub reason: String,
 }
 
-/// 单个工具的能力报告（§3.7 的 17 个工具逐项）。
+/// 单个工具的能力报告（§3.7 的 18 个工具逐项）。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ToolCapability {
     /// 原始工具名（不带 mcp__webctl__ 前缀）。
