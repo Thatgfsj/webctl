@@ -176,7 +176,7 @@ v0.3 的 aria ref 依赖"最近一次快照"的 live 页面，**在无浏览器�
 | 15 | `robots` | robots.txt 与站点策略查询（礼貌爬取依据；含 `Sitemap:` 声明清单） |
 | 16 | `resolve_site` | 站点名 → 入口候选（L1 内置映射/域名直推 + L2 站点内建搜索 + L3 Wikidata P856 + L4 sitemap 声明 + **显式 opt-in** 的 L5 SERP 兜底；多候选 + 证据 + 置信度，**绝不单选**；offline 时只走 L1） |
 | 17 | `caps` | 内置能力与版本自检 |
-| 18 | `web_search` | 全网搜索（默认 Bing）：结果卡片；LLM 摘要解析在 0.2.2 M2，摘要必须回原始链接核对，正文走 fetch/extract |
+| 18 | `web_search` | 全网搜索（默认 Bing；`engines` 可选 bing/baidu/360）：结果卡片，多引擎去重 + RRF 融合，部分失败 `search-partial`；LLM 摘要解析在 0.2.2 M2，正文走 fetch/extract |
 
 **明确不做**：screenshot / pdf 打印 / click / hover / drag / press_key / upload_file / handle_dialog / wait_for / evaluate / console_messages / network_requests（这些都是浏览器语义）。
 

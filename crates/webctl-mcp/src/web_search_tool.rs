@@ -1,19 +1,24 @@
-//! `web_search` 工具（0.2.2 M1，议题 #199 / #200）：按查询词全网搜索。
+//! `web_search` 工具（0.2.2 M1 + M3，议题 #199 / #200 / #202）：按查询词全网搜索。
 //!
 //! 语义（与 `docs/ROADMAP-0.2.2.md` 一致）：
-//! - 默认 Bing（HTML SERP）；结果按**不可信页面内容**处理；**不自动抓正文**（正文用 fetch/extract）；
-//! - 每次请求前 50–500ms 随机抖动（在 `web_search::bing::fetch_serp` 内完成）；
+//! - 默认 Bing（HTML SERP）；`engines` 可选多引擎（bing / baidu / 360 已接线）；
+//! - 多引擎结果按归一化 URL 去重，再用 **RRF** 融合排序（rank 不可跨引擎比较，不宣称相关性分数）；
+//! - 结果按**不可信页面内容**处理；**不自动抓正文**（正文用 fetch/extract）；
+//! - 每次请求前 50–500ms 随机抖动（在 `web_search::engine::fetch_html` 内完成）；
 //! - 合规口径：默认不因 robots 拒绝而放弃（用户决策：搜索优先），但 `notes` 明示；
 //!   `WEBCTL_SEARCH_STRICT_ROBOTS=1` 时交给 `PoliteFetcher` 拦截（禁则 0 请求 + BLOCKED）；
-//! - 失败语义：被拦 / 空结果 / 超时 → `DEGRADED` + `degraded_from` + `actionable`。
+//! - 失败语义：单引擎失败沿用该引擎原因；多引擎**部分失败** → `DEGRADED + search-partial`，
+//!   **全部失败** → `DEGRADED + search-all-failed`（都带 actionable）。
 
 use std::time::Instant;
 
 use serde_json::Value;
 use webctl_core::{Envelope, ErrorCode, Trust};
 use webctl_web::politeness::{PoliteFetcher, PolitenessConfig};
+use webctl_web::web_search::aggregate::{self, Merged};
 use webctl_web::web_search::{
-    DEFAULT_MAX_RESULTS, EngineStatus, Jitter, MAX_RESULTS_LIMIT, SearchEngine, SearchReport, bing,
+    DEFAULT_MAX_RESULTS, EngineSerp, EngineStatus, Jitter, MAX_RESULTS_LIMIT, SearchEngine,
+    SearchReport, baidu, bing, engine, is_wired, so360, unavailable_note,
 };
 
 use crate::context::McpContext;
@@ -22,6 +27,8 @@ use crate::params::WebSearchParams;
 
 /// 严格 robots 模式的开关（默认关；用户决策：搜索优先、合规其次）。
 pub const STRICT_ROBOTS_ENV: &str = "WEBCTL_SEARCH_STRICT_ROBOTS";
+/// 单次最多翻到第几页（防止无界翻页；各引擎按自身参数映射）。
+pub const MAX_PAGE: usize = 5;
 
 /// SERP 请求用的浏览器化 UA（简单反爬；不伪装成具体账号）。
 const SERP_USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36";
@@ -58,7 +65,7 @@ fn strict_robots() -> bool {
         .unwrap_or(false)
 }
 
-/// 解析 `engines`：默认 `[bing]`；未知/未接线引擎如实报错，不静默替换。
+/// 解析 `engines`：默认 `[bing]`；未知引擎 `PARSE`；未接线引擎不拒绝，交给状态如实上报。
 fn resolve_engines(raw: Option<&Vec<String>>) -> Result<Vec<SearchEngine>, (ErrorCode, String)> {
     let names: Vec<String> = match raw {
         Some(names) if !names.is_empty() => names.clone(),
@@ -70,19 +77,10 @@ fn resolve_engines(raw: Option<&Vec<String>>) -> Result<Vec<SearchEngine>, (Erro
             return Err((
                 ErrorCode::Parse,
                 format!(
-                    "未知引擎 {name:?}；可选：bing（默认）/ mojeek / marginalia / baidu / 360 / yandex（0.2.2 M1 仅 bing 已接线）"
+                    "未知引擎 {name:?}；可选：bing（默认）/ baidu / 360 / mojeek / marginalia / yandex"
                 ),
             ));
         };
-        if engine != SearchEngine::Bing {
-            return Err((
-                ErrorCode::Unsupported,
-                format!(
-                    "引擎 {} 尚未接线（0.2.2 M3 多引擎）；当前只支持 bing",
-                    engine.as_str()
-                ),
-            ));
-        }
         if !engines.contains(&engine) {
             engines.push(engine);
         }
@@ -90,10 +88,24 @@ fn resolve_engines(raw: Option<&Vec<String>>) -> Result<Vec<SearchEngine>, (Erro
     Ok(engines)
 }
 
+/// 引擎的 SERP 基址：调试覆盖优先，否则用各引擎默认。
+fn base_for(ctx: &McpContext, engine: SearchEngine) -> String {
+    if let Some(base) = ctx.search_base.as_ref() {
+        return base.clone();
+    }
+    match engine {
+        SearchEngine::Baidu => baidu::DEFAULT_BASE.to_owned(),
+        SearchEngine::Sogou => so360::DEFAULT_BASE.to_owned(),
+        _ => bing::base_url(),
+    }
+}
+
 /// 合规与口径说明（每次结果都带，不依赖调用方记忆）。
-fn compliance_notes(strict: bool, page: usize) -> Vec<String> {
+fn compliance_notes(strict: bool, page: usize, engines: &[SearchEngine]) -> Vec<String> {
+    let names: Vec<&str> = engines.iter().map(|e| e.as_str()).collect();
     let mut notes = vec![
-        "compliance: HTML SERP——Bing 的 robots.txt 禁止 /search；默认按用户决策走搜索（搜索优先、合规其次）。"
+        format!("engines: {}", names.join(", ")),
+        "compliance: HTML SERP——Bing/Baidu/360 的 robots.txt 均禁止搜索路径；默认按用户决策走搜索（搜索优先、合规其次）。"
             .to_owned(),
         "trust: 结果是引擎给出的不可信页面内容；摘要（若有）是生成内容，必须打开原始链接核对。".to_owned(),
         "next: 正文请用 fetch / extract 打开结果里的原始链接；本工具不自动抓页面。".to_owned(),
@@ -104,20 +116,47 @@ fn compliance_notes(strict: bool, page: usize) -> Vec<String> {
         ));
     }
     if page > 1 {
-        notes.push(format!(
-            "page: 第 {page} 页（first={}）；不同引擎的翻页能力不同。",
-            1 + (page - 1) * 10
-        ));
+        notes.push(format!("page: 第 {page} 页（上限 {MAX_PAGE}）。"));
     }
     notes
 }
 
-fn engine_statuses(
-    results: usize,
-    elapsed_ms: u64,
-    degraded_from: Option<&str>,
-) -> Vec<EngineStatus> {
-    vec![bing::engine_status(results, elapsed_ms, degraded_from)]
+/// 降级来源 → 逐引擎状态名。
+fn status_of(degraded_from: Option<&str>) -> &'static str {
+    match degraded_from {
+        None => "hit",
+        Some("search-empty") => "empty",
+        Some("search-blocked") => "blocked",
+        Some("search-timeout") => "timeout",
+        Some("search-http-error") => "http-error",
+        Some("search-not-html") => "not-html",
+        Some(_) => "error",
+    }
+}
+
+fn status_for(engine: SearchEngine, serp: &Envelope<EngineSerp>) -> EngineStatus {
+    // 硬失败（ok=false，例如 NETWORK）**不能**报 hit：状态给 failed，note 带错误原因。
+    if !serp.ok {
+        return EngineStatus {
+            engine: engine.as_str().to_owned(),
+            status: "failed".to_owned(),
+            count: 0,
+            elapsed_ms: serp.meta.elapsed_ms,
+            note: Some(serp.error.clone()),
+        };
+    }
+    let degraded = serp.meta.degraded_from.as_deref();
+    EngineStatus {
+        engine: engine.as_str().to_owned(),
+        status: status_of(degraded).to_owned(),
+        count: serp
+            .data
+            .as_ref()
+            .map(|serp| serp.results.len())
+            .unwrap_or(0),
+        elapsed_ms: serp.meta.elapsed_ms,
+        note: degraded.map(str::to_owned),
+    }
 }
 
 /// `web_search` 的派发实现。
@@ -138,10 +177,11 @@ pub(crate) async fn tool_web_search(ctx: &McpContext, args: &Value) -> Value {
         .max_results
         .unwrap_or(DEFAULT_MAX_RESULTS)
         .clamp(1, MAX_RESULTS_LIMIT);
-    let page = params.page.unwrap_or(1).max(1);
-    if let Err((code, message)) = resolve_engines(params.engines.as_ref()) {
-        return to_value(Envelope::<SearchReport>::fail(code, message, 0));
-    }
+    let page = params.page.unwrap_or(1).clamp(1, MAX_PAGE);
+    let engines = match resolve_engines(params.engines.as_ref()) {
+        Ok(engines) => engines,
+        Err((code, message)) => return to_value(Envelope::<SearchReport>::fail(code, message, 0)),
+    };
 
     let strict = strict_robots();
     let config = PolitenessConfig {
@@ -155,41 +195,96 @@ pub(crate) async fn tool_web_search(ctx: &McpContext, args: &Value) -> Value {
     let jitter = Jitter::default();
 
     let started = Instant::now();
-    let base = ctx
-        .search_base
-        .clone()
-        .unwrap_or_else(webctl_web::web_search::bing::base_url);
-    let serp = bing::fetch_serp(&base, &query, page, max_results, &jitter, &fetcher).await;
-    let elapsed = started.elapsed().as_millis() as u64;
-    let degraded_from = serp.meta.degraded_from.clone();
-
-    let mut report = match serp.data {
-        Some(serp) => {
-            let count = serp.results.len();
-            SearchReport {
-                query: query.clone(),
-                results: serp.results,
-                engines: engine_statuses(count, elapsed, degraded_from.as_deref()),
-                llm_summary: None,
-                related: serp.related,
-                notes: compliance_notes(strict, page),
+    let mut statuses = Vec::new();
+    let mut inputs: Vec<(SearchEngine, Vec<webctl_web::web_search::SearchHit>)> = Vec::new();
+    let mut attempted = 0usize;
+    let mut succeeded = 0usize;
+    let mut single_reason: Option<String> = None;
+    let mut hard_failure: Option<(webctl_core::ErrorCode, String)> = None;
+    let mut related = Vec::new();
+    for engine in &engines {
+        if !is_wired(*engine) {
+            statuses.push(EngineStatus {
+                engine: engine.as_str().to_owned(),
+                status: "unavailable".to_owned(),
+                count: 0,
+                elapsed_ms: 0,
+                note: Some(unavailable_note(*engine).to_owned()),
+            });
+            continue;
+        }
+        attempted += 1;
+        let base = base_for(ctx, *engine);
+        let serp = match engine {
+            SearchEngine::Bing => engine::map_serp(
+                bing::fetch_serp(&base, &query, page, max_results, &jitter, &fetcher).await,
+                EngineSerp::from,
+            ),
+            SearchEngine::Baidu => {
+                baidu::fetch_serp(&base, &query, page, max_results, &jitter, &fetcher).await
             }
+            SearchEngine::Sogou => {
+                so360::fetch_serp(&base, &query, page, max_results, &jitter, &fetcher).await
+            }
+            _ => unreachable!("is_wired 已过滤"),
+        };
+        statuses.push(status_for(*engine, &serp));
+        if !serp.ok {
+            // 硬失败：保留 code/error，供单引擎时按 M1 语义原样 fail。
+            if hard_failure.is_none() {
+                hard_failure = Some((serp.code, serp.error.clone()));
+            }
+            continue;
         }
-        None => {
-            let mut report = SearchReport::empty(&query);
-            report.engines = engine_statuses(0, elapsed, degraded_from.as_deref());
-            report.notes = compliance_notes(strict, page);
-            report
+        let degraded = serp.meta.degraded_from.clone();
+        if degraded.is_none()
+            && let Some(data) = &serp.data
+        {
+            succeeded += 1;
+            inputs.push((*engine, data.results.clone()));
+            related.extend(data.related.iter().cloned());
+            continue;
         }
-    };
+        if single_reason.is_none() {
+            single_reason = degraded;
+        }
+    }
 
-    let envelope = if let Some(reason) = degraded_from {
+    let Merged { results, .. } = aggregate::merge(&inputs, max_results);
+    related.sort_by(|a, b| a.url.cmp(&b.url));
+    related.dedup_by(|a, b| a.url == b.url);
+
+    let mut report = SearchReport {
+        query: query.clone(),
+        results,
+        engines: statuses,
+        llm_summary: None,
+        related,
+        notes: compliance_notes(strict, page, &engines),
+    };
+    let elapsed = started.elapsed().as_millis() as u64;
+    // 单引擎硬失败（无降级原因）保持 M1 语义：原样 fail(code, error)，不伪装成降级。
+    if engines.len() == 1
+        && attempted == 1
+        && succeeded == 0
+        && single_reason.is_none()
+        && let Some((code, message)) = hard_failure.clone()
+    {
+        return to_value(Envelope::<SearchReport>::fail(code, message, elapsed));
+    }
+    let envelope = if attempted == 0 || succeeded == 0 {
+        // 单引擎失败时保留它自己的原因（与 M1 行为一致）；多引擎全失败用 search-all-failed。
+        let reason = if attempted <= 1 {
+            single_reason.unwrap_or_else(|| "search-all-failed".to_owned())
+        } else {
+            "search-all-failed".to_owned()
+        };
         Envelope::degraded(report, reason, ErrorCode::Degraded, elapsed)
-    } else if !serp.ok {
-        Envelope::fail(serp.code, serp.error, elapsed)
+    } else if succeeded < engines.len() {
+        // 有引擎没贡献结果（未接线或失败）→ 结果不完整，显式降级。
+        Envelope::degraded(report, "search-partial", ErrorCode::Degraded, elapsed)
     } else {
-        // `serp.data` 已在上面的 match 里消费；这里只可能是 ok 且有数据的分支。
-        report.engines = engine_statuses(report.results.len(), elapsed, None);
+        report.notes = compliance_notes(strict, page, &engines);
         Envelope::ok(report, Trust::UntrustedPageContent, elapsed)
     };
     to_value(envelope)
@@ -201,8 +296,21 @@ mod tests {
 
     #[test]
     fn default_engines_is_bing_only() {
-        let engines = resolve_engines(None).expect("默认引擎");
-        assert_eq!(engines, vec![SearchEngine::Bing]);
+        assert_eq!(
+            resolve_engines(None).expect("默认引擎"),
+            vec![SearchEngine::Bing]
+        );
+    }
+
+    #[test]
+    fn multiple_engines_are_kept_in_order_and_deduped() {
+        let engines = resolve_engines(Some(&vec![
+            "bing".to_owned(),
+            "baidu".to_owned(),
+            "bing".to_owned(),
+        ]))
+        .expect("多引擎");
+        assert_eq!(engines, vec![SearchEngine::Bing, SearchEngine::Baidu]);
     }
 
     #[test]
@@ -212,22 +320,33 @@ mod tests {
     }
 
     #[test]
-    fn not_wired_engine_is_unsupported() {
-        let error = resolve_engines(Some(&vec!["mojeek".to_owned()])).expect_err("未接线应报错");
-        assert_eq!(error.0, ErrorCode::Unsupported);
+    fn unwired_engine_is_not_rejected() {
+        let engines = resolve_engines(Some(&vec!["mojeek".to_owned()])).expect("未接线不拒绝");
+        assert_eq!(engines, vec![SearchEngine::Mojeek]);
+        assert!(!is_wired(SearchEngine::Mojeek));
     }
 
     #[test]
-    fn compliance_notes_always_disclose_serp_fact() {
-        let notes = compliance_notes(false, 1);
+    fn status_maps_degraded_reasons() {
+        assert_eq!(status_of(None), "hit");
+        assert_eq!(status_of(Some("search-empty")), "empty");
+        assert_eq!(status_of(Some("search-blocked")), "blocked");
+        assert_eq!(status_of(Some("search-timeout")), "timeout");
+        assert_eq!(status_of(Some("whatever")), "error");
+    }
+
+    #[test]
+    fn compliance_notes_list_engines_and_disclose_robots() {
+        let notes = compliance_notes(false, 1, &[SearchEngine::Bing, SearchEngine::Baidu]);
         let joined = notes.join(" ");
+        assert!(joined.contains("bing, baidu"));
         assert!(joined.contains("robots"));
         assert!(joined.contains("不可信"));
     }
 
     #[test]
     fn strict_mode_adds_note() {
-        let notes = compliance_notes(true, 1);
+        let notes = compliance_notes(true, 1, &[SearchEngine::Bing]);
         assert!(notes.iter().any(|note| note.starts_with("strict_robots")));
     }
 }

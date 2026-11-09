@@ -77,6 +77,20 @@ pub const PLANS: &[(&str, Plan)] = &[
         },
     ),
     (
+        "search-partial",
+        Plan {
+            reason: "search-partial",
+            next_steps: &["fetch"],
+        },
+    ),
+    (
+        "search-all-failed",
+        Plan {
+            reason: "search-unavailable",
+            next_steps: &["fetch"],
+        },
+    ),
+    (
         "search-blocked",
         Plan {
             reason: "search-unavailable",
@@ -85,6 +99,13 @@ pub const PLANS: &[(&str, Plan)] = &[
     ),
     (
         "search-timeout",
+        Plan {
+            reason: "search-unavailable",
+            next_steps: &["fetch"],
+        },
+    ),
+    (
+        "search-network-error",
         Plan {
             reason: "search-unavailable",
             next_steps: &["fetch"],

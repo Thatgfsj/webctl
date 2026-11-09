@@ -594,10 +594,10 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
   > `PR #149`（未合并）另加 3 条洪泛/预算用例；合并后本节应为 **14 条**。
 
 
-### 6.8f web_search（0.2.2 M1 + M3a，议题 [#200](https://github.com/Thatgfsj/webctl/issues/200) / [#202](https://github.com/Thatgfsj/webctl/issues/202)）
+### 6.8f web_search（0.2.2 M1 + M3，议题 [#200](https://github.com/Thatgfsj/webctl/issues/200) / [#202](https://github.com/Thatgfsj/webctl/issues/202)）
 
-- `crates/webctl-web/src/web_search/` 单元 **27 条**：M1 的 14 条（引擎名解析、抖动区间/可复现/覆盖全域/盐哈希、Bing 解析、`/ck/a` 解包、host 归属判断、URL 编码/规范化/状态映射）+ **M3a 新增 13 条**：`engine` 4（已接线名单、未接线说明、特征大小写不敏感、`BingSerp` 转换）、`baidu` 5（`mu` 属性解析、无 `mu` 丢弃跳转链、空页、验证码特征、`pn` 分页）、`so360` 4（`data-mdurl` 解析、无 `mdurl` 丢弃跳转链、验证码特征、`pn` 分页）。
-- `crates/webctl-mcp/tests/web_search.rs` **6 条**（纯本地 fixture，零外网）：结果解析 + 合规/不可信披露 + **只发 1 次 SERP 请求** + 抖动下界、分页 first、拦截页 → `DEGRADED + search-blocked + actionable`、零结果 → `DEGRADED + search-empty`、未接线/未知引擎/空 query 不联网、`max_results` 截断（上限 30）。
+- `crates/webctl-web/src/web_search/` 单元 **34 条**：M1 的 14 条（引擎名解析、抖动、Bing 解析、`/ck/a`、host 判断、编码/状态映射）+ M3a 的 13 条（`engine` 4、`baidu` 5、`so360` 4）+ **M3b 新增 7 条 `aggregate`**（跟踪参数/fragment/尾斜杠归一化、**非默认端口保留**、跨引擎去重、RRF 偏向多引擎命中、`engine` 标签取最好名次、截断重编号、非 http(s) 丢弃）。
+- `crates/webctl-mcp/tests/web_search.rs` **12 条**（纯本地 fixture/回环，零外网）：单引擎解析 + 合规披露 + 只发 1 次请求 + 抖动下界；分页 `first` 与 **page 上限 5**、Baidu `pn`；拦截页/零结果 → `DEGRADED` + `actionable`；**多引擎**（3 次请求、同 URL 去重、逐引擎状态）；**未接线引擎 0 请求 + unavailable**；**部分失败 → `search-partial`**；**单引擎硬失败（连接被拒）→ 原样 `fail(NETWORK)` 不伪装降级**；**多引擎硬失败 → `search-all-failed` 且逐引擎状态 failed/error**；未知引擎/空 query 不联网；`max_results` 截断。
 - 合规开关：`WEBCTL_SEARCH_STRICT_ROBOTS=1` 交给 polite 层拦截（单测只覆盖 note 文案；联网行为由 M4 真站慢速验证记录）。
 
 ### 6.9 PR 11 MCP server（议题 #19）
