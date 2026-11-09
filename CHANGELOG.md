@@ -8,10 +8,8 @@
 
 ### Added
 
+- **摘要暂缓（M2，#201）**：Bing 的 AI 摘要依赖缓存命中、纯 HTML 取回不可稳定复现；`web_search.llm_summary` 恒为 **null**，文档与工具描述均按“0.2.2 M2（本版不返回）”表述。
 - **第 18 个工具 `web_search`（0.2.2 M1，[#200](https://github.com/Thatgfsj/webctl/issues/200)）**：按查询词全网搜索，默认 **Bing**（HTML SERP）；返回结果卡片（title/url/snippet/rank/engine）与逐引擎状态，**不自动抓正文**（正文走 fetch/extract）；每次请求前 **50–500ms 随机抖动**，带简单反爬头（不做验证码/Cloudflare/代理）；被拦 / 零结果 / 超时显式 `DEGRADED` + `actionable`（`search-blocked` / `search-empty` / `search-timeout`）；结果（以及 M2 起的摘要）按不可信页面内容处理，`notes` 明示 Bing 的 robots 事实，`WEBCTL_SEARCH_STRICT_ROBOTS=1` 可切严格模式。
-
-### Added（0.2.2 M3）
-
 - **`web_search` 多引擎**（[#202](https://github.com/Thatgfsj/webctl/issues/202)）：`engines` 可传多个（**bing**（默认）/ **baidu** / **360** 已接线；mojeek/marginalia/yandex 未接线，逐引擎如实报 `unavailable` 且**不发起请求**）；结果按**归一化 URL 去重**（去 utm/fbclid 等跟踪参数、fragment、尾斜杠）后用 **RRF**（k=60）融合排序；同 URL 保留多引擎证据（`engines` 数组）；
 - **部分失败语义**：有引擎失败/未接线但仍有结果 → `DEGRADED + search-partial`（结果照常返回）；全部失败 → `DEGRADED + search-all-failed`；单引擎失败保留该引擎自己的原因；
 - **分页上限** `page ≤ 5`（Bing `first`、Baidu/360 `pn` 按引擎映射）。

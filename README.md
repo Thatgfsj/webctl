@@ -20,6 +20,7 @@
 | 项 | 值 |
 |---|---|
 | 阶段 | **P0 已完成**：PLAN §5.2 的 PR 03–14 全部合并（真实 merge sha 见 [PLAN §5.2.1](docs/PLAN.md)）；cargo-dist 三平台发布流水线就绪 |
+| 迭代 | **0.2.2（全网搜索）功能面已完成、待发版**：第 18 个工具 `web_search`（Bing/Baidu/360，随机抖动、去重 + RRF、部分失败语义）；M2 摘要暂缓；详见 [ROADMAP-0.2.2](docs/ROADMAP-0.2.2.md) 与 [ADR-0008](docs/adr/0008-search-channel.md) |
 | 发布 | **v0.2.1**（[Release](https://github.com/Thatgfsj/webctl/releases/tag/v0.2.1)，2026-10-29）：5 目标、10 个压缩包 / 28 个资产（含 **musl 静态**）+ 安装器；下载、`sha256sum -c`、干净环境 E2E、musl 静态与 Alpine 用户态均已实测（[docs/RELEASE.md](docs/RELEASE.md)、[ACCEPTANCE §7](docs/ACCEPTANCE.md)） |
 | 计划文档 | [docs/PLAN.md](docs/PLAN.md)（**v0.4**，含 2026-10-16 的方向变更） |
 | 事实依据 | [docs/SURVEY.md](docs/SURVEY.md)（本机实测 + 公开仓库核对；其中 CDP 部分已成历史记录） |

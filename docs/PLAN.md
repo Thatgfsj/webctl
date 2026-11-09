@@ -278,7 +278,7 @@ webctl/
 
 ### 5.2.1b 0.1.x–0.2.x 交付记录（滚动更新）
 
-> 依据：`git log --oneline vX.Y.Z..vA.B.C` 与各 PR 的独立审阅结论。最后更新：2026-10-29。
+> 依据：`git log --oneline vX.Y.Z..vA.B.C` 与各 PR 的独立审阅结论。最后更新：2026-11-10。
 
 | 版本 | 日期 | 关键 PR（merge sha） | 说明 |
 |---|---|---|---|
@@ -287,6 +287,7 @@ webctl/
 | v0.1.2 | 2026-10-19/20 | #114 embedded_data、#115/#123 actionable、#119 SPA 基线、#127/#129 webctl-js、#132/#133 最小 DOM、#135/#136/#138 js_render 接线、#147/#153 站点级通道与元数据解析、#144/#146 版本与发布记录 | 0.1.2 主题：SPA 的有效信息获取（内嵌数据 + 可行动降级 + 受限 JS 引擎） |
 | v0.2.0 | 2026-10-25 | #161–#165/#169 浏览器上下文注入、#166 CI 政策、#167 e2e 修正、#170 resolve_site L1、#173 resolve_site M1（内置映射+直推）、#175 L3、#176 L4、#177 L5、#178 L2、#174 大文件拆分、#179–#181 版本与发布记录 | 第 17 个工具 `resolve_site`（L1–L5）；0.2 里程碑全部完成 |
 | v0.2.1 | 2026-10-29 | #112 `90f2627`（CI 自检条数）、#182 `050beba`（#125 降级继承）、#184 `46fd9e8`（#183 M0 收尾：CLI 开关 + 表单/CLI 注入）、#185 `690f413`（#124 actionable 全量覆盖 + 原因码表）、#186 `e132f6c`（#117 第 2 步：RSS/Atom 取回） | 发布后修真实缺陷 + 补齐诚实性口径；**已发布**（tag/commit `4d8ac06`） |
+| 0.2.2（**开发中，未发布**） | 2026-11-10 | #205 `021ab66`（ROADMAP-0.2.2 入库）、#207 `b30f24f` / #208 `e218823`（web_search M1）、#210 `455bade`（M2 暂缓决策）、#211 `606d259`（M3a 引擎层 + Baidu/360）、#212 `edfd2eb`（M3b 多引擎/去重/RRF/部分失败）、#213 `b0dabb2`（ADR-0008 + M4 真站验证） | **功能面完成**：第 18 个工具 `web_search`（Bing/Baidu/360，随机抖动 50–500ms，去重 + RRF，部分失败 `search-partial`）；**M2 摘要暂缓**；**未发版**（版本号仍 0.2.1） |
 
 ### 5.2.2 发布记录
 
@@ -370,7 +371,7 @@ v0.3 的锚点（JS 页必须拿到 10 条）**作废**。v0.4 的锚点：
 8. ~~浏览器上下文：CLI 开关与两处未注入路径~~ **已完成**（2026-10-27，议题 #183）：`--browser-context` / `--no-browser-context` 已落地（互斥、显式优于环境变量、坏文件硬失败）；`fill_form` 的表单提交（`SessionEngine::send`）与 CLI `fetch` 均已注入，规则与 MCP 一致（SEC-06 跨源不带凭据 + 去重优先级）。**仍未验证**的是第 9 条（真实设备浏览器的 cookie 导出格式 / 新版 Chrome COOKIES 加密）。
 9. 真实设备浏览器的 cookie 导出格式（含新版 Chrome 的 COOKIES 加密）**未验证**。
 10. 站点级通道（RSS/Atom，`embedded_data` 的 `fetch_channels`）**真实站点命中率未统计**：离线 fixture 只证明机制与逐通道如实报告；不少站点只声明 feed 而实际 404、或被 robots 禁止。
-11. **0.2.2 全网搜索**（`web_search`）：默认走 Bing 的 HTML SERP（用户 2026-11-01 决策：搜索优先、合规其次），每次请求前加 **50–500ms 随机抖动**，LLM 摘要**必须回原始链接核对**；Bing/Mojeek/Marginalia/Baidu/360/Yandex 的 robots 均禁止搜索路径，本网络下没有「可达 + robots 允许」的免 key 通道——该事实与里程碑见 [ROADMAP-0.2.2](ROADMAP-0.2.2.md)，取舍与边界见 [ADR-0008](adr/0008-search-channel.md)。
+11. **0.2.2 全网搜索**（`web_search`）：默认走 Bing 的 HTML SERP（用户 2026-11-01 决策：搜索优先、合规其次），每次请求前加 **50–500ms 随机抖动**，LLM 摘要**必须回原始链接核对**（**摘要暂缓**：Bing 的 AI 摘要依赖缓存命中、纯 HTML 取回不可稳定复现，0.2.2 不返回摘要，`llm_summary` 恒 null）；Bing/Mojeek/Marginalia/Baidu/360/Yandex 的 robots 均禁止搜索路径，本网络下没有「可达 + robots 允许」的免 key 通道——该事实与里程碑见 [ROADMAP-0.2.2](ROADMAP-0.2.2.md)，取舍与边界见 [ADR-0008](adr/0008-search-channel.md)。
 
 ---
 
