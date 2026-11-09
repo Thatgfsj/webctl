@@ -508,6 +508,8 @@ impl SessionEngine {
                 reason: "content-requires-client-side-render".to_owned(),
                 detected: signal.evidence.clone(),
                 next_steps: vec!["embedded_data".to_owned()],
+                // #224：会话层的 SPA 判定没有原始页面信号面板，保持字段缺省。
+                fallback_hint: None,
             };
             return Envelope::degraded(
                 page,

@@ -27,6 +27,7 @@
 //! guard 从不修改 data，测试以「data 逐字节不变」固化这一约束。
 
 pub mod detect;
+pub mod fallback;
 pub mod guard;
 
 pub use detect::{Assessment, DEGRADED_FROM, Diagnosis, Severity, assess, signals};

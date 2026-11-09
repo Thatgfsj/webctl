@@ -37,6 +37,23 @@ pub enum Trust {
     TrustedLocal,
 }
 
+/// 结构化回退提示（议题 #224）。
+///
+/// **纯建议**：webctl 只描述"适合不适合交给外部浏览器/JS 引擎"，绝不主动调用任何
+/// 外部工具。字段可选，老消费者不受影响。
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct FallbackHint {
+    /// 页面是否适合交给外部 Playwright（空壳、chunk、hydration 等强信号命中）。
+    pub playwright_suitable: bool,
+    /// 命中的信号（可读文本，逐条可核对）。没有命中时为空数组。
+    #[serde(default)]
+    pub signals: Vec<String>,
+    /// 内嵌数据抽取是否已尝试且无果（本版 fetch/extract 不做自动抽取，恒为 false）。
+    pub embedded_data_tried: bool,
+    /// 内置 JS 引擎是否可能执行该页面；依赖外链库时为 false（进程内引擎救不了）。
+    pub js_engine_suitable: bool,
+}
+
 /// 降级时的**可行动信息**（议题 #115）。
 ///
 /// 目的：降级不只告诉调用方"我降级了"，还要说清**为什么**与**还能试什么**，
@@ -50,6 +67,9 @@ pub struct Actionable {
     pub detected: Vec<String>,
     /// 建议尝试的通道（工具名）。空数组表示"没有别的可试"。
     pub next_steps: Vec<String>,
+    /// 结构化回退提示（#224）。没有可提示的信号时不出现，保证向后兼容。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fallback_hint: Option<FallbackHint>,
 }
 
 /// 信封元信息。
@@ -281,5 +301,59 @@ mod tests {
     fn unknown_engine_is_rejected() {
         assert!(serde_json::from_value::<Engine>(serde_json::json!("quantum")).is_err());
         assert!(serde_json::from_value::<Engine>(serde_json::json!("builtin")).is_ok());
+    }
+
+    /// #224：不带 fallback_hint 的老信封原样反序列化（向后兼容）。
+    #[test]
+    fn actionable_without_fallback_hint_deserializes() {
+        let raw = serde_json::json!({
+            "ok": true,
+            "data": {"truncated": true},
+            "error": "",
+            "code": "DEGRADED",
+            "meta": {
+                "engine": "builtin",
+                "trust": "untrusted_page_content",
+                "degraded_from": "js-render",
+                "actionable": {
+                    "reason": "no-server-rendered-content",
+                    "detected": ["visible text: 0 chars"],
+                    "next_steps": ["embedded_data"]
+                },
+                "stale": false,
+                "elapsed_ms": 1
+            }
+        });
+        let env: Envelope<serde_json::Value> = serde_json::from_value(raw).expect("old envelope");
+        assert_eq!(env.validate(), Ok(()));
+        let actionable = env.meta.actionable.expect("actionable");
+        assert!(actionable.fallback_hint.is_none());
+    }
+
+    /// #224：没有回退信号时字段不出现在 JSON 里（老消费者不受影响）。
+    #[test]
+    fn actionable_without_hint_omits_the_field() {
+        let actionable = Actionable {
+            reason: "result-limit-reached".to_owned(),
+            detected: vec!["degraded_from: max-results".to_owned()],
+            next_steps: vec!["paginate".to_owned()],
+            fallback_hint: None,
+        };
+        let value = serde_json::to_value(&actionable).expect("serialize");
+        assert!(value.get("fallback_hint").is_none());
+    }
+
+    /// #224：FallbackHint 的 signals 可缺省，其余字段必填。
+    #[test]
+    fn fallback_hint_signals_default_to_empty() {
+        let hint: FallbackHint = serde_json::from_value(serde_json::json!({
+            "playwright_suitable": true,
+            "embedded_data_tried": true,
+            "js_engine_suitable": false
+        }))
+        .expect("signals 可缺省");
+        assert!(hint.signals.is_empty());
+        assert!(hint.playwright_suitable);
+        assert!(!hint.js_engine_suitable);
     }
 }

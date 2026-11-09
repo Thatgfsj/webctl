@@ -11,9 +11,10 @@
 //!
 //! 两者都不是 OK：绝不返回「成功但 0 条」。
 
-use webctl_core::{Actionable, Envelope, ErrorCode};
+use webctl_core::{Actionable, Envelope, ErrorCode, FallbackHint};
 
 use super::detect::{self, Assessment, Diagnosis, Severity};
+use super::fallback;
 
 /// 守卫作用域：决定需要 JS 时空结果用哪个降级码。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -63,11 +64,18 @@ pub fn guard<T>(
             Severity::Total => ErrorCode::Unsupported,
         },
     };
-    apply(envelope, code, &diagnosis)
+    // #224：fetch/extract 不自动抽取内嵌数据，所以 embedded_data_tried 恒为 false。
+    let fallback_hint = fallback::hint(html, false);
+    apply(envelope, code, &diagnosis, fallback_hint)
 }
 
 /// 只写 code / error / degraded_from，data 一个字节都不动。
-fn apply<T>(mut envelope: Envelope<T>, code: ErrorCode, diagnosis: &Diagnosis) -> Envelope<T> {
+fn apply<T>(
+    mut envelope: Envelope<T>,
+    code: ErrorCode,
+    diagnosis: &Diagnosis,
+    fallback_hint: Option<FallbackHint>,
+) -> Envelope<T> {
     envelope.code = code;
     envelope.meta.degraded_from = Some(diagnosis.degraded_from.clone());
     envelope.error = diagnosis.reason.clone();
@@ -76,5 +84,6 @@ fn apply<T>(mut envelope: Envelope<T>, code: ErrorCode, diagnosis: &Diagnosis) -
         reason: diagnosis.reason_code.clone(),
         detected: diagnosis.evidence.clone(),
         next_steps: diagnosis.next_steps.clone(),
+        fallback_hint,
     })
 }
