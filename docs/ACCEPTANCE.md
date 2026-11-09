@@ -83,6 +83,13 @@
 
 > 收尾时在下面追加：日期、执行者、命令、结果摘要、CI run 链接。
 
+- **2026-11-10（Lead）0.2.2 `web_search` 真站慢速验证**（用户已授权；**原始数据不入库**）：
+  - 方法：`web_search` 经 MCP 调用，**5 次请求**（bing ×3、baidu ×1、360 ×1），查询为“网页抓取/爬虫”主题的中英混合；请求间隔 **6s**（≥5s），工具内 50–500ms 随机抖动；数据只落 `/tmp`；
+  - 结果：**5/5 `OK`**、共 **40** 条结果（bing 10/10/7、baidu 7、360 6）；延迟 p50 **799ms**（min 476 / max 6811，baidu 最慢）；未出现验证码/拦截页；未触发严格模式；
+  - **相关性未评估**：抽查 top-1 出现明显噪声（如 hao123、输入法页面），故不声称“结果质量好”；
+  - 严格模式（`WEBCTL_SEARCH_STRICT_ROBOTS=1`）的**联网行为**本轮未逐引擎证明（单测只覆盖 note 文案）；
+  - 取舍与边界见 [ADR-0008](adr/0008-search-channel.md)。
+
 - **2026-10-30（Lead）v0.2.1 发布资产验收**（Release [v0.2.1](https://github.com/Thatgfsj/webctl/releases/tag/v0.2.1)，tag/commit `4d8ac06`，5 目标 / 10 压缩包 / 28 资产）
   - **sha256**：下载 4 个 Linux 压缩包（`webctl` / `webctl-mcp` × gnu / musl）→ `sha256sum -c` **全部 OK**（sha256.sum 来自 Release 资产）；
   - **版本**：gnu 与 musl 的 `webctl --version` 均为 **`webctl 0.2.1`**；`mcp --list-tools` 均为 **17**；`caps --json` version=0.2.1；

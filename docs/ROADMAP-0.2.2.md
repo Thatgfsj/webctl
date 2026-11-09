@@ -70,9 +70,9 @@
 | M1 ✅ | 工具壳 + 结果模型（为 M3 多引擎预留）+ **Bing SERP 解析** + 抖动/礼貌层 + 失败语义 | [#200](https://github.com/Thatgfsj/webctl/issues/200)（已关闭） | **已完成**（[#207](https://github.com/Thatgfsj/webctl/pull/207) / [#208](https://github.com/Thatgfsj/webctl/pull/208)，2026-11-01）：离线 fixture 解析正确；默认只发 Bing 请求；抖动 50–500ms 可断言 |
 | M2 ⏸ | ~~Bing LLM 摘要 + 相关主题~~ **暂缓**（用户 2026-11-01：摘要仅在 Bing AI 缓存命中后出现，先不做） | [#201](https://github.com/Thatgfsj/webctl/issues/201)（保留） | 暂不验收。前提是能稳定复现“什么时候有摘要”，否则不可测；`related` 已随 M1 落地 |
 | M3 ✅ | `engines` 多引擎 + 聚合/去重/RRF + 分页 | [#202](https://github.com/Thatgfsj/webctl/issues/202) | **已完成**（[#211](https://github.com/Thatgfsj/webctl/pull/211) 引擎层/Baidu/360 + 本 PR MCP 聚合）：逐引擎状态；部分失败 `DEGRADED + search-partial`；全失败 `search-all-failed`；page ≤ 5 |
-| M4 | 文档/工具面/ADR-0008/真站慢速验证 | [#203](https://github.com/Thatgfsj/webctl/issues/203) | 工具面 = 18；文档一致；真站数据不入库 |
+| M4 ✅ | 文档/工具面/ADR-0008/真站慢速验证 | [#203](https://github.com/Thatgfsj/webctl/issues/203) | **已完成**：ADR-0008 定稿；工具面 = 18；真站慢速验证 5 请求/40 条结果（数据不入库）；相关性未评估（如实记录） |
 
-**当前进度（2026-11-10）**：M1 已完成（#207 / #208）；M2 暂缓；M3 ✅ 已完成（#211 引擎层 + 本 PR 多引擎/去重/RRF/分页）；**下一步 M4（#203）**：文档/ADR-0008/真站慢速验证。
+**当前进度（2026-11-10）**：M1 ✅（#207 / #208）、M2 ⏸ 暂缓、M3 ✅（#211 / #212）、M4 ✅（ADR-0008 + 文档 + 真站慢速验证）。0.2.2 的功能面已完成，**待发版**（版本号/CHANGELOG/发布流程由维护者决定）。
 
 ## 6. 测试策略
 

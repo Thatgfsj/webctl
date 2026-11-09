@@ -10,6 +10,7 @@
 | [ADR-0004](0004-politeness-by-default.md) | 礼貌与限速是默认姿态，不承诺绕过反爬 | 已采纳（2026-10-16） |
 | [ADR-0005](0005-embedded-js-engine.md) | 引入受限内置 JS 引擎（boa_engine），默认关闭 | 已采纳（2026-10-17） |
 | [ADR-0006](0006-resolve-site-and-browser-context.md) | 站点定位兜底（`resolve_site`）与浏览器上下文注入 | 草案（2026-10-20） |
+| [ADR-0008](0008-search-channel.md) | 全网搜索通道（`web_search`）：默认 Bing HTML SERP、简单反爬、聚合与合规边界 | 已采纳（2026-11-10） |
 
 ## 约定
 
