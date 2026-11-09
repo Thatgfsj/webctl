@@ -594,9 +594,9 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
   > `PR #149`（未合并）另加 3 条洪泛/预算用例；合并后本节应为 **14 条**。
 
 
-### 6.8f web_search（0.2.2 M1，议题 [#200](https://github.com/Thatgfsj/webctl/issues/200)）
+### 6.8f web_search（0.2.2 M1 + M3a，议题 [#200](https://github.com/Thatgfsj/webctl/issues/200) / [#202](https://github.com/Thatgfsj/webctl/issues/202)）
 
-- `crates/webctl-web/src/web_search/` 单元 **14 条**：引擎名解析与大小写、抖动区间/可复现/覆盖全域/盐哈希、Bing SERP 解析、`/ck/a` 解包（合法/无前缀/非法 base64/非 http(s)）、host 归属判断（2 条结果 + 相关主题、max_results 截断、空页、验证码特征、URL 编码与分页、结果 URL 规范化、逐引擎状态映射）；
+- `crates/webctl-web/src/web_search/` 单元 **27 条**：M1 的 14 条（引擎名解析、抖动区间/可复现/覆盖全域/盐哈希、Bing 解析、`/ck/a` 解包、host 归属判断、URL 编码/规范化/状态映射）+ **M3a 新增 13 条**：`engine` 4（已接线名单、未接线说明、特征大小写不敏感、`BingSerp` 转换）、`baidu` 5（`mu` 属性解析、无 `mu` 丢弃跳转链、空页、验证码特征、`pn` 分页）、`so360` 4（`data-mdurl` 解析、无 `mdurl` 丢弃跳转链、验证码特征、`pn` 分页）。
 - `crates/webctl-mcp/tests/web_search.rs` **6 条**（纯本地 fixture，零外网）：结果解析 + 合规/不可信披露 + **只发 1 次 SERP 请求** + 抖动下界、分页 first、拦截页 → `DEGRADED + search-blocked + actionable`、零结果 → `DEGRADED + search-empty`、未接线/未知引擎/空 query 不联网、`max_results` 截断（上限 30）。
 - 合规开关：`WEBCTL_SEARCH_STRICT_ROBOTS=1` 交给 polite 层拦截（单测只覆盖 note 文案；联网行为由 M4 真站慢速验证记录）。
 
