@@ -72,7 +72,7 @@
 | M3 ✅ | `engines` 多引擎 + 聚合/去重/RRF + 分页 | [#202](https://github.com/Thatgfsj/webctl/issues/202) | **已完成**（[#211](https://github.com/Thatgfsj/webctl/pull/211) 引擎层/Baidu/360 + 本 PR MCP 聚合）：逐引擎状态；部分失败 `DEGRADED + search-partial`；全失败 `search-all-failed`；page ≤ 5 |
 | M4 ✅ | 文档/工具面/ADR-0008/真站慢速验证 | [#203](https://github.com/Thatgfsj/webctl/issues/203) | **已完成**：ADR-0008 定稿；工具面 = 18；真站慢速验证 5 请求/40 条结果（数据不入库）；相关性未评估（如实记录） |
 
-**当前进度（2026-11-10）**：M1 ✅（#207 / #208）、M2 ⏸ 暂缓、M3 ✅（#211 / #212）、M4 ✅（ADR-0008 + 文档 + 真站慢速验证）。0.2.2 的功能面已完成，**待发版**（版本号/CHANGELOG/发布流程由维护者决定）。
+**当前进度（2026-11-10）**：M1 ✅（#207 / #208）、M2 ⏸ 暂缓、M3 ✅（#211 / #212）、M4 ✅（ADR-0008 + 文档 + 真站慢速验证）。0.2.2 **已发布**（2026-11-10，tag `v0.2.2` / commit `e4a636f`；Release 28 资产，验收见 [ACCEPTANCE §7](ACCEPTANCE.md)）。
 
 ## 6. 测试策略
 

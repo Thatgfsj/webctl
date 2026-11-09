@@ -14,6 +14,11 @@
 - **部分失败语义**：有引擎失败/未接线但仍有结果 → `DEGRADED + search-partial`（结果照常返回）；全部失败 → `DEGRADED + search-all-failed`；单引擎失败保留该引擎自己的原因；
 - **分页上限** `page ≤ 5`（Bing `first`、Baidu/360 `pn` 按引擎映射）。
 
+### Notes
+
+- 发布资产：5 目标 / 10 压缩包 / 28 资产；`aarch64-apple-darwin` 从本版起在 `macos-15-intel` 上交叉编译（[#218](https://github.com/Thatgfsj/webctl/issues/218) / [#219](https://github.com/Thatgfsj/webctl/pull/219)）。
+- **摘要暂缓**：`web_search.llm_summary` 恒为 `null`（M2 待缓存命中可稳定复现后再做，议题 [#201](https://github.com/Thatgfsj/webctl/issues/201)）。
+
 ## [0.2.1] - 2026-10-29
 
 ### Added
