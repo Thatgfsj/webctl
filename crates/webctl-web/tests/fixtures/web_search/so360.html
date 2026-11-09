@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN"><body>
+<ul class="result">
+  <!-- 合成 fixture：高置信 /Link 跳转链（剔除并计数） -->
+  <li class="res-list">
+    <h3 class="res-title"><a data-mdurl="https://ads.example.org/landing" href="https://www.so.com/Link?m=high">特惠云主机</a></h3>
+    <p class="res-desc">限时优惠。</p>
+    <p class="g-linkinfo"><cite>ads.example.org</cite></p>
+  </li>
+  <!-- 合成 fixture：自然结果（/link 小写不是广告跳转域） -->
+  <li class="res-list">
+    <h3 class="res-title"><a data-mdurl="https://example.com/docs/rust" href="https://www.so.com/link?m=organic">Rust 官方文档</a></h3>
+    <p class="res-desc">语言与标准库文档。</p>
+    <p class="g-linkinfo"><cite>example.com</cite></p>
+  </li>
+  <!-- 合成 fixture：低置信「广告」标签（保留并打标） -->
+  <li class="res-list">
+    <h3 class="res-title"><a data-mdurl="https://example.net/course" href="https://www.so.com/link?m=low">广告：Rust 培训课程</a></h3>
+    <p class="res-desc">商业培训。</p>
+    <p class="g-linkinfo"><cite>example.net</cite></p>
+  </li>
+</ul>
+</body></html>

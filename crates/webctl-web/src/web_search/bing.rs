@@ -11,6 +11,7 @@ use url::Url;
 use webctl_core::{Envelope, ErrorCode, Trust};
 
 use crate::politeness::PoliteFetcher;
+use crate::web_search::ads;
 use crate::web_search::{EngineStatus, Jitter, RelatedTopic, SearchHit, SourceLink, hash_salt};
 
 /// 默认 SERP 基址。
@@ -21,10 +22,12 @@ pub const BASE_ENV: &str = "WEBCTL_SEARCH_BASE";
 /// 一次 Bing SERP 的解析结果。
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BingSerp {
-    /// 自然结果。
+    /// 自然结果（已剔除高置信广告）。
     pub results: Vec<SearchHit>,
     /// 相关主题 / 相关搜索。
     pub related: Vec<RelatedTopic>,
+    /// 被高置信广告规则剔除的条数。
+    pub filtered_ads: usize,
 }
 
 /// 解析结果 + 拦截特征（内部用）。
@@ -77,6 +80,7 @@ fn parse_internal(html: &str, max_results: usize) -> Parsed {
     let cite_selector = Selector::parse("cite").expect("静态选择器");
 
     let mut results = Vec::new();
+    let mut filtered_ads = 0usize;
     let mut seen = std::collections::HashSet::new();
     for block in document.select(&block_selector) {
         if results.len() >= max_results {
@@ -87,36 +91,48 @@ fn parse_internal(html: &str, max_results: usize) -> Parsed {
             .next()
             .or_else(|| block.select(&link_selector).next());
         let Some(anchor) = anchor else { continue };
-        let href = anchor.value().attr("href").unwrap_or_default();
-        let Some(url) = normalize_result_url(href) else {
-            continue;
-        };
-        if !seen.insert(url.clone()) {
+        let raw_href = anchor.value().attr("href").unwrap_or_default();
+        let title = anchor.text().collect::<String>().trim().to_owned();
+        if title.is_empty() {
             continue;
         }
-        let title = anchor.text().collect::<String>().trim().to_owned();
         let snippet = block
             .select(&paragraph_selector)
             .map(|p| p.text().collect::<String>().trim().to_owned())
             .find(|text| !text.is_empty())
             .unwrap_or_default();
-        let display_url = block
+        let cite_text = block
             .select(&cite_selector)
             .next()
             .map(|cite| cite.text().collect::<String>().trim().to_owned())
-            .filter(|text| !text.is_empty())
-            .unwrap_or_else(|| url.clone());
-        if title.is_empty() {
+            .filter(|text| !text.is_empty());
+        // 跳转域规则必须看**归一化前**的 href：ck/a 会被 normalize_result_url 解开。
+        let verdict = ads::classify(
+            ads::AdEngine::Bing,
+            &title,
+            cite_text.as_deref().unwrap_or_default(),
+            raw_href,
+        );
+        if verdict.should_filter() {
+            filtered_ads += 1;
             continue;
         }
+        let Some(url) = normalize_result_url(raw_href) else {
+            continue;
+        };
+        if !seen.insert(url.clone()) {
+            continue;
+        }
+        let display_url = cite_text.unwrap_or_else(|| url.clone());
         results.push(SearchHit {
             rank: results.len() as u32 + 1,
             engine: "bing".to_owned(),
             title,
-            url: url.clone(),
+            url,
             display_url,
             snippet,
             engines: vec!["bing".to_owned()],
+            is_ad: verdict.is_ad,
         });
     }
 
@@ -138,7 +154,11 @@ fn parse_internal(html: &str, max_results: usize) -> Parsed {
     }
 
     Parsed {
-        serp: BingSerp { results, related },
+        serp: BingSerp {
+            results,
+            related,
+            filtered_ads,
+        },
         looks_blocked,
     }
 }
@@ -271,6 +291,7 @@ pub async fn fetch_serp(
             BingSerp {
                 results: Vec::new(),
                 related: parsed.serp.related,
+                filtered_ads: parsed.serp.filtered_ads,
             },
             "search-empty",
             ErrorCode::Degraded,

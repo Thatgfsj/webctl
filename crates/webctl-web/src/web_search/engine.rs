@@ -15,10 +15,12 @@ use super::{Jitter, RelatedTopic, SearchEngine, SearchHit, hash_salt};
 /// 单个引擎的一次搜索结果（多引擎聚合前的单位）。
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct EngineSerp {
-    /// 自然结果。
+    /// 自然结果（已剔除高置信广告）。
     pub results: Vec<SearchHit>,
     /// 相关主题 / 相关搜索。
     pub related: Vec<RelatedTopic>,
+    /// 被高置信广告规则剔除的条数（供上层汇总到 `SearchReport::filtered_ads`）。
+    pub filtered_ads: usize,
 }
 
 impl From<BingSerp> for EngineSerp {
@@ -26,6 +28,7 @@ impl From<BingSerp> for EngineSerp {
         Self {
             results: serp.results,
             related: serp.related,
+            filtered_ads: serp.filtered_ads,
         }
     }
 }
@@ -213,8 +216,10 @@ mod tests {
                 display_url: "example.com".to_owned(),
                 snippet: "s".to_owned(),
                 engines: vec!["bing".to_owned()],
+                is_ad: false,
             }],
             related: Vec::new(),
+            filtered_ads: 0,
         };
         let converted: EngineSerp = serp.into();
         assert_eq!(converted.results.len(), 1);

@@ -10,6 +10,7 @@ use webctl_core::Envelope;
 
 use crate::politeness::PoliteFetcher;
 
+use super::ads;
 use super::engine::{EngineSerp, contains_any, fetch_html, finish};
 use super::{Jitter, SearchEngine, SearchHit};
 
@@ -41,26 +42,23 @@ pub fn parse_serp(html: &str, max_results: usize) -> EngineSerp {
     let abstract_selector = Selector::parse(".c-abstract").expect("静态选择器");
 
     let mut results = Vec::new();
+    let mut filtered_ads = 0usize;
     let mut seen = std::collections::HashSet::new();
     for block in document.select(&block_selector) {
         if results.len() >= max_results {
             break;
         }
+        let raw_href = block
+            .select(&link_selector)
+            .next()
+            .and_then(|a| a.value().attr("href"))
+            .unwrap_or_default();
         let url = block
             .value()
             .attr("mu")
             .and_then(normalize_result_url)
-            .or_else(|| {
-                block
-                    .select(&link_selector)
-                    .next()
-                    .and_then(|a| a.value().attr("href"))
-                    .and_then(normalize_result_url)
-            });
+            .or_else(|| normalize_result_url(raw_href));
         let Some(url) = url else { continue };
-        if !seen.insert(url.clone()) {
-            continue;
-        }
         let title = block
             .select(&title_selector)
             .next()
@@ -78,6 +76,15 @@ pub fn parse_serp(html: &str, max_results: usize) -> EngineSerp {
             .ok()
             .and_then(|u| u.host_str().map(str::to_owned))
             .unwrap_or_else(|| url.clone());
+        // 百度广告走 baidu.php 跳转链（自然结果的 /link 不算），必须用归一化前的 href。
+        let verdict = ads::classify(ads::AdEngine::Baidu, &title, &display_url, raw_href);
+        if verdict.should_filter() {
+            filtered_ads += 1;
+            continue;
+        }
+        if !seen.insert(url.clone()) {
+            continue;
+        }
         results.push(SearchHit {
             rank: results.len() as u32 + 1,
             engine: SearchEngine::Baidu.as_str().to_owned(),
@@ -86,11 +93,13 @@ pub fn parse_serp(html: &str, max_results: usize) -> EngineSerp {
             display_url,
             snippet,
             engines: vec![SearchEngine::Baidu.as_str().to_owned()],
+            is_ad: verdict.is_ad,
         });
     }
     EngineSerp {
         results,
         related: Vec::new(),
+        filtered_ads,
     }
 }
 

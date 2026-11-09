@@ -72,6 +72,8 @@ pub fn merge(inputs: &[(SearchEngine, Vec<SearchHit>)], max_results: usize) -> M
     let mut scores: HashMap<String, f64> = HashMap::new();
     let mut best: HashMap<String, (usize, String, SearchHit)> = HashMap::new();
     let mut engines: HashMap<String, Vec<String>> = HashMap::new();
+    // 低置信广告标记跨引擎取并集：任一引擎判为广告，融合结果就保留标记。
+    let mut ad_flags: HashMap<String, bool> = HashMap::new();
     for (engine, hits) in inputs {
         let name = engine.as_str().to_owned();
         merged.raw_counts.insert(name.clone(), hits.len());
@@ -85,6 +87,7 @@ pub fn merge(inputs: &[(SearchEngine, Vec<SearchHit>)], max_results: usize) -> M
             if !entry.contains(&name) {
                 entry.push(name.clone());
             }
+            *ad_flags.entry(url.clone()).or_insert(false) |= hit.is_ad;
             match best.get(&url) {
                 Some((best_rank, _, _)) if *best_rank <= rank => {}
                 _ => {
@@ -108,6 +111,7 @@ pub fn merge(inputs: &[(SearchEngine, Vec<SearchHit>)], max_results: usize) -> M
         hit.engines = engines.remove(&url).unwrap_or_default();
         hit.engine = best_engine;
         hit.rank = merged.results.len() as u32 + 1;
+        hit.is_ad |= ad_flags.remove(&url).unwrap_or(false);
         merged.results.push(hit);
     }
     merged
@@ -126,6 +130,7 @@ mod tests {
             display_url: String::new(),
             snippet: String::new(),
             engines: vec![engine.as_str().to_owned()],
+            is_ad: false,
         }
     }
 
