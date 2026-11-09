@@ -23,5 +23,10 @@ targets = ["x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl", "aarch64-app
 install-path = "CARGO_HOME"
 # Where to host releases
 hosting = "github"
+# aarch64-apple-darwin 使用可用的标准 macOS 运行器（GitHub 对该仓库的 macos-14 保留了
+# "macos-14-arm64-us-default" 配置，release 作业会被拒绝），因此用 macOS x86_64 运行器
+# 交叉编译 arm64 目标。
+github-custom-runners = { "aarch64-apple-darwin" = "macos-15-intel" }
+
 # Whether to install an updater program
 install-updater = false
