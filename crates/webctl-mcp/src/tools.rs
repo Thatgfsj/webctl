@@ -125,7 +125,7 @@ pub const TOOL_SPECS: [ToolSpec; 18] = [
     },
     ToolSpec {
         name: "web_search",
-        description: "全网搜索（默认 Bing）：查询词 → 结果卡片；摘要是生成内容，必须回源核对",
+        description: "全网搜索（默认 Bing；engines 可选 bing/baidu/360，多引擎去重 + RRF 融合）；正文用 fetch/extract 取",
     },
 ];
 

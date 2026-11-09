@@ -28,7 +28,7 @@ description: 纯内置的网页取回/解析/抽取 MCP server（零外部进程
 - `robots` — robots.txt 与站点策略查询（礼貌爬取依据；含 `Sitemap:` 声明清单）。
 - `resolve_site` — 按站点名给出入口候选（L1 内置映射/域名直推 + L2 站点内建搜索 + L3 Wikidata P856 + L4 候选域名的 sitemap 声明 + **显式 opt-in** 的 L5 SERP 兜底；多候选、带证据与置信度，**绝不单选**；L2/L3/L4/L5 会联网且过 politeness，offline 模式只走 L1；sitemap 声明只作证据，L5 默认关且结果不跨可靠阈值）。
 - `caps` — 内置能力与版本自检，逐项列出 18 个工具的可用性。
-- `web_search` — 全网搜索（默认 Bing）：查询词 → 结果卡片（title/url/snippet/rank/engine）；摘要解析在 **0.2.2 M2**（本版不返回）；摘要一旦出现必须打开原始链接核对；正文用 fetch/extract 取。
+- `web_search` — 全网搜索（默认 Bing；`engines` 可选 bing/baidu/360）：查询词 → 结果卡片（title/url/snippet/rank/engine），多引擎结果按 URL 去重并用 **RRF** 融合；部分引擎失败会 `DEGRADED + search-partial`；摘要解析在 **0.2.2 M2**（本版不返回），正文用 fetch/extract 取。
 <!-- tools:end -->
 
 工具在 DSH 中的限定名是 `mcp__webctl__<rawName>`（例如 `mcp__webctl__fetch`）。

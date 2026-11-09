@@ -123,12 +123,15 @@ where
                 ErrorCode::Degraded,
                 elapsed,
             ),
-            ErrorCode::Network => Envelope::degraded(
-                EngineSerp::default(),
-                "search-http-error",
-                ErrorCode::Degraded,
-                elapsed,
-            ),
+            ErrorCode::Network => {
+                // 区分「HTTP 状态错误」与「连接失败」：前者是站点应答，后者是传输层。
+                let reason = if fetched.error.contains("HTTP") {
+                    "search-http-error"
+                } else {
+                    "search-network-error"
+                };
+                Envelope::degraded(EngineSerp::default(), reason, ErrorCode::Degraded, elapsed)
+            }
             other => Envelope::fail(other, fetched.error, elapsed),
         };
     }

@@ -7,6 +7,7 @@
 //!   `strict_robots=true` 时由 `PoliteFetcher` 拦截（禁则 0 请求）；
 //! - 失败不伪装成功：被拦 / 空结果 / 超时都返回带 `degraded_from` 的信封。
 
+pub mod aggregate;
 pub mod baidu;
 pub mod bing;
 pub mod engine;
