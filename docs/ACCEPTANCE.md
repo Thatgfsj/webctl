@@ -83,6 +83,15 @@
 
 > 收尾时在下面追加：日期、执行者、命令、结果摘要、CI run 链接。
 
+- **2026-11-10（Lead）v0.2.2 发布资产验收**（Release [v0.2.2](https://github.com/Thatgfsj/webctl/releases/tag/v0.2.2)，tag/commit `e4a636f`，5 目标 / 10 压缩包 / 28 资产）
+  - **sha256**：下载 4 个 Linux 压缩包（`webctl` / `webctl-mcp` × gnu / musl）→ `sha256sum -c` **全部 OK**（sha256.sum 来自 Release 资产）；
+  - **版本**：gnu 与 musl 的 `webctl --version` 均为 **`webctl 0.2.2`**；`caps --json` version=0.2.2；`webctl mcp --list-tools` 均为 **18**；
+  - **静态性**：musl 资产 `ldd` = `statically linked`；gnu 资产动态链接（libstdc++ / libgcc_s，属预期）；
+  - **E2E**：`scripts/release-e2e.sh <gnu> 0.2.2` → **PASS**；`<musl> 0.2.2 --static` → **PASS**（PKG-04/06/08）；
+  - **Alpine 用户态**：`alpine-minirootfs-3.20.3` + `unshare -r -- bwrap` 内运行 musl 资产 → `webctl 0.2.2`、`caps --json` ok=true（version=0.2.2）；
+  - **体积基线回填**：gnu **35,151,968 B** / musl **34,483,296 B**（较 v0.2.1：gnu +0.69% / musl +0.68%），冷启动 p50 **6 / 5 ms**（`docs/size-baseline.json` 的 `source=release-asset`、`commit=e4a636f`）；
+  - 发布工作流 run `42701431724` 全绿（plan、5 目标构建、global、host、announce）；首轮 run `42694004686` 因 GitHub 的 arm64 macOS runner 配置不受支持而失败（`The configuration 'macos-14-arm64-us-default' is not supported`），已改为在 `macos-15-intel` 上交叉编译（[#218](https://github.com/Thatgfsj/webctl/issues/218) / [#219](https://github.com/Thatgfsj/webctl/pull/219)）。
+
 - **2026-11-10（Lead）0.2.2 `web_search` 真站慢速验证**（用户已授权；**原始数据不入库**）：
   - 方法：`web_search` 经 MCP 调用，**5 次请求**（bing ×3、baidu ×1、360 ×1），查询为“网页抓取/爬虫”主题的中英混合；请求间隔 **6s**（≥5s），工具内 50–500ms 随机抖动；数据只落 `/tmp`；
   - 结果：**5/5 `OK`**、共 **40** 条结果（bing 10/10/7、baidu 7、360 6）；延迟 p50 **799ms**（min 476 / max 6811，baidu 最慢）；未出现验证码/拦截页；未触发严格模式；
