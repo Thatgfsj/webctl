@@ -21,7 +21,7 @@ pub use config::{
     Config, ConfigError, ConfigLayer, ENV_VARS, OutputFormat, default_config_path,
     load_config_file, redact_url_userinfo, resolve,
 };
-pub use envelope::{Actionable, Engine, Envelope, EnvelopeViolation, Meta, Trust};
+pub use envelope::{Actionable, Engine, Envelope, EnvelopeViolation, FallbackHint, Meta, Trust};
 pub use error::ErrorCode;
 pub use security::paths::{
     ArgumentError, SafeRoot, SchemeError, ensure_http_scheme, is_http_scheme,

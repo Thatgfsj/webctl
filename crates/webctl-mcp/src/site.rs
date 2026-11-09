@@ -259,6 +259,8 @@ pub(crate) async fn tool_resolve_site(ctx: &McpContext, args: &Value) -> Value {
                 reason,
                 detected,
                 next_steps: vec!["fetch".to_owned(), "search".to_owned()],
+                // 结构体新增可选字段（#224）的机械编译修复；M5 之前这里不产出回退提示。
+                fallback_hint: None,
             },
         ),
     )

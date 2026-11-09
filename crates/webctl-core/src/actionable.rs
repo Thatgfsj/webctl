@@ -298,6 +298,8 @@ pub fn attach<T>(mut envelope: Envelope<T>) -> Envelope<T> {
             .iter()
             .map(|step| (*step).to_owned())
             .collect(),
+        // #224：通用原因码表不猜回退信号；结构化提示只由 degrade::guard 按页面信号填。
+        fallback_hint: None,
     });
     envelope
 }

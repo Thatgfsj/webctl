@@ -36,6 +36,7 @@ fn env_07_envelope_schema_matches_golden() {
         reason: "no-server-rendered-content".to_owned(),
         detected: vec!["visible text: 0 chars".to_owned()],
         next_steps: vec!["embedded_data".to_owned()],
+        fallback_hint: None,
     });
 
     let shape = serde_json::json!({
