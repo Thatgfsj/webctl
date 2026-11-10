@@ -80,10 +80,14 @@ fn apply<T>(
     envelope.meta.degraded_from = Some(diagnosis.degraded_from.clone());
     envelope.error = diagnosis.reason.clone();
     // #115：把"为什么 + 还能试什么"挂到 meta.actionable，让调用方不必猜。
+    let mut next_steps = diagnosis.next_steps.clone();
+    // #225：宿主声明了外部回退工具且本页适合外部浏览器时，才追加一条 `use <tool>`。
+    // 未声明时 next_steps 保持原样（不含任何外部工具名）。
+    fallback::push_declared_next_step(fallback_hint.as_ref(), &mut next_steps);
     envelope.with_actionable(Actionable {
         reason: diagnosis.reason_code.clone(),
         detected: diagnosis.evidence.clone(),
-        next_steps: diagnosis.next_steps.clone(),
+        next_steps,
         fallback_hint,
     })
 }

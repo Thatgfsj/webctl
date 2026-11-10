@@ -14,8 +14,13 @@
 //!
 //! `js_engine_suitable`：依赖外链库（绝对 URL 或常见库名）时为 false——进程内
 //! JS 引擎不会代取远端库，执行不了这类页面。
+//!
+//! #225：本模块还负责把**宿主声明的外部回退工具**接进降级信封的 `next_steps`。
+//! 判定与解析都在 `webctl_core::fallback_decl`，这里只是 web 侧的接线点——
+//! webctl-web 不依赖 mcp，也不调用任何外部工具。
 
 use webctl_core::FallbackHint;
+use webctl_core::fallback_decl;
 
 use crate::session::html::{self, Node};
 
@@ -74,6 +79,20 @@ pub fn hint(html: &str, embedded_data_tried: bool) -> Option<FallbackHint> {
         embedded_data_tried,
         js_engine_suitable: !depends_on_external_library(&nodes),
     })
+}
+
+/// #225：宿主声明存在且本页面适合外部浏览器时，把 `use <tool>` 追加进 `next_steps`。
+///
+/// 三条边界：
+/// - 只读环境变量（`WEBCTL_FALLBACK_TOOL`），零探测、零调用；
+/// - 未声明 / 声明非法 / `playwright_suitable = false` 时**什么都不做**，
+///   `next_steps` 里绝不会出现外部工具名；
+/// - 已存在同一条时不重复追加。
+pub fn push_declared_next_step(hint: Option<&FallbackHint>, next_steps: &mut Vec<String>) {
+    let decl = fallback_decl::from_env();
+    if let Some(hint) = hint {
+        fallback_decl::push_next_step(next_steps, hint, decl.as_ref());
+    }
 }
 
 /// 不含 noscript 的可见文本字符数（忽略空白）。

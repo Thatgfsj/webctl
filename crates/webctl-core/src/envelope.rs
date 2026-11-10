@@ -58,7 +58,8 @@ pub struct FallbackHint {
 ///
 /// 目的：降级不只告诉调用方"我降级了"，还要说清**为什么**与**还能试什么**，
 /// 否则 agent 只能猜。`reason` 是机器可读的原因码；`detected` 是观察到的证据；
-/// `next_steps` 是**真实存在的工具名**（由 MCP 侧的测试反查保证）。
+/// `next_steps` 是**真实存在的工具名**（由 MCP 侧的测试反查保证），或者是以 `use `
+/// 开头的宿主声明提示（#225：指向 `WEBCTL_FALLBACK_TOOL` 声明的外部工具，webctl 不会调用它）。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Actionable {
     /// 机器可读的原因码（例如 `no-server-rendered-content`）。

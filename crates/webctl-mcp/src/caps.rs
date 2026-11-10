@@ -3,7 +3,9 @@
 //! 唯一事实来源是 `crate::dispatch::is_known_tool`——也就是工具真的在派发表里；
 //! 不是把 18 个名字硬编码成 available。
 
-use webctl_core::{CapabilityState, Config, JsCapability, SpaSurface, ToolCapability};
+use webctl_core::{
+    CapabilityState, CapsReport, Config, FallbackDecl, JsCapability, SpaSurface, ToolCapability,
+};
 
 use crate::dispatch;
 use crate::tools::TOOL_SPECS;
@@ -44,6 +46,22 @@ pub fn spa_surface() -> SpaSurface {
             .map(|name| (*name).to_owned())
             .collect(),
     }
+}
+
+/// 构造 caps 报告（#225）：实际注册的工具 + SPA 支持面 + JS 引擎 + 宿主声明一次组装。
+///
+/// `fallback` 由调用方注入（生产路径是 `webctl_core::fallback_decl::from_env()`），
+/// 有声明时报告里出现 `fallback_capability`，无声明时该字段整体省略。
+/// 这里只**报告**声明：不探测、不调用、不假设工具存在。
+pub fn report(
+    config: &Config,
+    tools: Vec<ToolCapability>,
+    fallback: Option<FallbackDecl>,
+) -> CapsReport {
+    CapsReport::detect_with(config, tools)
+        .with_spa(spa_surface())
+        .with_js(js_capability(config))
+        .with_fallback_capability(fallback)
 }
 
 /// 逐项报告 18 个工具的可用性（顺序与 PLAN §3.7 一致）。

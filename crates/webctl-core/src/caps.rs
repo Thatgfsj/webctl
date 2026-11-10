@@ -155,6 +155,11 @@ pub struct CapsReport {
     pub spa: SpaSurface,
     /// 内置 JS 引擎状态（#128）。
     pub js: JsCapability,
+    /// 宿主声明的外部回退工具（#225）。
+    ///
+    /// 未声明时**不出现**在 JSON 里（向后兼容）；即便出现，webctl 也**绝不调用**该工具。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fallback_capability: Option<crate::FallbackDecl>,
 }
 
 impl CapsReport {
@@ -200,6 +205,7 @@ impl CapsReport {
             tools,
             spa: SpaSurface::default(),
             js: JsCapability::default(),
+            fallback_capability: None,
         }
     }
 
@@ -212,6 +218,12 @@ impl CapsReport {
     /// 附加内置 JS 引擎状态（#128）：由接口层按**实际接线情况**填充。
     pub fn with_js(mut self, js: JsCapability) -> Self {
         self.js = js;
+        self
+    }
+
+    /// 附加宿主声明的外部回退工具（#225）：只把声明**报出来**，不探测、不调用。
+    pub fn with_fallback_capability(mut self, fallback: Option<crate::FallbackDecl>) -> Self {
+        self.fallback_capability = fallback;
         self
     }
 
