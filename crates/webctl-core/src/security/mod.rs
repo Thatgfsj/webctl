@@ -12,6 +12,7 @@
 
 pub mod paths;
 pub mod redact;
+pub mod storage_state;
 
 pub use paths::{
     ArgumentError, SafeRoot, SchemeError, ensure_http_scheme, is_http_scheme,
@@ -21,3 +22,4 @@ pub use redact::{
     REDACTED, is_password_field, is_sensitive_header, is_sensitive_param, redact_header_pairs,
     redact_header_value, redact_log_line, redact_query_string, redact_url, redact_urlencoded,
 };
+pub use storage_state::{LOG_REDACTED, redact_cookie_pair_for_log, redact_for_log};

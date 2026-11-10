@@ -16,6 +16,7 @@ pub mod html;
 pub mod pagination;
 pub mod spa;
 pub mod state;
+pub mod storage_state;
 pub mod store;
 
 pub use csrf::{
@@ -32,5 +33,10 @@ pub use spa::{SpaSignal, detect as detect_spa};
 pub use state::{
     DEFAULT_TTL, MAX_SESSION_NAME_LEN, SESSION_FILE_VERSION, SessionError, SessionState,
     validate_session_name,
+};
+pub use storage_state::{
+    LocalStorageEntry, SESSION_COOKIE_EXPIRES, STORAGE_STATE_FILE_MODE, SameSite, StorageState,
+    StorageStateCookie, StorageStateError, StorageStateOrigin, domain_matches,
+    export_session_storage_state, export_storage_state, export_to_path, validate_output_path,
 };
 pub use store::SessionStore;
