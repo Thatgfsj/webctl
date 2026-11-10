@@ -11,7 +11,7 @@ use webctl_core::Envelope;
 use crate::politeness::PoliteFetcher;
 
 use super::ads;
-use super::engine::{EngineSerp, contains_any, fetch_html, finish};
+use super::engine::{EngineSerp, append_operators, contains_any, fetch_html, finish};
 use super::{Jitter, SearchEngine, SearchHit};
 
 /// 默认基址。
@@ -20,9 +20,19 @@ pub const DEFAULT_BASE: &str = "https://www.baidu.com/s";
 pub const BLOCKED_MARKERS: &[&str] = &["wappass", "百度安全验证", "验证码", "captcha"];
 
 /// 构造搜索 URL。
-pub fn search_url(base: &str, query: &str, page: usize, max_results: usize) -> String {
+///
+/// `exclude` 规范化后拼到查询串末尾；百度对 `-term` 的支持不稳定，
+/// 实际是否生效由上层 `operators_ignored` 校验（不在此处假装成功）。
+pub fn search_url(
+    base: &str,
+    query: &str,
+    page: usize,
+    max_results: usize,
+    exclude: &[String],
+) -> String {
     let page = page.max(1);
     let pn = (page - 1) * 10;
+    let query = append_operators(query, exclude);
     let encoded = url::form_urlencoded::byte_serialize(query.as_bytes()).collect::<String>();
     let join = if base.contains('?') { '&' } else { '?' };
     format!("{base}{join}wd={encoded}&pn={pn}&rn={max_results}")
@@ -124,10 +134,11 @@ pub async fn fetch_serp(
     query: &str,
     page: usize,
     max_results: usize,
+    exclude: &[String],
     jitter: &Jitter,
     fetcher: &PoliteFetcher,
 ) -> Envelope<EngineSerp> {
-    let url = search_url(base, query, page, max_results);
+    let url = search_url(base, query, page, max_results, exclude);
     let fetched = fetch_html(&url, jitter, fetcher).await;
     finish(fetched, looks_blocked, parse_serp, max_results)
 }
@@ -173,7 +184,7 @@ mod tests {
 
     #[test]
     fn url_paginates() {
-        let url = search_url(DEFAULT_BASE, "rust 网页", 2, 10);
+        let url = search_url(DEFAULT_BASE, "rust 网页", 2, 10, &[]);
         assert!(url.contains("wd=rust+%E7%BD%91%E9%A1%B5"), "{url}");
         assert!(url.contains("pn=10"), "{url}");
         assert!(url.contains("rn=10"), "{url}");

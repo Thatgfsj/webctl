@@ -3,8 +3,10 @@
 //! 每个引擎模块（`bing` / `baidu` / `so360`）只负责：URL 构造、HTML 解析、拦截特征；
 //! 取回（抖动 + 礼貌层）与失败语义的统一映射放在这里，避免三份复制。
 
+use std::collections::HashSet;
 use std::time::Duration;
 
+use url::Url;
 use webctl_core::{Envelope, ErrorCode, Trust};
 
 use crate::politeness::PoliteFetcher;
@@ -49,6 +51,86 @@ pub fn unavailable_note(engine: SearchEngine) -> &'static str {
         SearchEngine::Yandex => "尚未接线（需要专门的跳转链与反爬处理）",
         _ => "未接线",
     }
+}
+
+/// 规范化排除操作符：去首尾空白、丢弃空串、补齐 '-' 前缀、去重（保序）。
+///
+/// 用户可能传 `tutorial` 或 `-tutorial`，统一按后者透传与回显；
+/// `site:csdn.net` 与 `-site:csdn.net` 同理。
+pub fn normalize_exclude(items: &[String]) -> Vec<String> {
+    let mut seen = HashSet::new();
+    let mut normalized = Vec::new();
+    for item in items {
+        let term = item.trim();
+        if term.is_empty() || term == "-" {
+            continue;
+        }
+        let operator = if term.starts_with('-') {
+            term.to_owned()
+        } else {
+            format!("-{term}")
+        };
+        if seen.insert(operator.clone()) {
+            normalized.push(operator);
+        }
+    }
+    normalized
+}
+
+/// 把排除操作符拼到查询串后（`query + " " + operator`）；空列表不改动查询串。
+pub fn append_operators(query: &str, exclude: &[String]) -> String {
+    let mut combined = query.to_owned();
+    for operator in normalize_exclude(exclude) {
+        combined.push(' ');
+        combined.push_str(&operator);
+    }
+    combined
+}
+
+/// 生效校验（best-effort，不额外发请求）：结果里是否仍出现被排除的 term / site。
+///
+/// 规则：
+/// - `-site:host`：任一结果 URL 的 host 等于 host 或是其子域 → 认为引擎忽略了该操作符；
+/// - 其它 `-term`：任一结果 title/snippet（小写）包含 term（小写）→ 认为忽略；
+/// - 空 operators → false。
+///
+/// 局限：只能看"返回了什么"；引擎若在服务端排除干净就无法证明，反之自然命中也可能误判。
+pub fn operators_ignored(results: &[SearchHit], operators: &[String]) -> bool {
+    let normalized = normalize_exclude(operators);
+    if normalized.is_empty() {
+        return false;
+    }
+    normalized.iter().any(|operator| {
+        let term = operator.strip_prefix('-').unwrap_or(operator).trim();
+        if term.is_empty() {
+            return false;
+        }
+        match term.strip_prefix("site:") {
+            Some(site) => {
+                let site = site.trim().trim_end_matches('/').to_ascii_lowercase();
+                !site.is_empty() && results.iter().any(|hit| host_matches(&hit.url, &site))
+            }
+            None => {
+                let needle = term.to_lowercase();
+                results.iter().any(|hit| {
+                    hit.title.to_lowercase().contains(&needle)
+                        || hit.snippet.to_lowercase().contains(&needle)
+                })
+            }
+        }
+    })
+}
+
+/// URL host 是否等于 site 或其子域（不能裸 ends_with，避免 csdn.net.evil.test 误判）。
+fn host_matches(url: &str, site: &str) -> bool {
+    let Ok(parsed) = Url::parse(url) else {
+        return false;
+    };
+    let Some(host) = parsed.host_str() else {
+        return false;
+    };
+    let host = host.to_ascii_lowercase();
+    host == site || host.ends_with(&format!(".{site}"))
 }
 
 /// 取回到的 HTML 与实测耗时。
@@ -223,5 +305,51 @@ mod tests {
         };
         let converted: EngineSerp = serp.into();
         assert_eq!(converted.results.len(), 1);
+    }
+
+    fn hit(url: &str, title: &str, snippet: &str) -> SearchHit {
+        SearchHit {
+            rank: 1,
+            engine: "bing".to_owned(),
+            title: title.to_owned(),
+            url: url.to_owned(),
+            display_url: url.to_owned(),
+            snippet: snippet.to_owned(),
+            engines: vec!["bing".to_owned()],
+            is_ad: false,
+        }
+    }
+
+    #[test]
+    fn normalize_exclude_prefixes_drops_blanks_and_dedupes() {
+        let items = vec![
+            " tutorial ".to_owned(),
+            String::new(),
+            "   ".to_owned(),
+            "-site:csdn.net".to_owned(),
+            "tutorial".to_owned(),
+            "site:csdn.net".to_owned(),
+        ];
+        assert_eq!(
+            normalize_exclude(&items),
+            vec!["-tutorial".to_owned(), "-site:csdn.net".to_owned()]
+        );
+        assert!(normalize_exclude(&[]).is_empty());
+    }
+
+    #[test]
+    fn operators_ignored_detects_sites_terms_and_empty() {
+        let results = vec![hit("https://blog.csdn.net/x", "Rust 教程", "CSDN 博客")];
+        assert!(operators_ignored(&results, &["-site:csdn.net".to_owned()]));
+        assert!(operators_ignored(
+            &results,
+            &["tutorial".to_owned(), "-rust".to_owned()]
+        ));
+        assert!(!operators_ignored(&results, &[]));
+        assert!(!operators_ignored(
+            &results,
+            &["-site:csdn.net.evil.test".to_owned()]
+        ));
+        assert!(!operators_ignored(&results, &["-python".to_owned()]));
     }
 }

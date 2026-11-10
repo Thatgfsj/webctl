@@ -135,6 +135,14 @@ pub const PLANS: &[(&str, Plan)] = &[
         },
     ),
     (
+        "search-operator-ignored",
+        Plan {
+            reason: "search-operator-ignored",
+            // 引擎没有按 -term/-site 排除：可以不带 exclude 重试 web_search，或直接 fetch。
+            next_steps: &["web_search", "fetch"],
+        },
+    ),
+    (
         "pagination-degraded-page",
         Plan {
             reason: "page-degraded",

@@ -12,6 +12,7 @@ use webctl_core::{Envelope, ErrorCode, Trust};
 
 use crate::politeness::PoliteFetcher;
 use crate::web_search::ads;
+use crate::web_search::engine::append_operators;
 use crate::web_search::{EngineStatus, Jitter, RelatedTopic, SearchHit, SourceLink, hash_salt};
 
 /// 默认 SERP 基址。
@@ -40,10 +41,18 @@ struct Parsed {
 /// 构造搜索 URL。
 ///
 /// - `first` 从 1 开始（Bing 的分页参数）；
-/// - `count` 作为提示传 `max_results`，最终以解析结果为准。
-pub fn search_url(base: &str, query: &str, page: usize, max_results: usize) -> String {
+/// - `count` 作为提示传 `max_results`，最终以解析结果为准；
+/// - `exclude` 规范化后拼到查询串末尾（如 `rust -tutorial -site:csdn.net`）。
+pub fn search_url(
+    base: &str,
+    query: &str,
+    page: usize,
+    max_results: usize,
+    exclude: &[String],
+) -> String {
     let page = page.max(1);
     let first = 1 + (page - 1) * 10;
+    let query = append_operators(query, exclude);
     let encoded = url::form_urlencoded::byte_serialize(query.as_bytes()).collect::<String>();
     let join = if base.contains('?') { '&' } else { '?' };
     format!("{base}{join}q={encoded}&first={first}&count={max_results}")
@@ -232,10 +241,11 @@ pub async fn fetch_serp(
     query: &str,
     page: usize,
     max_results: usize,
+    exclude: &[String],
     jitter: &Jitter,
     fetcher: &PoliteFetcher,
 ) -> Envelope<BingSerp> {
-    let url = search_url(base, query, page, max_results);
+    let url = search_url(base, query, page, max_results, exclude);
     let delay = jitter.delay_ms(hash_salt(&url));
     tokio::time::sleep(Duration::from_millis(delay)).await;
     let response = fetcher.fetch(&url).await;
@@ -374,7 +384,7 @@ mod tests {
 
     #[test]
     fn search_url_encodes_query_and_paginates() {
-        let url = search_url(DEFAULT_BASE, "rust 网页", 2, 10);
+        let url = search_url(DEFAULT_BASE, "rust 网页", 2, 10, &[]);
         assert!(url.contains("q=rust+%E7%BD%91%E9%A1%B5"), "{url}");
         assert!(url.contains("first=11"));
         assert!(url.contains("count=10"));

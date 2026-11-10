@@ -71,6 +71,12 @@ pub struct WebSearchParams {
     pub max_results: Option<usize>,
     /// 页码（默认 1）。
     pub page: Option<usize>,
+    /// 排除操作符（如 ["-tutorial", "-site:csdn.net"]）；原样透传给引擎。
+    ///
+    /// 不带 '-' 前缀的项会被规范化为 '-term'（site:csdn.net → -site:csdn.net），
+    /// 规范化后的形式写进结果的 applied_operators 并拼到查询串后。
+    #[serde(default)]
+    pub exclude: Option<Vec<String>>,
 }
 
 /// links：链接清单与过滤。
@@ -278,4 +284,31 @@ pub struct ResolveSiteParams {
     /// **显式开启 L5 兜底**（抓搜索结果的 SERP 页）：默认 **false**。开启后会在 stderr 留痕；
     /// 结果按不可靠来源处理（低分、不跨过可靠阈值），被拦即如实报 BLOCKED。
     pub allow_serp_fallback: Option<bool>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// #222：exclude 是可选参数，缺省必须为 None（不是空数组、更不是报错）。
+    #[test]
+    fn web_search_exclude_defaults_to_none() {
+        let params: WebSearchParams =
+            serde_json::from_value(serde_json::json!({"query": "rust"})).expect("最小参数应可解析");
+        assert!(params.exclude.is_none(), "缺省 exclude 必须是 None");
+    }
+
+    /// #222：显式传入时按字符串数组原样读出（规范化在 web 层，不在参数层）。
+    #[test]
+    fn web_search_exclude_accepts_string_list() {
+        let params: WebSearchParams = serde_json::from_value(serde_json::json!({
+            "query": "rust",
+            "exclude": ["-tutorial", "site:csdn.net"],
+        }))
+        .expect("exclude 应可解析");
+        assert_eq!(
+            params.exclude.as_deref(),
+            Some(&["-tutorial".to_owned(), "site:csdn.net".to_owned()][..])
+        );
+    }
 }
