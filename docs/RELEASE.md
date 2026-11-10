@@ -2,9 +2,9 @@
 
 | 项 | 值 |
 |---|---|
-| 适用 | **v0.2.2（当前 release**，2026-11-10）、v0.2.1（上一版，2026-10-29）与 v0.2.0 |
+| 适用 | **v0.2.3（当前 release**，2026-11-10）、v0.2.2（上一版，2026-11-10）与 v0.2.1 |
 | 流水线 | cargo-dist 0.33.0：`dist-workspace.toml` + `.github/workflows/release.yml` |
-| 状态 | **v0.2.2 已发布**（2026-11-10；5 目标 / 10 压缩包 / 28 资产；下载 + `sha256sum -c` + `--version`=0.2.2 + musl 静态 + `release-e2e.sh` + Alpine 用户态全部实测，见 ACCEPTANCE §7）；v0.2.1 / v0.2.0 等历史版本均已发布。安装命令与资产数字取自 **v0.2.2 真实资产**。 |
+| 状态 | **v0.2.3 已发布**（2026-11-10；5 目标 / 10 压缩包 / 28 资产；下载 + `sha256sum -c` + `--version`=0.2.3 + `caps --json` ok + 18 工具 + musl 静态 + `release-e2e.sh`（gnu/musl）全部实测，见 ACCEPTANCE §7）；v0.2.2 / v0.2.1 / v0.2.0 等历史版本均已发布。安装命令与资产数字取自 **v0.2.3 真实资产**。 |
 | 相关 | [TESTING §2.16 PKG](TESTING.md) · [PLAN §5.2 PR 14](PLAN.md) · [体积基线](size-baseline.json) |
 
 ## 1. 流水线结构
@@ -36,12 +36,12 @@
 - **纳入条件（任一成立即开工）**：有真实 ARM64 使用诉求；或需要 Docker 多架构 / 边缘部署场景。
 - **纳入时要做的**（避免将来重新论证）：① 扩展 `scripts/install-musl-toolchain.sh` 使其按三元组选择 Bootlin 工具链（同样 pin 版本 + SHA256）；② 把 `ci.yml` 的 `musl-static` 作业扩为矩阵；③ 在 `dist-workspace.toml` 加目标并使 `cargo dist generate --mode ci --check` = 0；④ tag 后回填体积基线；⑤ README 中英 / 本文件 / ACCEPTANCE 同步。
 
-## 2. 安装（2026-11-10 实测，v0.2.2 真实资产）
+## 2. 安装（2026-11-10 实测，v0.2.3 真实资产）
 
 | 资产 | 类型 | 内容 / 目标 |
 |---|---|---|
-| `webctl-x86_64-unknown-linux-musl.tar.xz` (+ `.sha256`) | 压缩包 | **v0.1.1 起产出**（**v0.2.2 实测 34,483,296 字节**（解压后二进制），`ldd` 报 `statically linked`）；`webctl-mcp` 同款 |
-| `webctl-x86_64-unknown-linux-gnu.tar.xz` (+ `.sha256`) | 压缩包 | 同上（glibc；**v0.2.2 实测 35,151,968 字节**，动态链接） |
+| `webctl-x86_64-unknown-linux-musl.tar.xz` (+ `.sha256`) | 压缩包 | **v0.1.1 起产出**（**v0.2.3 实测 34,545,000 字节**（解压后二进制），`ldd` 报 `statically linked`）；`webctl-mcp` 同款 |
+| `webctl-x86_64-unknown-linux-gnu.tar.xz` (+ `.sha256`) | 压缩包 | 同上（glibc；**v0.2.3 实测 35,215,368 字节**，动态链接） |
 | `webctl-aarch64-apple-darwin.tar.xz` (+ `.sha256`) | 压缩包 | 同上 |
 | `webctl-x86_64-apple-darwin.tar.xz` (+ `.sha256`) | 压缩包 | 同上 |
 | `webctl-x86_64-pc-windows-msvc.zip` (+ `.sha256`) | 压缩包 | `webctl.exe` + `LICENSE` + `README.md` |
@@ -50,14 +50,14 @@
 | `webctl-mcp-<target>.tar.xz` / `.zip` (+ `.sha256`) | 压缩包 | **第二个二进制**：`webctl-mcp`（独立 MCP server 入口；与 `webctl mcp` 子命令等价）。`dist plan` 对 workspace 内该包同样产出资产 |
 | `webctl-mcp-installer.sh` / `.ps1` | 安装器 | 同上（对应 `webctl-mcp`） |
 
-以下安装命令取自 **v0.2.2 的真实资产**（`dist plan` 的 `install_hint`；2026-11-10 实测可用）：
+以下安装命令取自 **v0.2.3 的真实资产**（`dist plan` 的 `install_hint`；2026-11-10 实测可用）：
 
 ~~~bash
-# Linux / macOS（v0.2.2）
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/Thatgfsj/webctl/releases/download/v0.2.2/webctl-installer.sh | sh
+# Linux / macOS（v0.2.3）
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/Thatgfsj/webctl/releases/download/v0.2.3/webctl-installer.sh | sh
 
 # Windows PowerShell
-powershell -ExecutionPolicy Bypass -c "irm https://github.com/Thatgfsj/webctl/releases/download/v0.2.2/webctl-installer.ps1 | iex"
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/Thatgfsj/webctl/releases/download/v0.2.3/webctl-installer.ps1 | iex"
 ~~~
 
 ## 3. 发布步骤（维护者）

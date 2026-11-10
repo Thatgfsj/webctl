@@ -83,6 +83,14 @@
 
 > 收尾时在下面追加：日期、执行者、命令、结果摘要、CI run 链接。
 
+- **2026-11-10（Lead）v0.2.3 发布资产验收**（Release [v0.2.3](https://github.com/Thatgfsj/webctl/releases/tag/v0.2.3)，tag/commit `d64b7bb`，5 目标 / 10 压缩包 / 28 资产）
+  - **sha256**：下载 gnu 与 musl 的 `webctl` 压缩包 → `sha256sum -c` **全部成功**（sha256.sum 来自 Release 资产）；
+  - **版本**：gnu 与 musl 的 `webctl --version` 均为 **`webctl 0.2.3`**；`caps --json` → `ok=true`、version=0.2.3、engine=builtin；`webctl mcp --list-tools` = **18**；
+  - **静态性**：musl 资产 `ldd` = **`statically linked`**；gnu 资产动态链接（libstdc++ / libgcc_s，属预期）；
+  - **E2E**：`scripts/release-e2e.sh <gnu> 0.2.3` → **PASS**；`<musl> 0.2.3 --static` → **PASS**（PKG-04/06/08）；
+  - **体积基线回填**：gnu **35,215,368 B** / musl **34,545,000 B**（较 v0.2.2：gnu +0.18% / musl +0.18%），冷启动 p50 **5 / 5 ms**（`docs/size-baseline.json` 的 `source=release-asset`、`commit=d64b7bb`）；
+  - 发布工作流 run `42754185398` 全绿（plan、5 目标构建、global、host、announce）；
+
 - **2026-11-10（Lead）v0.2.2 发布资产验收**（Release [v0.2.2](https://github.com/Thatgfsj/webctl/releases/tag/v0.2.2)，tag/commit `e4a636f`，5 目标 / 10 压缩包 / 28 资产）
   - **sha256**：下载 4 个 Linux 压缩包（`webctl` / `webctl-mcp` × gnu / musl）→ `sha256sum -c` **全部 OK**（sha256.sum 来自 Release 资产）；
   - **版本**：gnu 与 musl 的 `webctl --version` 均为 **`webctl 0.2.2`**；`caps --json` version=0.2.2；`webctl mcp --list-tools` 均为 **18**；
