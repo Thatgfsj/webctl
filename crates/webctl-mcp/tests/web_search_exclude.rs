@@ -11,18 +11,18 @@ use serde_json::{Value, json};
 use webctl_mcp::WebctlMcp;
 
 const BING_SERP: &str = r#"<html><body><ol id="b_results">
-  <li class="b_algo"><h2><a href="https://blog.csdn.net/post">Rust 教程</a></h2>
-    <div class="b_caption"><p>CSDN 博客教程。</p></div><cite>blog.csdn.net</cite></li>
+  <li class="b_algo"><h2><a href="https://blog.csdn.example/post">Rust 教程</a></h2>
+    <div class="b_caption"><p>CSDN 博客教程。</p></div><cite>blog.csdn.example</cite></li>
   <li class="b_algo"><h2><a href="https://example.com/docs">Rust 官方文档</a></h2>
     <div class="b_caption"><p>语言与标准库文档。</p></div><cite>example.com</cite></li>
 </ol></body></html>"#;
 
 const BAIDU_SERP: &str = r#"<html><body><div id="content_left">
-  <div class="result c-container" mu="https://blog.csdn.net/post">
-    <h3><a href="https://www.baidu.com/link?url=a">Rust 教程</a></h3>
+  <div class="result c-container" mu="https://blog.csdn.example/post">
+    <h3><a href="https://redirect.example/link?url=a">Rust 教程</a></h3>
     <div class="c-abstract">CSDN 博客教程。</div></div>
   <div class="result c-container" mu="https://example.com/docs">
-    <h3><a href="https://www.baidu.com/link?url=b">Rust 官方文档</a></h3>
+    <h3><a href="https://redirect.example/link?url=b">Rust 官方文档</a></h3>
     <div class="c-abstract">语言与标准库文档。</div></div>
 </div></body></html>"#;
 
@@ -52,7 +52,7 @@ async fn exclude_is_normalized_reported_and_forwarded() {
     assert_eq!(server.hits("/search").len(), 1, "不得额外发请求");
 }
 
-/// Baidu 忽略 `-site:` 时：结果里仍有 csdn.net → DEGRADED + search-operator-ignored + actionable。
+/// Baidu 忽略 `-site:` 时：结果里仍有 csdn.example → DEGRADED + search-operator-ignored + actionable。
 #[tokio::test]
 async fn baidu_ignored_operator_degrades_with_actionable() {
     let server = server_with(BAIDU_SERP).await;
@@ -61,7 +61,7 @@ async fn baidu_ignored_operator_degrades_with_actionable() {
     );
     let envelope = call(
         &mcp,
-        json!({"query": "rust", "engines": ["baidu"], "exclude": ["-site:csdn.net"]}),
+        json!({"query": "rust", "engines": ["baidu"], "exclude": ["-site:csdn.example"]}),
     )
     .await;
     assert_eq!(envelope["ok"], true, "{envelope}");
@@ -80,7 +80,7 @@ async fn baidu_ignored_operator_degrades_with_actionable() {
     );
     assert_eq!(
         envelope["data"]["applied_operators"],
-        json!(["-site:csdn.net"])
+        json!(["-site:csdn.example"])
     );
     assert_eq!(server.hits("/search").len(), 1, "校验不得额外发请求");
 }
@@ -97,7 +97,7 @@ async fn operator_ignore_combines_with_partial_engine_failure() {
         json!({
             "query": "rust",
             "engines": ["bing", "mojeek"],
-            "exclude": ["-site:csdn.net"]
+            "exclude": ["-site:csdn.example"]
         }),
     )
     .await;

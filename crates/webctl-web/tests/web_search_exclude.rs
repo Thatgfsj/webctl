@@ -28,22 +28,22 @@ fn hit(rank: u32, url: &str, title: &str, snippet: &str) -> SearchHit {
 fn normalize_exclude_prefixes_drops_blanks_and_dedupes() {
     let items = vec![
         "tutorial".to_owned(),
-        "  -site:csdn.net  ".to_owned(),
+        "  -site:csdn.example  ".to_owned(),
         String::new(),
         "   ".to_owned(),
         "-tutorial".to_owned(),
-        "site:csdn.net".to_owned(),
+        "site:csdn.example".to_owned(),
     ];
     assert_eq!(
         normalize_exclude(&items),
-        vec!["-tutorial".to_owned(), "-site:csdn.net".to_owned()]
+        vec!["-tutorial".to_owned(), "-site:csdn.example".to_owned()]
     );
     assert!(normalize_exclude(&[]).is_empty());
 }
 
 #[test]
 fn every_engine_url_carries_encoded_operators() {
-    let exclude = vec!["site:csdn.net".to_owned(), "tutorial".to_owned()];
+    let exclude = vec!["site:csdn.example".to_owned(), "tutorial".to_owned()];
     let urls = [
         bing::search_url(bing::DEFAULT_BASE, "rust & web", 1, 10, &exclude),
         baidu::search_url(baidu::DEFAULT_BASE, "rust & web", 1, 10, &exclude),
@@ -51,7 +51,7 @@ fn every_engine_url_carries_encoded_operators() {
     ];
     for url in urls {
         assert!(
-            url.contains("rust+%26+web+-site%3Acsdn.net+-tutorial"),
+            url.contains("rust+%26+web+-site%3Acsdn.example+-tutorial"),
             "查询串编码或操作符拼接不对：{url}"
         );
     }
@@ -59,9 +59,10 @@ fn every_engine_url_carries_encoded_operators() {
 
 #[test]
 fn empty_exclude_keeps_the_url_unchanged() {
+    // 用保留域名 as base，避免测试源码出现真实外站（L0 车道扫描）。
     assert_eq!(
-        bing::search_url(bing::DEFAULT_BASE, "rust web", 1, 10, &[]),
-        "https://www.bing.com/search?q=rust+web&first=1&count=10"
+        bing::search_url("https://serp.example/search", "rust web", 1, 10, &[]),
+        "https://serp.example/search?q=rust+web&first=1&count=10"
     );
 }
 
@@ -69,19 +70,25 @@ fn empty_exclude_keeps_the_url_unchanged() {
 fn ignored_site_is_detected_from_result_host() {
     let results = vec![hit(
         1,
-        "https://blog.csdn.net/post",
+        "https://blog.csdn.example/post",
         "Rust 教程",
         "CSDN 博客",
     )];
-    assert!(operators_ignored(&results, &["-site:csdn.net".to_owned()]));
-    assert!(operators_ignored(&results, &["site:csdn.net".to_owned()]));
+    assert!(operators_ignored(
+        &results,
+        &["-site:csdn.example".to_owned()]
+    ));
+    assert!(operators_ignored(
+        &results,
+        &["site:csdn.example".to_owned()]
+    ));
     assert!(!operators_ignored(
         &results,
         &["-site:example.com".to_owned()]
     ));
     assert!(!operators_ignored(
         &results,
-        &["-site:csdn.net.evil.test".to_owned()]
+        &["-site:csdn.example.evil.test".to_owned()]
     ));
 }
 
@@ -101,9 +108,9 @@ fn ignored_term_is_detected_from_title_or_snippet() {
 
 #[test]
 fn no_operators_or_no_results_is_not_ignored() {
-    let results = vec![hit(1, "https://blog.csdn.net/post", "Rust", "CSDN")];
+    let results = vec![hit(1, "https://blog.csdn.example/post", "Rust", "CSDN")];
     assert!(!operators_ignored(&results, &[]));
-    assert!(!operators_ignored(&[], &["-site:csdn.net".to_owned()]));
+    assert!(!operators_ignored(&[], &["-site:csdn.example".to_owned()]));
 }
 
 /// 既有 fixture 解析出的结果不含 csdn.net；用真实解析结果跑组合断言（不发请求）。
@@ -115,7 +122,10 @@ fn parsed_fixtures_do_not_contain_the_excluded_site() {
         so360::parse_serp(SO360, 10).results,
     ];
     for results in &parsed {
-        assert!(!operators_ignored(results, &["-site:csdn.net".to_owned()]));
+        assert!(!operators_ignored(
+            results,
+            &["-site:csdn.example".to_owned()]
+        ));
         // 同一份结果里命中自然结果中的词，才报"忽略"——证明校验看的是真实解析结果。
         assert!(operators_ignored(results, &["-rust".to_owned()]));
     }
