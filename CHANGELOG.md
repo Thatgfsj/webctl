@@ -4,6 +4,26 @@
 [语义化版本](https://semver.org/lang/zh-CN/)。格式约定、发版步骤与 release note 模板见
 [docs/RELEASE.md](docs/RELEASE.md)。
 
+## [0.2.3] - 2026-11-10
+
+### Added
+
+- **搜索降噪 · 去广告（M1，[#221](https://github.com/Thatgfsj/webctl/issues/221)）**：`web_search` 用**双层信号**识别广告——显式广告标签文本（「广告」/`Ad`/`Sponsored`/「赞助商链接」/「商业推广」）与**跳转域**（`bing.com/ck/a`、`baidu.com/baidu.php`、`so.com/Link`）。**高置信**（跳转域）直接剔除并计入 `filtered_ads`（不静默删除）；**低置信**（标签）保留并标 `is_ad: true`，由上层 agent 决定。规则为声明式数据表 + **冻结 SERP fixture** 回归（三引擎各一份）。
+- **排除操作符（M2，[#222](https://github.com/Thatgfsj/webctl/issues/222)）**：`web_search` 新增 `exclude`（如 `["-tutorial", "-site:csdn.net"]`，无 `-` 前缀会自动补齐），透传给 bing/baidu/360；结果回显 `applied_operators`；**生效校验**不发额外请求，引擎忽略（如 Baidu 对 `-site:`）时 `DEGRADED + search-operator-ignored` + `actionable`。
+- **紧凑性（M3，[#223](https://github.com/Thatgfsj/webctl/issues/223)）**：同一域名多条结果**折叠为一条主结果 + `same_domain_count`**（`expand_domains=true` 可展开完整列表）；`snippet` 默认**按 Unicode 字符截断 300**（`snippet_max_chars` 可调、`0` 表示不截断），截断结果标 `snippet_truncated`。
+- **结构化 `fallback_hint`（M4，[#224](https://github.com/Thatgfsj/webctl/issues/224)）**：`fetch`/`extract` 降级信封的 `meta.actionable` 增加可选 `fallback_hint`——`playwright_suitable`、`signals`（空 `#root`、正文近空、chunk 脚本、hydration 标记）、`embedded_data_tried`、`js_engine_suitable`。这是**给 agent 的结构化建议**，webctl **绝不主动调用**任何外部工具。
+- **caps 声明外部回退能力（M5，[#225](https://github.com/Thatgfsj/webctl/issues/225)）**：宿主可用环境变量 `WEBCTL_FALLBACK_TOOL=<名字>:<工具名>` 声明「本环境存在某个外部回退工具」；`caps` 返回 `fallback_capability`；**仅当声明存在且 `playwright_suitable=true`** 时，降级信封的 `next_steps` 才追加 `use <tool>`。未声明时行为与 0.2.2 完全一致；`SKILL.md` 增加降级回退决策树。
+- **Playwright 兼容 `storage_state` 导出（M6，[#226](https://github.com/Thatgfsj/webctl/issues/226)）**：把会话 cookie/storage 导出为 Playwright `storage_state` JSON（`cookies[]` + `origins[]`，字段名与大小写对齐）。默认**仅导出目标域**、文件权限 **0600**、路径拒绝 `..`/symlink/目录、内容**不进日志**；非 Unix 明确 `Unsupported` 不降级。
+
+### Changed
+
+- `web_search` 默认行为变化（可用新参数还原）：同域结果**默认折叠**（`expand_domains=true` 展开）、`snippet` **默认截断 300 字符**（`snippet_max_chars=0` 不截断）。
+
+### Notes
+
+- 0.2.3 全部测试离线（冻结 fixture / 合成 HTML），运行时**零外部进程**、不引入 Playwright 或任何外部工具依赖；`fallback_hint` 与 `WEBCTL_FALLBACK_TOOL` 都只是「诚实上报 + 建议」，是否回退由 agent 决定。
+- 无新增工具：工具面仍为 **18** 个；`storage_state` 为库内能力（MCP 工具面不变）。
+- 里程碑与验收见 [ROADMAP-0.2.3](docs/ROADMAP-0.2.3.md)。
 ## [0.2.2] - 2026-11-10
 
 ### Added

@@ -5,13 +5,14 @@
 **给 AI agent 用的网页控制层：纯 Rust、自包含的二进制（Linux / macOS / Windows），零外部进程、零外部浏览器，内置取回/解析/会话/文档能力，提供 CLI 与 MCP server**；另有**可选**的受限内置 JS 引擎（默认关闭，见 [ADR-0005](docs/adr/0005-embedded-js-engine.md)）。
 
 [![CI](https://img.shields.io/github/actions/workflow/status/Thatgfsj/webctl/ci.yml?label=CI&style=flat-square)](https://github.com/Thatgfsj/webctl/actions/workflows/ci.yml)
-[![状态](https://img.shields.io/badge/status-v0.2.2%20released-blue?style=flat-square)](#项目状态)
+[![状态](https://img.shields.io/badge/status-v0.2.3%20pending-orange?style=flat-square)](#项目状态)
 [![许可证](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.98.1-dea584?style=flat-square)](rust-toolchain.toml)
 
 [项目状态](#项目状态) · [安装](#安装) · [快速开始](#快速开始) · [能力与现状](#能力与现状) · [English](#english) · [计划](docs/PLAN.md) · [发布流程](docs/RELEASE.md) · [贡献指南](CONTRIBUTING.md) · [议题](https://github.com/Thatgfsj/webctl/issues)
 
 > **v0.2.2 已发布**（[Release v0.2.2](https://github.com/Thatgfsj/webctl/releases/tag/v0.2.2)）：5 个目标、10 个压缩包 / 28 个资产（`webctl` 与 `webctl-mcp`）+ shell / PowerShell 安装器；**Linux 另提供 musl 静态资产**。本版新增第 18 个工具 `web_search`（默认 Bing，可选 bing/baidu/360，50–500ms 抖动、去重 + RRF、部分失败语义；LLM 摘要暂缓），见 [CHANGELOG](CHANGELOG.md) 与 [ADR-0008](docs/adr/0008-search-channel.md)。
+> **v0.2.3 已定版，待打 tag**（2026-11-10）：搜索降噪 + 诚实降级与凭据接力——去广告（高置信剔除计 `filtered_ads`、低置信 `is_ad`）、`exclude` 排除操作符 + 生效校验、同域折叠 + snippet 截断、结构化 `fallback_hint`、`WEBCTL_FALLBACK_TOOL` 声明 + SKILL 回退决策树、Playwright 兼容 `storage_state` 导出（0600/仅目标域/脱敏）；工具面仍 18 个。见 [CHANGELOG](CHANGELOG.md) 与 [ROADMAP-0.2.3](docs/ROADMAP-0.2.3.md)。
 
 ---
 
@@ -21,6 +22,7 @@
 |---|---|
 | 阶段 | **P0 已完成**：PLAN §5.2 的 PR 03–14 全部合并（真实 merge sha 见 [PLAN §5.2.1](docs/PLAN.md)）；cargo-dist 三平台发布流水线就绪 |
 | 迭代 | **0.2.2（全网搜索）已发布**（2026-11-10）：第 18 个工具 `web_search`（Bing/Baidu/360，随机抖动、去重 + RRF、部分失败语义）；M2 摘要暂缓；详见 [Release v0.2.2](https://github.com/Thatgfsj/webctl/releases/tag/v0.2.2)、[ROADMAP-0.2.2](docs/ROADMAP-0.2.2.md) 与 [ADR-0008](docs/adr/0008-search-channel.md) |
+| 迭代 | **0.2.3（搜索降噪 + 诚实降级与凭据接力）已定版，待打 tag**（2026-11-10）：去广告 / `exclude` 排除操作符 / 同域折叠 + snippet 截断 / 结构化 `fallback_hint` / `WEBCTL_FALLBACK_TOOL` + SKILL 决策树 / Playwright 兼容 `storage_state` 导出；详见 [ROADMAP-0.2.3](docs/ROADMAP-0.2.3.md) |
 | 发布 | **v0.2.2**（[Release](https://github.com/Thatgfsj/webctl/releases/tag/v0.2.2)，2026-11-10）：5 目标、10 个压缩包 / 28 个资产（含 **musl 静态**）+ 安装器；下载、`sha256sum -c`、干净环境 E2E、musl 静态与 Alpine 用户态均已实测（[docs/RELEASE.md](docs/RELEASE.md)、[ACCEPTANCE §7](docs/ACCEPTANCE.md)） |
 | 计划文档 | [docs/PLAN.md](docs/PLAN.md)（**v0.4**，含 2026-10-16 的方向变更） |
 | 事实依据 | [docs/SURVEY.md](docs/SURVEY.md)（本机实测 + 公开仓库核对；其中 CDP 部分已成历史记录） |
