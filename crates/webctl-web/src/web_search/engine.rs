@@ -299,6 +299,8 @@ mod tests {
                 snippet: "s".to_owned(),
                 engines: vec!["bing".to_owned()],
                 is_ad: false,
+                same_domain_count: None,
+                snippet_truncated: false,
             }],
             related: Vec::new(),
             filtered_ads: 0,
@@ -317,6 +319,8 @@ mod tests {
             snippet: snippet.to_owned(),
             engines: vec!["bing".to_owned()],
             is_ad: false,
+            same_domain_count: None,
+            snippet_truncated: false,
         }
     }
 

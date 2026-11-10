@@ -142,6 +142,8 @@ fn parse_internal(html: &str, max_results: usize) -> Parsed {
             snippet,
             engines: vec!["bing".to_owned()],
             is_ad: verdict.is_ad,
+            same_domain_count: None,
+            snippet_truncated: false,
         });
     }
 

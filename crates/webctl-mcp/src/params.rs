@@ -77,6 +77,12 @@ pub struct WebSearchParams {
     /// 规范化后的形式写进结果的 applied_operators 并拼到查询串后。
     #[serde(default)]
     pub exclude: Option<Vec<String>>,
+    /// 是否展开同域结果（默认 false：同域折叠为一条主结果 + same_domain_count）。
+    #[serde(default)]
+    pub expand_domains: Option<bool>,
+    /// snippet 最大字符数（默认 300；传 0 表示不截断）。按 Unicode 字符计数，不按字节。
+    #[serde(default)]
+    pub snippet_max_chars: Option<usize>,
 }
 
 /// links：链接清单与过滤。
@@ -296,6 +302,21 @@ mod tests {
         let params: WebSearchParams =
             serde_json::from_value(serde_json::json!({"query": "rust"})).expect("最小参数应可解析");
         assert!(params.exclude.is_none(), "缺省 exclude 必须是 None");
+    }
+
+    /// #223：紧凑性参数缺省必须为 None（由派发层解释 300 / false），不是 0 或 true。
+    #[test]
+    fn web_search_compactness_defaults_to_none() {
+        let params: WebSearchParams =
+            serde_json::from_value(serde_json::json!({"query": "rust"})).expect("最小参数应可解析");
+        assert!(
+            params.expand_domains.is_none(),
+            "缺省 expand_domains 必须是 None"
+        );
+        assert!(
+            params.snippet_max_chars.is_none(),
+            "缺省 snippet_max_chars 必须是 None"
+        );
     }
 
     /// #222：显式传入时按字符串数组原样读出（规范化在 web 层，不在参数层）。

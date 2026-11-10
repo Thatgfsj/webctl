@@ -104,6 +104,8 @@ pub fn parse_serp(html: &str, max_results: usize) -> EngineSerp {
             snippet,
             engines: vec![SearchEngine::Baidu.as_str().to_owned()],
             is_ad: verdict.is_ad,
+            same_domain_count: None,
+            snippet_truncated: false,
         });
     }
     EngineSerp {
