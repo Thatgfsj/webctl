@@ -199,6 +199,7 @@ pub(crate) async fn tool_web_search(ctx: &McpContext, args: &Value) -> Value {
     let mut inputs: Vec<(SearchEngine, Vec<webctl_web::web_search::SearchHit>)> = Vec::new();
     let mut attempted = 0usize;
     let mut succeeded = 0usize;
+    let mut filtered_ads = 0usize;
     let mut single_reason: Option<String> = None;
     let mut hard_failure: Option<(webctl_core::ErrorCode, String)> = None;
     let mut related = Vec::new();
@@ -237,6 +238,10 @@ pub(crate) async fn tool_web_search(ctx: &McpContext, args: &Value) -> Value {
             continue;
         }
         let degraded = serp.meta.degraded_from.clone();
+        if let Some(data) = &serp.data {
+            // 即使结果为空/降级，被剔除的高置信广告也要计数（不静默删除）。
+            filtered_ads += data.filtered_ads;
+        }
         if degraded.is_none()
             && let Some(data) = &serp.data
         {
@@ -257,6 +262,7 @@ pub(crate) async fn tool_web_search(ctx: &McpContext, args: &Value) -> Value {
     let mut report = SearchReport {
         query: query.clone(),
         results,
+        filtered_ads,
         engines: statuses,
         llm_summary: None,
         related,

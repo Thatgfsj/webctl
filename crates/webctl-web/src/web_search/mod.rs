@@ -7,6 +7,7 @@
 //!   `strict_robots=true` 时由 `PoliteFetcher` 拦截（禁则 0 请求）；
 //! - 失败不伪装成功：被拦 / 空结果 / 超时都返回带 `degraded_from` 的信封。
 
+pub mod ads;
 pub mod aggregate;
 pub mod baidu;
 pub mod bing;
@@ -174,6 +175,14 @@ pub struct SearchHit {
     pub snippet: String,
     /// 命中该结果的引擎（M3 聚合用；M1 恒为单元素）。
     pub engines: Vec<String>,
+    /// 是否低置信广告（命中标签但保留；高置信广告已在解析层剔除）。
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub is_ad: bool,
+}
+
+/// `skip_serializing_if` 助手：默认值 `false` 不写进 JSON。
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 /// 相关主题 / 相关搜索。
@@ -232,6 +241,9 @@ pub struct SearchReport {
     pub query: String,
     /// 合并后的结果（M1 单引擎）。
     pub results: Vec<SearchHit>,
+    /// 被高置信广告规则剔除的条数（结果不静默删除：这里显式计数）。
+    #[serde(default)]
+    pub filtered_ads: usize,
     /// 逐引擎状态。
     pub engines: Vec<EngineStatus>,
     /// LLM 摘要（M2 起可能非空；必须回源核对）。
@@ -250,6 +262,7 @@ impl SearchReport {
         Self {
             query: query.to_owned(),
             results: Vec::new(),
+            filtered_ads: 0,
             engines: Vec::new(),
             llm_summary: None,
             related: Vec::new(),

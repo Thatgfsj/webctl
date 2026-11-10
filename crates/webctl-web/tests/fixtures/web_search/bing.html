@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-CN"><body>
+<ol id="b_results">
+  <!-- 合成 fixture：高置信 bing.com/ck/a 跳转链（剔除并计数；放在首位便于验证 max_results 不占坑） -->
+  <li class="b_algo">
+    <h2><a href="https://www.bing.com/ck/a?!&amp;&amp;u=a1aHR0cHM6Ly9hZHMuZXhhbXBsZS5vcmcvbGFuZGluZw">特惠云主机</a></h2>
+    <div class="b_caption"><p>限时优惠。</p></div>
+    <cite>ads.example.org</cite>
+  </li>
+  <!-- 合成 fixture：自然结果（不应被剔除） -->
+  <li class="b_algo">
+    <h2><a href="https://example.com/docs/rust">Rust 官方文档</a></h2>
+    <div class="b_caption"><p>语言与标准库文档。</p></div>
+    <cite>example.com</cite>
+  </li>
+  <!-- 合成 fixture：低置信「广告」标签（保留并打标） -->
+  <li class="b_algo">
+    <h2><a href="https://example.net/course">广告 · Rust 培训课程</a></h2>
+    <div class="b_caption"><p>商业培训。</p></div>
+    <cite>example.net</cite>
+  </li>
+</ol>
+<div id="b_context"><a href="https://example.com/related">相关主题</a></div>
+</body></html>

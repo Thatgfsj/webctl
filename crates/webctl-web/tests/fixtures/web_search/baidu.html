@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-CN"><body>
+<div id="content_left">
+  <!-- 合成 fixture：高置信 baidu.php 跳转链（剔除并计数） -->
+  <div class="result c-container" mu="https://ads.example.org/landing">
+    <h3><a href="https://www.baidu.com/baidu.php?url=high">特惠云主机</a></h3>
+    <div class="c-abstract">限时优惠。</div>
+  </div>
+  <!-- 合成 fixture：自然结果（/link 不是广告跳转域） -->
+  <div class="result c-container" mu="https://example.com/docs/rust">
+    <h3><a href="https://www.baidu.com/link?url=organic">Rust 官方文档</a></h3>
+    <div class="c-abstract">语言与标准库文档。</div>
+  </div>
+  <!-- 合成 fixture：低置信「广告」标签（保留并打标） -->
+  <div class="result c-container" mu="https://example.net/course">
+    <h3><a href="https://www.baidu.com/link?url=low">广告：Rust 培训课程</a></h3>
+    <div class="c-abstract">商业培训。</div>
+  </div>
+</div>
+</body></html>
