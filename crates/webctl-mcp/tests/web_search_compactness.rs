@@ -165,10 +165,10 @@ async fn max_results_applies_after_domain_collapse() {
 </ol>
 <ul class="result">
   <li class="res-list"><h3 class="res-title">
-    <a data-mdurl="https://a.test/2" href="https://www.so.com/link?m=x">A2</a></h3>
+    <a data-mdurl="https://a.test/2" href="https://so.example/link?m=x">A2</a></h3>
     <p class="res-desc">360 A</p></li>
   <li class="res-list"><h3 class="res-title">
-    <a data-mdurl="https://b.test/2" href="https://www.so.com/link?m=y">B2</a></h3>
+    <a data-mdurl="https://b.test/2" href="https://so.example/link?m=y">B2</a></h3>
     <p class="res-desc">360 B</p></li>
 </ul>
 </body></html>"#;
@@ -196,11 +196,7 @@ async fn max_results_applies_after_domain_collapse() {
 #[tokio::test]
 async fn i2_fields_still_reported_alongside_compactness() {
     // 高置信 bing.com/ck/a 广告（剔除并计数）+ 自然结果 + 低置信「广告」标签（保留打标）。
-    const I2_SERP: &str = r#"<html><body><ol id="b_results">
-<li class="b_algo"><h2><a href="https://www.bing.com/ck/a?!&amp;&amp;u=a1aHR0cHM6Ly9hZHMuZXhhbXBsZS5vcmcvbGFuZGluZw">特惠云主机</a></h2><div class="b_caption"><p>限时优惠。</p></div><cite>ads.example.org</cite></li>
-<li class="b_algo"><h2><a href="https://example.com/docs">Rust 官方文档</a></h2><div class="b_caption"><p>语言与标准库文档。</p></div><cite>example.com</cite></li>
-<li class="b_algo"><h2><a href="https://example.net/course">广告 · Rust 培训课程</a></h2><div class="b_caption"><p>商业培训。</p></div><cite>example.net</cite></li>
-</ol></body></html>"#;
+    const I2_SERP: &str = include_str!("fixtures/web_search/i2_bing_serp.html");
     let server = server_with(I2_SERP.to_owned()).await;
     let mcp = WebctlMcp::new(
         in_process_context("compact-i2").with_search_base(Some(server.url("/search"))),
