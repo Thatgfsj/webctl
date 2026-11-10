@@ -244,6 +244,9 @@ pub struct SearchReport {
     /// 被高置信广告规则剔除的条数（结果不静默删除：这里显式计数）。
     #[serde(default)]
     pub filtered_ads: usize,
+    /// 已尝试的排除操作符（规范化后回显；引擎忽略也如实记录"尝试过"）。
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub applied_operators: Vec<String>,
     /// 逐引擎状态。
     pub engines: Vec<EngineStatus>,
     /// LLM 摘要（M2 起可能非空；必须回源核对）。
@@ -263,6 +266,7 @@ impl SearchReport {
             query: query.to_owned(),
             results: Vec::new(),
             filtered_ads: 0,
+            applied_operators: Vec::new(),
             engines: Vec::new(),
             llm_summary: None,
             related: Vec::new(),

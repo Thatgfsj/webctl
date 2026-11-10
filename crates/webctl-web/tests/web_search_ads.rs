@@ -79,6 +79,7 @@ fn filtered_ads_and_is_ad_are_visible_in_the_report_json() {
         query: "rust".to_owned(),
         results: serp.results,
         filtered_ads: serp.filtered_ads,
+        applied_operators: Vec::new(),
         engines: Vec::new(),
         llm_summary: None,
         related: Vec::new(),

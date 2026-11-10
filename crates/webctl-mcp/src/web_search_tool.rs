@@ -182,6 +182,8 @@ pub(crate) async fn tool_web_search(ctx: &McpContext, args: &Value) -> Value {
         Ok(engines) => engines,
         Err((code, message)) => return to_value(Envelope::<SearchReport>::fail(code, message, 0)),
     };
+    // 排除操作符：先规范化（补 '-'、去空、去重），再原样透传给每个引擎。
+    let exclude = engine::normalize_exclude(params.exclude.as_deref().unwrap_or_default());
 
     let strict = strict_robots();
     let config = PolitenessConfig {
@@ -218,14 +220,41 @@ pub(crate) async fn tool_web_search(ctx: &McpContext, args: &Value) -> Value {
         let base = base_for(ctx, *engine);
         let serp = match engine {
             SearchEngine::Bing => engine::map_serp(
-                bing::fetch_serp(&base, &query, page, max_results, &jitter, &fetcher).await,
+                bing::fetch_serp(
+                    &base,
+                    &query,
+                    page,
+                    max_results,
+                    &exclude,
+                    &jitter,
+                    &fetcher,
+                )
+                .await,
                 EngineSerp::from,
             ),
             SearchEngine::Baidu => {
-                baidu::fetch_serp(&base, &query, page, max_results, &jitter, &fetcher).await
+                baidu::fetch_serp(
+                    &base,
+                    &query,
+                    page,
+                    max_results,
+                    &exclude,
+                    &jitter,
+                    &fetcher,
+                )
+                .await
             }
             SearchEngine::Sogou => {
-                so360::fetch_serp(&base, &query, page, max_results, &jitter, &fetcher).await
+                so360::fetch_serp(
+                    &base,
+                    &query,
+                    page,
+                    max_results,
+                    &exclude,
+                    &jitter,
+                    &fetcher,
+                )
+                .await
             }
             _ => unreachable!("is_wired 已过滤"),
         };
@@ -259,10 +288,11 @@ pub(crate) async fn tool_web_search(ctx: &McpContext, args: &Value) -> Value {
     related.sort_by(|a, b| a.url.cmp(&b.url));
     related.dedup_by(|a, b| a.url == b.url);
 
-    let mut report = SearchReport {
+    let report = SearchReport {
         query: query.clone(),
         results,
         filtered_ads,
+        applied_operators: exclude.clone(),
         engines: statuses,
         llm_summary: None,
         related,
@@ -278,6 +308,10 @@ pub(crate) async fn tool_web_search(ctx: &McpContext, args: &Value) -> Value {
     {
         return to_value(Envelope::<SearchReport>::fail(code, message, elapsed));
     }
+    // 排除操作符生效校验：只看本次返回的结果，不发额外请求（best-effort）。
+    let ignored = succeeded > 0
+        && !exclude.is_empty()
+        && engine::operators_ignored(&report.results, &exclude);
     let envelope = if attempted == 0 || succeeded == 0 {
         // 单引擎失败时保留它自己的原因（与 M1 行为一致）；多引擎全失败用 search-all-failed。
         let reason = if attempted <= 1 {
@@ -286,12 +320,20 @@ pub(crate) async fn tool_web_search(ctx: &McpContext, args: &Value) -> Value {
             "search-all-failed".to_owned()
         };
         Envelope::degraded(report, reason, ErrorCode::Degraded, elapsed)
-    } else if succeeded < engines.len() {
-        // 有引擎没贡献结果（未接线或失败）→ 结果不完整，显式降级。
-        Envelope::degraded(report, "search-partial", ErrorCode::Degraded, elapsed)
     } else {
-        report.notes = compliance_notes(strict, page, &engines);
-        Envelope::ok(report, Trust::UntrustedPageContent, elapsed)
+        // 部分引擎失败与操作符被忽略可以同时成立：degraded_from 用逗号组合（既有机制）。
+        let mut reasons: Vec<&str> = Vec::new();
+        if succeeded < engines.len() {
+            reasons.push("search-partial");
+        }
+        if ignored {
+            reasons.push("search-operator-ignored");
+        }
+        if reasons.is_empty() {
+            Envelope::ok(report, Trust::UntrustedPageContent, elapsed)
+        } else {
+            Envelope::degraded(report, reasons.join(","), ErrorCode::Degraded, elapsed)
+        }
     };
     to_value(envelope)
 }
