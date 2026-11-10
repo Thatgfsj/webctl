@@ -28,6 +28,8 @@ pub const MAX_RESULTS_LIMIT: usize = 30;
 pub const JITTER_MIN_MS: u64 = 50;
 /// 抖动上界（毫秒）。
 pub const JITTER_MAX_MS: u64 = 500;
+/// snippet 默认最大字符数（Unicode 字符；0 表示不截断）。
+pub const DEFAULT_SNIPPET_MAX_CHARS: usize = 300;
 
 /// 支持的搜索引擎（`engines` 参数）。
 ///
@@ -178,6 +180,12 @@ pub struct SearchHit {
     /// 是否低置信广告（命中标签但保留；高置信广告已在解析层剔除）。
     #[serde(default, skip_serializing_if = "is_false")]
     pub is_ad: bool,
+    /// 同域折叠时，该域名原本有多少条结果（≥2 才出现；未折叠不出现）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub same_domain_count: Option<usize>,
+    /// snippet 是否因超长被截断。
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub snippet_truncated: bool,
 }
 
 /// `skip_serializing_if` 助手：默认值 `false` 不写进 JSON。

@@ -19,6 +19,8 @@ fn hit(rank: u32, url: &str, title: &str, snippet: &str) -> SearchHit {
         snippet: snippet.to_owned(),
         engines: vec!["bing".to_owned()],
         is_ad: false,
+        same_domain_count: None,
+        snippet_truncated: false,
     }
 }
 

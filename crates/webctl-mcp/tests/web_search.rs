@@ -62,7 +62,8 @@ async fn bing_results_are_parsed_and_disclosed() {
     let mcp = WebctlMcp::new(
         in_process_context("web-search-ok").with_search_base(Some(server.url("/search"))),
     );
-    let envelope = call(&mcp, json!({"query": "rust web"})).await;
+    // 本用例只验解析：显式展开同域（0.2.3 M3 起默认折叠）。
+    let envelope = call(&mcp, json!({"query": "rust web", "expand_domains": true})).await;
     assert_eq!(envelope["ok"], true, "{envelope}");
     let data = &envelope["data"];
     assert_eq!(data["results"].as_array().expect("results").len(), 2);
@@ -205,7 +206,7 @@ async fn partial_failure_degrades_with_partial() {
     );
     let envelope = call(
         &mcp,
-        json!({"query": "rust", "engines": ["bing", "mojeek"]}),
+        json!({"query": "rust", "engines": ["bing", "mojeek"], "expand_domains": true}),
     )
     .await;
     assert_eq!(envelope["code"], "DEGRADED", "{envelope}");
@@ -308,10 +309,18 @@ async fn max_results_is_clamped() {
     let mcp = WebctlMcp::new(
         in_process_context("web-search-max").with_search_base(Some(server.url("/search"))),
     );
-    let one = call(&mcp, json!({"query": "rust", "max_results": 1})).await;
+    let one = call(
+        &mcp,
+        json!({"query": "rust", "max_results": 1, "expand_domains": true}),
+    )
+    .await;
     assert_eq!(one["ok"], true, "{one}");
     assert_eq!(one["data"]["results"].as_array().expect("results").len(), 1);
-    let many = call(&mcp, json!({"query": "rust", "max_results": 9999})).await;
+    let many = call(
+        &mcp,
+        json!({"query": "rust", "max_results": 9999, "expand_domains": true}),
+    )
+    .await;
     assert_eq!(many["ok"], true, "{many}");
     assert_eq!(
         many["data"]["results"].as_array().expect("results").len(),

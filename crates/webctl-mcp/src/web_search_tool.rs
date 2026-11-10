@@ -15,10 +15,11 @@ use std::time::Instant;
 use serde_json::Value;
 use webctl_core::{Envelope, ErrorCode, Trust};
 use webctl_web::politeness::{PoliteFetcher, PolitenessConfig};
-use webctl_web::web_search::aggregate::{self, Merged};
+use webctl_web::web_search::aggregate::{self, MergeOptions, Merged};
 use webctl_web::web_search::{
-    DEFAULT_MAX_RESULTS, EngineSerp, EngineStatus, Jitter, MAX_RESULTS_LIMIT, SearchEngine,
-    SearchReport, baidu, bing, engine, is_wired, so360, unavailable_note,
+    DEFAULT_MAX_RESULTS, DEFAULT_SNIPPET_MAX_CHARS, EngineSerp, EngineStatus, Jitter,
+    MAX_RESULTS_LIMIT, SearchEngine, SearchReport, baidu, bing, engine, is_wired, so360,
+    unavailable_note,
 };
 
 use crate::context::McpContext;
@@ -184,6 +185,11 @@ pub(crate) async fn tool_web_search(ctx: &McpContext, args: &Value) -> Value {
     };
     // 排除操作符：先规范化（补 '-'、去空、去重），再原样透传给每个引擎。
     let exclude = engine::normalize_exclude(params.exclude.as_deref().unwrap_or_default());
+    // 紧凑性（0.2.3 M3）：默认折叠同域 + 截断到 300 字符；显式参数可还原。
+    let expand_domains = params.expand_domains.unwrap_or(false);
+    let snippet_max_chars = params
+        .snippet_max_chars
+        .unwrap_or(DEFAULT_SNIPPET_MAX_CHARS);
 
     let strict = strict_robots();
     let config = PolitenessConfig {
@@ -284,7 +290,15 @@ pub(crate) async fn tool_web_search(ctx: &McpContext, args: &Value) -> Value {
         }
     }
 
-    let Merged { results, .. } = aggregate::merge(&inputs, max_results);
+    // 单引擎同样走 merge：保证单/多引擎行为一致（折叠、截断都由聚合层完成）。
+    let Merged { results, .. } = aggregate::merge(
+        &inputs,
+        MergeOptions {
+            max_results,
+            expand_domains,
+            snippet_max_chars,
+        },
+    );
     related.sort_by(|a, b| a.url.cmp(&b.url));
     related.dedup_by(|a, b| a.url == b.url);
 
