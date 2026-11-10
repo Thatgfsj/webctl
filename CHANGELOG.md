@@ -23,6 +23,7 @@
 
 - 0.2.3 全部测试离线（冻结 fixture / 合成 HTML），运行时**零外部进程**、不引入 Playwright 或任何外部工具依赖；`fallback_hint` 与 `WEBCTL_FALLBACK_TOOL` 都只是「诚实上报 + 建议」，是否回退由 agent 决定。
 - 无新增工具：工具面仍为 **18** 个；`storage_state` 为库内能力（MCP 工具面不变）。
+- **发布**：**v0.2.3**（2026-11-10；tag `v0.2.3` → commit `d64b7bb`；5 目标 / 10 压缩包 / **28 资产**，含 **musl 静态**）。实测：`sha256sum -c` 全过、`webctl --version`=0.2.3、`caps --json` ok=true、18 工具、`release-e2e.sh`（gnu/musl）PASS、musl `ldd` = statically linked；体积 gnu 35,215,368 B（动态）/ musl 34,545,000 B（静态），冷启动 p50 5 ms。
 - 里程碑与验收见 [ROADMAP-0.2.3](docs/ROADMAP-0.2.3.md)。
 ## [0.2.2] - 2026-11-10
 
