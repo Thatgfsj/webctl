@@ -60,11 +60,26 @@ js_render = false     # 是否执行页面内联脚本；默认 false（ADR-0005
 | `WEBCTL_JS_RENDER` | 是否执行页面内联脚本（**默认关闭**） | `1/true/yes/on` 或 `0/false/no/off` |
 | `WEBCTL_SEARCH_STRICT_ROBOTS` | web_search 是否严格遵守 robots（**默认关闭**：用户决策「搜索优先、合规其次」） | `1/true/yes/on` 或 `0/false/no/off` |
 | `WEBCTL_SEARCH_BASE` | web_search 的 SERP 基址覆盖（**仅调试/离线测试**；覆盖所有已接线引擎；生产不设置时各引擎用自己的默认基址） | 任意 URL（离线 lane 指向 fixture） |
+| `WEBCTL_FALLBACK_TOOL` | 宿主声明的外部回退工具（**仅提示**；webctl 绝不调用，见下文） | `<名字>:<工具名>`，例 `playwright:mcp__playwright__browser_navigate` |
 | `XDG_CONFIG_HOME` | 配置文件目录基准 | 路径 |
 | `HOME` | 配置文件/状态目录基准 | 路径 |
 | `USERPROFILE` | Windows 上的 `HOME` 等价物 | 路径 |
 
 变量名大小写不敏感（同时尝试全大写与小写形式）。
+
+### 3.1 外部回退工具声明（`WEBCTL_FALLBACK_TOOL`，议题 #225）
+
+- **格式固定**：`<名字>:<工具名>`，两段都非空、不含空白；未设置或格式非法一律当作**未声明**
+  （不报错、不猜测）。该变量只读环境，不写进配置文件，也不参与配置解析。
+- **示例**：`WEBCTL_FALLBACK_TOOL=playwright:mcp__playwright__browser_navigate`。
+- **只是提示**：webctl **不会调用**该工具——不探测它是否存在、不启动浏览器、不起子进程。
+  声明只出现在两个地方：
+  1. `caps` 的 `data.fallback_capability`（`{"name": ..., "tool": ...}`）；未声明时该字段
+     整体省略，工具数仍为 18（不新增工具）。
+  2. 降级信封的 `meta.actionable.next_steps`：仅当 `fallback_hint.playwright_suitable=true`
+     时**追加**一条 `use <tool>`；`code` 与 `meta.degraded_from` 不变。未声明时
+     `next_steps` **绝不会**出现任何外部工具名。
+- 是否调用、如何调用由 agent 决定；决策顺序见 [SKILL.md](../SKILL.md) 的「降级后的回退决策」。
 
 ## 4. 代理语义（CLI-03）
 

@@ -488,6 +488,10 @@ async fn degraded_envelope_carries_actionable_next_steps() {
     );
     for step in actionable["next_steps"].as_array().expect("next_steps") {
         let name = step.as_str().expect("channel name");
+        // #225：`use <tool>` 是给 agent 的指令（宿主声明的外部工具），不是 webctl 的工具名。
+        if name.starts_with("use ") {
+            continue;
+        }
         assert!(
             webctl_mcp::dispatch::is_known_tool(name),
             "建议的通道 {name} 必须真实存在（用派发表反查）"
@@ -534,6 +538,10 @@ async fn limit_degradation_carries_actionable() {
     );
     for step in actionable["next_steps"].as_array().expect("next_steps") {
         let name = step.as_str().expect("channel");
+        // #225：`use <tool>` 是给 agent 的指令（宿主声明的外部工具），不是 webctl 的工具名。
+        if name.starts_with("use ") {
+            continue;
+        }
         assert!(
             webctl_mcp::dispatch::is_known_tool(name),
             "通道 {name} 必须是真实工具"
@@ -577,6 +585,10 @@ async fn paginate_propagates_actionable_from_upstream() {
     );
     for step in actionable["next_steps"].as_array().expect("next_steps") {
         let name = step.as_str().expect("channel");
+        // #225：`use <tool>` 是给 agent 的指令（宿主声明的外部工具），不是 webctl 的工具名。
+        if name.starts_with("use ") {
+            continue;
+        }
         assert!(
             webctl_mcp::dispatch::is_known_tool(name),
             "通道 {name} 必须是真实工具"

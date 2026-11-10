@@ -10,6 +10,7 @@ pub mod caps;
 pub mod config;
 pub mod envelope;
 pub mod error;
+pub mod fallback_decl;
 pub mod security;
 pub mod state;
 
@@ -23,6 +24,7 @@ pub use config::{
 };
 pub use envelope::{Actionable, Engine, Envelope, EnvelopeViolation, FallbackHint, Meta, Trust};
 pub use error::ErrorCode;
+pub use fallback_decl::FallbackDecl;
 pub use security::paths::{
     ArgumentError, SafeRoot, SchemeError, ensure_http_scheme, is_http_scheme,
 };

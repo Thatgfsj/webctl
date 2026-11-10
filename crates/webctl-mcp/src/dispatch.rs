@@ -12,7 +12,7 @@ use std::time::Duration;
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 use url::Url;
-use webctl_core::{CapsReport, Envelope, ErrorCode, Trust};
+use webctl_core::{Envelope, ErrorCode, Trust};
 use webctl_web::doc::{DocOptions, doc_text, json_query};
 use webctl_web::extract::{self, ExtractOptions, LinkFilter, SearchOptions};
 use webctl_web::politeness::{PoliteFetcher, PolitenessConfig};
@@ -848,9 +848,8 @@ async fn tool_caps(ctx: &McpContext, args: &Value) -> Value {
     } else {
         Vec::new()
     };
-    let report = CapsReport::detect_with(&ctx.config, tools)
-        .with_spa(crate::caps::spa_surface())
-        .with_js(crate::caps::js_capability(&ctx.config));
+    // #225：宿主声明的外部回退工具（未设置则 None，字段整体省略）。
+    let report = crate::caps::report(&ctx.config, tools, webctl_core::fallback_decl::from_env());
     to_value(Envelope::ok(report, Trust::TrustedLocal, 0))
 }
 #[cfg(test)]

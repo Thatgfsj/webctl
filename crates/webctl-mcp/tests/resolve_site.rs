@@ -65,6 +65,10 @@ async fn resolve_site_low_confidence_degrades_with_real_next_steps() {
     );
     for step in actionable["next_steps"].as_array().expect("next_steps") {
         let name = step.as_str().expect("channel name");
+        // #225：`use <tool>` 是给 agent 的指令（宿主声明的外部工具），不是 webctl 的工具名。
+        if name.starts_with("use ") {
+            continue;
+        }
         assert!(
             webctl_mcp::dispatch::is_known_tool(name),
             "建议的通道 {name} 必须真实存在"

@@ -5,7 +5,9 @@
 //! （表示"由上层自带精确 actionable"，不是漏登记）。`crates/webctl-web/tests/degrade_reasons.rs`
 //! 会扫描源码里的 `degraded_from` 字面量做机械核对。
 //!
-//! 纪律：`next_steps` 里只能是**真实存在的工具名**（`check-skill-tools` 与 MCP 侧反查用例守护）。
+//! 纪律：本表登记的 `next_steps` 只能是**真实存在的工具名**（`check-skill-tools` 与 MCP 侧反查用例守护）。
+//! 唯一的例外在表外：宿主通过 `WEBCTL_FALLBACK_TOOL` 声明外部回退工具时，降级信封会追加
+//! 一条 `use <tool>`（#225）。它是给 agent 的指令，不是 webctl 的工具名，也不代表 webctl 会调用它。
 
 use crate::{Actionable, Envelope};
 

@@ -47,6 +47,23 @@ description: 纯内置的网页取回/解析/抽取 MCP server（零外部进程
 空结果（合法零命中）与解析失败（`PARSE`）严格区分；工具级失败一律以信封返回，
 而不是 JSON-RPC 协议错误。
 
+## 降级后的回退决策
+
+收到 `DEGRADED` / `UNSUPPORTED` 时按下面的顺序决策。**每一步都由 agent 决定，
+webctl 只提供证据与提示。**
+
+1. **先看 `embedded_data`**（若本环境已启用）：页面内嵌的 JSON-LD / `script[type=json]` /
+   框架状态容器常含正文，零 JS、零外部进程。降级信封的 `next_steps` 会指向它。
+2. **再看内置 `js_engine`**：仅当 `caps` 的 `js.enabled=true`（显式开启）**且**
+   `fallback_hint.js_engine_suitable=true` 时才值得开启 `js_render` 重试；
+   `js_engine_suitable=false`（依赖外链库）就不要试——进程内引擎不会代取远端库。
+3. **最后才考虑外部工具**：仅当 `fallback_hint.playwright_suitable=true`，**且** `caps`
+   的 `fallback_capability` 存在（宿主通过 `WEBCTL_FALLBACK_TOOL` 声明）时，由 agent
+   决定是否调用该工具；此时降级信封的 `next_steps` 末尾会有一条 `use <tool>`。
+   信号不足（`playwright_suitable=false`）时不要臆测，按 `signals` 如实汇报。
+4. **webctl 本身绝不调用外部工具**：不启动浏览器、不起子进程、不读宿主工具列表。
+   `fallback_capability` 与 `use <tool>` 都只是提示；调用与否、怎么调用，全在 agent 侧。
+
 ## 会话归属与预算
 
 - 服务器绑定启动时的 live Agent + Session；传入其他 `session` 名会被拒绝。
