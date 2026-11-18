@@ -31,19 +31,10 @@
 
 ## 1. 项目规范调查
 
-### 1.1 dsh-ops 的成文规范（原文）
-
-来源：[T-Auto/dsh-ops `docs/CONTRIBUTING.md`](https://github.com/T-Auto/dsh-ops/blob/HEAD/docs/CONTRIBUTING.md)
-
-> - dsh-ops 专注践行极简主义，低侵入性，仅为 dsh 提供额外的易用 tools……对原版的逻辑更改仅限于可选的禁用原版重复工具，以保证和其他插件的兼容性
-> - **pr 必须关联 issue，且主动在 issue 领取 —— 否则不通过**，这是为了以 issue 是否被领取来确认彼此的工作，防止重复
-> - issue 是 pr 工作区，非反馈 bug 或者写新功能的讨论，请移步至 Discussions
-> - **feat 前请先写 issue，经由维护团队批准后再写 feat 功能**。dsh-ops 团队希望保持代码和功能简洁
-> - dsh-ops 会和一些 dsh 插件联动。**对插件间联动层的实现单开逻辑区域，要完全和核心逻辑解耦**
 
 补充事实：PR [#102](https://github.com/T-Auto/dsh-ops/pull/102)（标题为 "docs: document the local gate and add pull request and issue templates"）**未合并**（`mergedAt: null`），仓库中**没有 PR 模板文件**；规范只存在于 CONTRIBUTING。
 
-### 1.2 「每 1000 行 PR 需审批」的核实结果：**仓库中不存在**
+### 1.1 「每 1000 行 PR 需审批」的核实结果：**仓库中不存在**
 
 做了反向核实（本地官方克隆 + T-Auto 6 个仓库 clone 到 `/tmp/tauto` + 用户账号与 4 个组织 + GitHub 全站代码搜索）：
 
@@ -73,7 +64,7 @@
 
 **结论**：「每 1000 行代码的 PR 需要审批」属于**尚未写下的新规则**。本计划按维护者指令执行它，并在 PLAN §6.2 给出可机械校验的措辞（口径、排除项、批准方式）。
 
-### 1.2.1 真实存在的「PR 粒度 + 模块化」条款（应遵守）
+### 1.1.1 真实存在的「PR 粒度 + 模块化」条款（应遵守）
 
 | # | 条款（原文摘要） | 出处 |
 |---|---|---|
@@ -91,14 +82,14 @@
 
 **关键含义**：真实规范管的是**变更类别与依赖方向**，不是行数。因此 PLAN §4 采用「角色不独立演进就不预先拆包」的 7-crate 布局，把 1000 行约束落在**目录与 PR 边界**上；同时 B11 提示：新增的 1000 行规则必须写成"评审可复核性"要求，而不是把仓库布局当成规范。
 
-### 1.3 浏览器 profile 限制（影响登录态复用方案）
+### 1.2 浏览器 profile 限制（影响登录态复用方案）
 
 Chrome/Edge **136 起，默认 user profile 不允许开启 remote-debugging**，必须显式指定 `--user-data-dir`。
 来源：[Microsoft Q&A — Edge Remote Debugging is Not Working When Using the Default User Profile](https://learn.microsoft.com/en-nz/answers/questions/5976829/microsoft-edge-remote-debugging-is-not-working-whe)
 
 → 决策：只支持受管 profile；登录态复用改由 `profile import`（复制 cookie）实现。
 
-### 1.4 DSH / MCP 集成约束（原文要点）
+### 1.3 DSH / MCP 集成约束（原文要点）
 
 来源：本地 `AIagent/.scratch/dsh-src/packages/mcp/mcp-client/README.md`
 
