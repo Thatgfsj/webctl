@@ -30,6 +30,7 @@ mod extract_tool;
 pub mod instructions;
 pub mod ownership;
 pub mod params;
+mod resume;
 pub mod server;
 mod site;
 pub mod spill;

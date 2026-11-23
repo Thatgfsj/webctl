@@ -53,6 +53,7 @@ fn fields_schema_declares_only_wired_parameters() {
             "html",
             "max_results",
             "selector",
+            "start_index",
             "url",
         ],
         "声明的参数必须与 dispatch 实际读的参数一一对应"

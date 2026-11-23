@@ -262,6 +262,31 @@ pub const NO_CHANNEL: &[&str] = &[
     "resolve-site",
 ];
 
+/// 与 `PLANS` 配套的「续读语义」说明（#190）。
+///
+/// 写进 `actionable.detected`，不写进 `next_steps`：后者必须是真实工具名，
+/// 而「带 start_index 续读」是同一工具的调用方式，不是另一个通道。
+pub const RESUME_NOTES: &[(&str, &str)] = &[
+    (
+        "char-budget",
+        "resumable: pass start_index=data.next_start_index to continue extract/doc_text",
+    ),
+    (
+        "response-body-truncated",
+        "not resumable: truncated response bytes are not retained; start_index applies only to extract/doc_text",
+    ),
+];
+
+/// 按 `degraded_from` 找续读说明；组合串按段匹配。
+pub fn note_for(from: &str) -> Option<&'static str> {
+    from.split([',', '+']).map(str::trim).find_map(|token| {
+        RESUME_NOTES
+            .iter()
+            .find(|(reason, _)| *reason == token)
+            .map(|(_, note)| *note)
+    })
+}
+
 /// 按 `degraded_from` 找计划：组合串（`a,b`）逐段匹配，先命中先用。
 pub fn plan_for(from: &str) -> Option<Plan> {
     // 组合来源有两种拼法：逗号（extract 的截断原因）与加号（session 的 from+limit）。
@@ -314,9 +339,13 @@ pub fn attach<T>(mut envelope: Envelope<T>) -> Envelope<T> {
     let Some(plan) = plan_for(&from) else {
         return envelope;
     };
+    let mut detected = vec![format!("degraded_from: {from}")];
+    if let Some(note) = note_for(&from) {
+        detected.push(note.to_owned());
+    }
     envelope.meta.actionable = Some(Actionable {
         reason: plan.reason.to_owned(),
-        detected: vec![format!("degraded_from: {from}")],
+        detected,
         next_steps: plan
             .next_steps
             .iter()
@@ -331,6 +360,20 @@ pub fn attach<T>(mut envelope: Envelope<T>) -> Envelope<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// #190：续读说明只挂在能续读的来源上，fetch 截断明确写不可续读。
+    #[test]
+    fn resume_notes_cover_resumable_and_non_resumable_sources() {
+        assert!(
+            note_for("char-budget,max-results").is_some_and(|note| note.contains("resumable")),
+            "char-budget 必须说明可续读"
+        );
+        assert!(
+            note_for("response-body-truncated").is_some_and(|note| note.contains("not resumable")),
+            "fetch 截断必须说明不可续读"
+        );
+        assert!(note_for("js-render").is_none(), "无关来源不加说明");
+    }
 
     /// 组合串按段匹配：`char-budget,max-results` 取第一个有计划的段。
     #[test]
