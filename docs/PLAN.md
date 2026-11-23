@@ -162,7 +162,7 @@ v0.3 的 aria ref 依赖"最近一次快照"的 live 页面，**在无浏览器�
 | # | 工具 | 说明 |
 |---|---|---|
 | 1 | `fetch` | 取回 URL，返回状态、头、重定向链、内容或落盘路径 |
-| 2 | `extract` | CSS 选择器抽取结构化命中；或 `fields` schema 一次抽多字段（`{name: {selector, attr, all}}`，单字段失败只进 `data.diagnostics`；#193）。`selector` 与 `fields` 至少给一个，同给则合并；长文可用 `start_index` + `char_budget` 分块续读（#190） |
+| 2 | `extract` | CSS 选择器抽取结构化命中；或 `fields` schema 一次抽多字段（`{name: {selector, attr, all}}`，单字段失败只进 `data.diagnostics`；#193）。`selector` 与 `fields` 至少给一个，同给则合并；长文可用 `start_index` + `char_budget` 分块续读（#190）；`format=markdown` 时每条命中附 markdown 视图（计入 `char_budget`，与 `start_index` 互斥；#187） |
 | 3 | `search` | 页面内文本/正则搜索，返回命中 + 结构化路径 + 上下文 |
 | 4 | `links` | 链接清单（绝对化、rel、可选过滤） |
 | 5 | `tables` | 表格结构化（行列、跨行跨列语义确定） |
@@ -172,7 +172,7 @@ v0.3 的 aria ref 依赖"最近一次快照"的 live 页面，**在无浏览器�
 | 9 | `session` | 会话查看/保存/加载/清理（cookie 持久化） |
 | 10 | `cookies` | 查看/导出 cookie（导出需 `--yes`、权限 600、值脱敏） |
 | 11 | `json_query` | 内置 JSON 查询子集（替代 `jq`）；以 URL 为输入时**继承上游降级**（#125） |
-| 12 | `doc_text` | PDF / HTML / XML 文本层提取（替代 `pdftotext`/`pandoc`）；以 URL 为输入时**继承上游降级**（#125）；长文可用 `start_index` + `char_budget` 分块续读（#190） |
+| 12 | `doc_text` | PDF / HTML / XML 文本层提取（替代 `pdftotext`/`pandoc`）；以 URL 为输入时**继承上游降级**（#125）；长文可用 `start_index` + `char_budget` 分块续读（#190）；`format=markdown` 时 HTML 附 markdown 视图，非 HTML 显式 `UNSUPPORTED`，与续读参数互斥（#187） |
 | 13 | `embedded_data` | 页面**内嵌**结构化数据抽取（JSON-LD / `script[type=json]` / 框架状态容器 / `data-page`），**零 JS 执行**（0.1.2，[#114](https://github.com/Thatgfsj/webctl/issues/114)）；**可选取回**页面声明的 RSS/Atom/oEmbed（`fetch_channels=true`，默认关；过 politeness，robots 拦下不请求；oEmbed 只保留白名单字段，HTML 型只取标题/摘要；#117/#196）；**可选**解析 sitemap 条目（`fetch_sitemap=true`，默认关；robots 声明的 `Sitemap:` 优先，只列 URL 不抓取页面；#196）；**API 端点线索**（`data.api_candidates`，#116）：从内联脚本/内嵌 JSON 找 `fetch(...)`、`/api/...`、`/graphql`、`/_next/data/<buildId>/...`，相对路径归一化，同源/跨域分开，**只报告不探测** |
 | 14 | `download` | 文件下载到指定目录（尺寸上限、类型白名单、落盘路径）；以 URL 为输入时**继承上游降级**（#125） |
 | 15 | `robots` | robots.txt 与站点策略查询（礼貌爬取依据；含 `Sitemap:` 声明清单） |

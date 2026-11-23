@@ -8,8 +8,8 @@ use std::time::Instant;
 
 use webctl_core::{Envelope, ErrorCode, Trust};
 use webctl_web::extract::{
-    ExtractOptions, LinkFilter, STABILITY_NOTE, extract_body, form_by_index, forms, links, search,
-    select_matches, tables,
+    ExtractOptions, ExtractView, LinkFilter, STABILITY_NOTE, extract_body, form_by_index, forms,
+    links, search, select_matches, tables,
 };
 use webctl_web::extract::{SearchOptions, SearchResult};
 use webctl_web::parse::{extract_forms, extract_links, extract_tables};
@@ -22,6 +22,7 @@ const TABLES: &str = include_str!("fixtures/parse/tables.html");
 const LINKS: &str = include_str!("fixtures/parse/links.html");
 const FORMS: &str = include_str!("fixtures/parse/forms.html");
 const INLINE_SCRIPT: &str = include_str!("fixtures/extract/inline_script.html");
+const MARKDOWN: &str = include_str!("fixtures/parse/markdown.html");
 
 const DOC_URL: &str = "https://doc.example/dir/doc.html";
 const LINKS_BASE: &str = "https://fixture.example/base/";
@@ -797,4 +798,84 @@ fn extract_18_inline_script_style_text_is_excluded() {
             matched.text
         );
     }
+}
+
+// ---------------------------------------------------------------- #187 markdown 视图
+
+/// #187：format=markdown 时每条命中附带 markdown，text 保持不变。
+#[test]
+fn extract_markdown_view_exposes_match_markdown() {
+    let mut md = options();
+    md.view = ExtractView::Markdown;
+    let env = select_matches(MARKDOWN, "body", &md);
+    assert_valid(&env);
+    assert_eq!(env.code, ErrorCode::Ok);
+    let result = env.data.expect("extract data");
+    assert_eq!(result.matches.len(), 1);
+    let hit = &result.matches[0];
+    let markdown = hit.markdown.as_deref().expect("markdown");
+    assert!(markdown.contains("# Title"), "{markdown}");
+    assert!(markdown.contains("- one"), "{markdown}");
+    assert!(markdown.contains("**bold**"), "{markdown}");
+    assert!(
+        markdown.contains("[link text](https://example.com/a)"),
+        "{markdown}"
+    );
+    assert_eq!(hit.markdown_truncated, Some(false));
+
+    let plain = select_matches(MARKDOWN, "body", &options())
+        .data
+        .expect("plain data");
+    assert_eq!(hit.text, plain.matches[0].text, "text 视图必须保持不变");
+}
+
+/// #187：默认 text 视图不序列化 markdown（逐字节兼容）。
+#[test]
+fn extract_default_view_omits_markdown() {
+    let env = select_matches(MARKDOWN, "body", &options());
+    let value = serde_json::to_value(&env).expect("serialize");
+    let hit = &value["data"]["matches"][0];
+    assert!(hit.get("markdown").is_none(), "{value}");
+    assert!(hit.get("markdown_truncated").is_none(), "{value}");
+    let result = env.data.expect("data");
+    assert!(result.matches.iter().all(|hit| hit.markdown.is_none()));
+}
+
+/// #187：markdown 计入 char_budget；放不下时如实标记，不塞伪结构。
+#[test]
+fn extract_markdown_counts_against_char_budget() {
+    let mut md = options();
+    md.view = ExtractView::Markdown;
+    md.context_chars = 0;
+    md.char_budget = 12;
+    let env = select_matches(MARKDOWN, "p", &md);
+    assert_valid(&env);
+    assert_eq!(env.code, ErrorCode::Limit);
+    assert_eq!(env.meta.degraded_from.as_deref(), Some("char-budget"));
+    let result = env.data.expect("data");
+    assert!(result.truncated);
+    let hit = &result.matches[0];
+    let markdown_chars = hit
+        .markdown
+        .as_deref()
+        .map_or(0, |markdown| markdown.chars().count());
+    assert!(
+        hit.text.chars().count() + markdown_chars <= md.char_budget,
+        "text + markdown 必须落在 char_budget 内"
+    );
+    assert_eq!(hit.markdown_truncated, Some(true));
+}
+
+/// #187：非 HTML 时 markdown 视图显式 UNSUPPORTED（不是空成功）。
+#[test]
+fn extract_markdown_view_on_non_html_is_unsupported() {
+    let mut md = options();
+    md.view = ExtractView::Markdown;
+    let env = extract_body(&binary_body(ContentKind::Pdf), "p", &md);
+    assert_valid(&env);
+    assert!(env.ok);
+    assert_eq!(env.code, ErrorCode::Unsupported);
+    let data = env.data.expect("data");
+    assert!(data.matches.is_empty());
+    assert!(data.conclusion.contains("markdown"), "{}", data.conclusion);
 }

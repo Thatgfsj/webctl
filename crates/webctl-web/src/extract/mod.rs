@@ -26,6 +26,14 @@
 //!
 //! 五者码互不相同：空结果不会被当成失败，解析失败不会返回空数组冒充成功，
 //! 截断一定同时带 code=LIMIT 与非空 meta.degraded_from。
+//!
+//! # markdown 视图（#187）
+//!
+//! `ExtractOptions::view = ExtractView::Markdown` 时每条命中额外返回 `markdown`
+//! （`text` 字段不变）。它从命中元素**自身**的 outer HTML 用解析层同一渲染器生成，
+//! **祖先上下文可能丢失**（单独命中的 `li` 不继承外层 `ol` 的编号、`td` 不带表头），
+//! 所以只是尽力而为的视图，不是语义等价物。markdown 计入 `char_budget`
+//! （与 text 同一口径）；渲染为空时字段缺省，非 HTML 内容整体 UNSUPPORTED。
 
 use std::time::Instant;
 
@@ -58,6 +66,19 @@ pub use structured::{extract_body, extract_fields_body, form_by_index, forms, ta
 pub const STABILITY_NOTE: &str = "selector matches are not stable across requests: every parse is a fresh document; \
      results are ordered by document order within a single call only";
 
+/// extract 的视图选择（#187）。
+///
+/// markdown 是**附加视图**：`Markdown` 时 `text` 字段保持不变，另给 `markdown`；
+/// 默认 `Text` 不渲染、不序列化 markdown，输出与 #187 之前一致。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ExtractView {
+    /// 只返回文本视图（默认）。
+    #[default]
+    Text,
+    /// 额外返回每条命中的 markdown 视图。
+    Markdown,
+}
+
 /// extract 一次调用的选项。全部字段都有保守默认值（见 Default）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExtractOptions {
@@ -77,6 +98,9 @@ pub struct ExtractOptions {
     pub max_elapsed_ms: u64,
     /// 扫描命中的硬上限，防「选择器命中一切」时迭代无界。
     pub max_scan_matches: usize,
+    /// markdown 视图（#187）：`ExtractView::Markdown` 时每条命中额外返回
+    /// `markdown`，并计入 `char_budget`（与 text 共享同一预算，避免两套口径）。
+    pub view: ExtractView,
 }
 
 impl Default for ExtractOptions {
@@ -90,6 +114,7 @@ impl Default for ExtractOptions {
             max_selector_complexity: 64,
             max_elapsed_ms: 5_000,
             max_scan_matches: 10_000,
+            view: ExtractView::Text,
         }
     }
 }
@@ -139,6 +164,16 @@ pub struct ExtractMatch {
     pub before: String,
     /// 命中后的文本上下文（折叠空白，至多 context_chars 字符）。
     pub after: String,
+    /// 命中元素的 markdown 视图（仅 `ExtractView::Markdown`）。
+    ///
+    /// 由同一渲染器从**命中元素自身的 outer HTML** 渲染：单次调用内确定，
+    /// 但祖先上下文可能丢失（如单独命中的 `li` 不继承外层 `ol` 的编号、
+    /// `td` 不带表头）。渲染为空时字段缺省，不返回空串。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub markdown: Option<String>,
+    /// markdown 是否因字符预算被截断（仅 markdown 字段存在时有意义）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub markdown_truncated: Option<bool>,
 }
 
 /// extract 的结果集。
@@ -264,6 +299,20 @@ pub fn select_matches(
                 hit.text_truncated = true;
                 hit.before.clear();
                 hit.after.clear();
+                // text 优先占用剩余预算；markdown 能放一部分时按剩余字符截断并标
+                // truncated=true，完全放不下则字段缺省 + truncated=true（#187）。
+                let left = remaining.saturating_sub(hit.text.chars().count());
+                if let Some(markdown) = hit.markdown.take() {
+                    if left == 0 {
+                        hit.markdown_truncated = Some(true);
+                    } else if markdown.chars().count() <= left {
+                        hit.markdown = Some(markdown);
+                        hit.markdown_truncated = Some(false);
+                    } else {
+                        hit.markdown = Some(head_chars(&markdown, left));
+                        hit.markdown_truncated = Some(true);
+                    }
+                }
                 result.matches.push(hit);
             }
             break;
@@ -397,7 +446,25 @@ fn build_match(
     let raw_html = element.html();
     let html_truncated = raw_html.chars().count() > options.max_html_chars;
     let html = head_chars(&raw_html, options.max_html_chars);
-    let cost = text.chars().count() + before.chars().count() + after.chars().count();
+    // markdown 从命中元素**自身**的 outer HTML 渲染：单次调用内确定，但祖先
+    // 上下文（有序列表编号、表头、嵌套层级）可能丢失；渲染为空时字段缺省，
+    // 不返回空串冒充结构（#187）。
+    let markdown = if options.view == ExtractView::Markdown {
+        let rendered = crate::parse::html::render_markdown(&raw_html);
+        let rendered = rendered.trim();
+        if rendered.is_empty() {
+            None
+        } else {
+            Some(rendered.to_owned())
+        }
+    } else {
+        None
+    };
+    let markdown_truncated = markdown.as_ref().map(|_| false);
+    let cost = text.chars().count()
+        + before.chars().count()
+        + after.chars().count()
+        + markdown.as_ref().map_or(0, |md| md.chars().count());
     (
         ExtractMatch {
             index,
@@ -409,6 +476,8 @@ fn build_match(
             html_truncated,
             before,
             after,
+            markdown,
+            markdown_truncated,
         },
         cost,
     )

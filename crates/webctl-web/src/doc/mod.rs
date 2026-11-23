@@ -36,17 +36,35 @@ use webctl_core::{Envelope, ErrorCode, Trust};
 /// 文档输入上限（8 MiB）：超限只返回 LIMIT，不进入任何解析。
 pub const DEFAULT_MAX_DOC_BYTES: usize = 8 * 1024 * 1024;
 
+/// doc_text 的输出视图（#187）。
+///
+/// markdown 是**附加视图**：`Markdown` 时仍返回同一提取器的 `text`（保持 text
+/// 输出不变），另外填充 `markdown`；默认 `Text` 时 `markdown` 字段缺省，
+/// 输出与 #187 之前逐字节一致。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DocView {
+    /// 只返回文本视图（默认）。
+    #[default]
+    Text,
+    /// 额外返回 markdown 视图（仅 HTML 可用）。
+    Markdown,
+}
+
 /// doc_text 参数。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DocOptions {
     /// 允许解析的最大输入字节数。
     pub max_bytes: usize,
+    /// 输出视图（默认 `DocView::Text`）。
+    pub view: DocView,
 }
 
 impl Default for DocOptions {
     fn default() -> Self {
         Self {
             max_bytes: DEFAULT_MAX_DOC_BYTES,
+            view: DocView::Text,
         }
     }
 }
@@ -118,7 +136,17 @@ pub struct DocText {
     /// 判定出的格式。
     pub format: DocFormat,
     /// 提取出的文本。成功时非空；不支持时为 None（不返回空字符串假装成功）。
+    ///
+    /// `format=markdown` 且 markdown 视图对输入不适用时（非 HTML）本字段同样为
+    /// None：请求既然指定了 markdown，就不偷偷改用文本视图（#187）。
     pub text: Option<String>,
+    /// markdown 视图（#187）：仅 `format=markdown` 且输入为 HTML 时提供。
+    ///
+    /// 与 `text` 来自同一份正文（dom_smoothie / 回退渲染器），**可能不完整或降级**
+    /// （复杂嵌套、表格语义、回退路径）；不可用时字段缺省（None），绝不用空串或
+    /// 伪结构冒充成功。默认视图下该字段不参与序列化。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub markdown: Option<String>,
     /// PDF 页数（仅 PDF）。
     pub pages: Option<usize>,
     /// PDF 子类型（仅 PDF）。
@@ -138,6 +166,7 @@ impl DocText {
         Self {
             format,
             text: None,
+            markdown: None,
             pages: None,
             pdf_kind,
             diagnostics,
@@ -206,6 +235,9 @@ pub fn doc_text(bytes: &[u8], options: &DocOptions) -> Envelope<DocText> {
     }
 
     let format = detect_format(bytes);
+    if options.view == DocView::Markdown && format != DocFormat::Html {
+        return markdown_view_unsupported(format, elapsed());
+    }
     match format {
         DocFormat::Pdf => extract_pdf_text(bytes, options.max_bytes),
         DocFormat::Text => match std::str::from_utf8(bytes) {
@@ -213,6 +245,7 @@ pub fn doc_text(bytes: &[u8], options: &DocOptions) -> Envelope<DocText> {
                 DocText {
                     format: DocFormat::Text,
                     text: Some(text.to_string()),
+                    markdown: None,
                     pages: None,
                     pdf_kind: None,
                     diagnostics: Vec::new(),
@@ -236,7 +269,7 @@ pub fn doc_text(bytes: &[u8], options: &DocOptions) -> Envelope<DocText> {
             ErrorCode::Unsupported,
             elapsed(),
         ),
-        DocFormat::Html | DocFormat::Xml => markup_text(bytes, format, elapsed()),
+        DocFormat::Html | DocFormat::Xml => markup_text(bytes, format, options.view, elapsed()),
         DocFormat::Unknown => Envelope::degraded(
             DocText::unsupported(
                 DocFormat::Unknown,
@@ -257,7 +290,12 @@ pub fn doc_text(bytes: &[u8], options: &DocOptions) -> Envelope<DocText> {
 ///
 /// 语义：解析层失败 → 原样把它的 code/error 传出去（不吞错、不降级成成功）；
 /// 解析层降级（如 Readability 回退）→ 保留其 degraded_from 与 code（禁止静默降级）。
-fn markup_text(bytes: &[u8], format: DocFormat, elapsed_ms: u64) -> Envelope<DocText> {
+fn markup_text(
+    bytes: &[u8],
+    format: DocFormat,
+    view: DocView,
+    elapsed_ms: u64,
+) -> Envelope<DocText> {
     let text = match std::str::from_utf8(bytes) {
         Ok(text) => text,
         Err(error) => {
@@ -274,9 +312,32 @@ fn markup_text(bytes: &[u8], format: DocFormat, elapsed_ms: u64) -> Envelope<Doc
         let Some(article) = env.data else {
             return Envelope::fail(env.code, env.error, elapsed_ms);
         };
+        // markdown 视图不可用时如实 UNSUPPORTED：不回退成「text 当 markdown」，
+        // 也不返回空串冒充成功（#187）。
+        if view == DocView::Markdown && article.markdown.trim().is_empty() {
+            return Envelope::degraded(
+                DocText::unsupported(
+                    format,
+                    None,
+                    vec![
+                        "HTML 正文已提取，但 markdown 视图为空（回退渲染器未产出结构）；请改用 format=text"
+                            .to_string(),
+                    ],
+                ),
+                "markdown-unavailable",
+                ErrorCode::Unsupported,
+                elapsed_ms,
+            );
+        }
+        let markdown = if view == DocView::Markdown {
+            Some(article.markdown)
+        } else {
+            None
+        };
         return wrap_text(
             format,
             article.text,
+            markdown,
             env.code,
             env.meta.degraded_from,
             elapsed_ms,
@@ -292,8 +353,34 @@ fn markup_text(bytes: &[u8], format: DocFormat, elapsed_ms: u64) -> Envelope<Doc
     wrap_text(
         format,
         parts.join("\n"),
+        None,
         env.code,
         env.meta.degraded_from,
+        elapsed_ms,
+    )
+}
+
+/// `format=markdown` 但输入不是 HTML：显式 UNSUPPORTED，不把文本冒充成 markdown。
+fn markdown_view_unsupported(format: DocFormat, elapsed_ms: u64) -> Envelope<DocText> {
+    let hint = match format {
+        DocFormat::Pdf => "PDF 只能取文本层，请用 format=text",
+        DocFormat::Json => "JSON 请改用 json_query",
+        DocFormat::Xml => "XML 只能取文本节点，请用 format=text",
+        DocFormat::Text => "纯文本请用 format=text",
+        DocFormat::Unknown => "无法识别的格式没有 markdown 视图",
+        DocFormat::Html => "HTML 不应走到这里",
+    };
+    Envelope::degraded(
+        DocText::unsupported(
+            format,
+            None,
+            vec![format!(
+                "markdown 视图仅支持 HTML；检测到 {}。{hint}",
+                format.as_str()
+            )],
+        ),
+        "markdown-html-only",
+        ErrorCode::Unsupported,
         elapsed_ms,
     )
 }
@@ -301,6 +388,7 @@ fn markup_text(bytes: &[u8], format: DocFormat, elapsed_ms: u64) -> Envelope<Doc
 fn wrap_text(
     format: DocFormat,
     text: String,
+    markdown: Option<String>,
     upstream_code: ErrorCode,
     degraded_from: Option<String>,
     elapsed_ms: u64,
@@ -308,6 +396,7 @@ fn wrap_text(
     let data = DocText {
         format,
         text: Some(text),
+        markdown,
         pages: None,
         pdf_kind: None,
         diagnostics: Vec::new(),
@@ -387,7 +476,10 @@ mod tests {
     /// DOC-10：超限 LIMIT，不解析。
     #[test]
     fn oversized_doc_is_limit() {
-        let options = DocOptions { max_bytes: 8 };
+        let options = DocOptions {
+            max_bytes: 8,
+            ..DocOptions::default()
+        };
         let env = doc_text(b"%PDF-1.4 and a lot more", &options);
         assert!(env.ok);
         assert_eq!(env.code, ErrorCode::Limit);

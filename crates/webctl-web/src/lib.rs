@@ -32,7 +32,7 @@ pub use degrade::{
 };
 pub use doc::json_query::json_query;
 pub use doc::{
-    DEFAULT_MAX_DOC_BYTES, DEFAULT_MAX_JSON_BYTES, DocFormat, DocOptions, DocText,
+    DEFAULT_MAX_DOC_BYTES, DEFAULT_MAX_JSON_BYTES, DocFormat, DocOptions, DocText, DocView,
     JsonQueryOptions, JsonQueryOutcome, PdfKind, doc_text, extract_pdf_text,
 };
 pub use encoding::{CharsetSource, DecodedText, decode_body};

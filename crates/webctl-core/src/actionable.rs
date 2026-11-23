@@ -205,6 +205,21 @@ pub const PLANS: &[(&str, Plan)] = &[
             next_steps: &["doc_text", "json_query"],
         },
     ),
+    // #187：markdown 只是视图，不是文本层的替代；取不到就回退 text（或换 json_query）。
+    (
+        "markdown-html-only",
+        Plan {
+            reason: "markdown-html-only",
+            next_steps: &["doc_text", "json_query"],
+        },
+    ),
+    (
+        "markdown-unavailable",
+        Plan {
+            reason: "markdown-unavailable",
+            next_steps: &["doc_text", "extract"],
+        },
+    ),
     (
         "pdf-no-text-layer",
         Plan {

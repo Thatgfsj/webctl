@@ -61,7 +61,7 @@ pub const TOOL_SPECS: [ToolSpec; 18] = [
     },
     ToolSpec {
         name: "extract",
-        description: "CSS 选择器抽取元素 / fields schema 抽字段；长文可带 start_index+char_budget 续读；零命中是合法空结果",
+        description: "CSS 选择器抽取元素（format=markdown 附带每条命中的 markdown 视图）/ fields schema 抽字段；长文可带 start_index+char_budget 续读；零命中是合法空结果",
     },
     ToolSpec {
         name: "search",
@@ -101,7 +101,7 @@ pub const TOOL_SPECS: [ToolSpec; 18] = [
     },
     ToolSpec {
         name: "doc_text",
-        description: "PDF/HTML/XML 文本层提取（替代 pdftotext/pandoc）；长文可带 start_index+char_budget 续读",
+        description: "PDF/HTML/XML 文本层提取（替代 pdftotext/pandoc）；HTML 可选 markdown 视图（format=markdown）；长文可带 start_index+char_budget 续读",
     },
     ToolSpec {
         name: "embedded_data",

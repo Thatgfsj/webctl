@@ -385,3 +385,31 @@ async fn fetch_truncation_reports_not_resumable() {
         "fetch 不得假装可续读：{value}"
     );
 }
+/// #187 × #190：markdown 视图与续读游标是两套坐标，组合必须在取回之前显式 `PARSE`。
+#[tokio::test]
+async fn markdown_view_rejects_resume_parameters() {
+    let mcp = server("chunk-markdown-conflict");
+    let html = "<html><body><h1>T</h1></body></html>";
+    for (tool, args) in [
+        (
+            "extract",
+            json!({"html": html, "selector": "h1", "format": "markdown", "start_index": 0}),
+        ),
+        (
+            "doc_text",
+            json!({"url": "http://127.0.0.1:1/never", "format": "markdown", "start_index": 0}),
+        ),
+        (
+            "doc_text",
+            json!({"url": "http://127.0.0.1:1/never", "format": "markdown", "char_budget": 8}),
+        ),
+    ] {
+        let value = invoke(&mcp, tool, args).await;
+        assert_eq!(value["code"], "PARSE", "{tool}: {value}");
+        let error = value["error"].as_str().unwrap_or_default();
+        assert!(
+            error.contains("format=markdown") && error.contains("互斥"),
+            "{tool} 必须说明互斥原因：{error}"
+        );
+    }
+}

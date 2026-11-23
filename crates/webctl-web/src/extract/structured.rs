@@ -16,7 +16,7 @@ use crate::parse::{Form, Table, extract_forms, extract_tables};
 use crate::transport::Body;
 
 use super::fields::{FieldSetResult, FieldSpec, extract_fields};
-use super::{ExtractOptions, ExtractResult, select_matches};
+use super::{ExtractOptions, ExtractResult, ExtractView, select_matches};
 
 /// 抽取表格；结构与 crate::parse::extract_tables 完全一致（EXTRACT-10、15）。
 ///
@@ -91,19 +91,28 @@ pub fn extract_body(
                 elapsed_ms(started),
             ),
         },
-        other => Envelope::degraded(
-            ExtractResult::unsupported(
+        other => {
+            let mut result = ExtractResult::unsupported(
                 selector,
                 format!(
                     "CSS selector extraction requires HTML; content kind is {} — \
                      route it to search() for text or to the document handler",
                     other.as_str()
                 ),
-            ),
-            format!("content-type:{}", other.as_str()),
-            ErrorCode::Unsupported,
-            elapsed_ms(started),
-        ),
+            );
+            if options.view == ExtractView::Markdown {
+                result.conclusion.push_str(
+                    "; markdown view is also HTML-only and was not produced (field absent, \
+                     not an empty success)",
+                );
+            }
+            Envelope::degraded(
+                result,
+                format!("content-type:{}", other.as_str()),
+                ErrorCode::Unsupported,
+                elapsed_ms(started),
+            )
+        }
     }
 }
 

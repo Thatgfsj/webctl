@@ -11,8 +11,10 @@
 //!   触发 pdf-extract 0.12.1 内部 panic，用来覆盖 catch_unwind 隔离分支。
 
 use webctl_core::{ErrorCode, Trust};
+use webctl_web::parse::extract_article;
 use webctl_web::{
-    DocFormat, DocOptions, JsonQueryOptions, PdfKind, doc_text, extract_pdf_text, json_query,
+    DocFormat, DocOptions, DocView, JsonQueryOptions, PdfKind, doc_text, extract_pdf_text,
+    json_query,
 };
 
 const TEXT_PDF: &[u8] = include_bytes!("fixtures/doc/text.pdf");
@@ -24,12 +26,20 @@ const CORRUPT_PDF: &[u8] = include_bytes!("fixtures/doc/corrupt.pdf");
 const PANIC_PDF: &[u8] = include_bytes!("fixtures/doc/panic_tj.pdf");
 const SAMPLE_JSON: &[u8] = include_bytes!("fixtures/doc/sample.json");
 const SAMPLE_HTML: &[u8] = include_bytes!("fixtures/doc/sample.html");
+const MARKDOWN_HTML: &str = include_str!("fixtures/doc/markdown.html");
 const SAMPLE_XML: &[u8] = include_bytes!("fixtures/doc/sample.xml");
 const SAMPLE_TXT: &[u8] = include_bytes!("fixtures/doc/sample.txt");
 const UNKNOWN_BIN: &[u8] = include_bytes!("fixtures/doc/unknown.bin");
 
 fn doc() -> DocOptions {
     DocOptions::default()
+}
+
+fn doc_markdown() -> DocOptions {
+    DocOptions {
+        view: DocView::Markdown,
+        ..DocOptions::default()
+    }
 }
 
 /// DOC-01：文本型 PDF 提取成功且关键词命中。
@@ -342,4 +352,83 @@ fn four_outcomes_have_distinct_codes() {
     );
     assert_eq!(empty.code, ErrorCode::Ok, "空结果仍是成功码");
     assert_eq!(empty.data.expect("data").matched, 0);
+}
+
+// ---------------------------------------------------------------- #187 markdown 视图
+
+/// #187：HTML 的 markdown 视图暴露标题/列表/强调/链接/代码结构，text 输出不变。
+#[test]
+fn doc_html_markdown_view_exposes_structure() {
+    let env = doc_text(MARKDOWN_HTML.as_bytes(), &doc_markdown());
+    assert!(env.ok, "{}", env.error);
+    assert_eq!(env.code, ErrorCode::Ok);
+    assert_eq!(env.validate(), Ok(()));
+    let data = env.data.as_ref().expect("data");
+    assert_eq!(data.format, DocFormat::Html);
+    let markdown = data.markdown.as_deref().expect("markdown");
+    assert!(markdown.contains("# Title"), "{markdown}");
+    assert!(markdown.contains("- one"), "{markdown}");
+    assert!(markdown.contains("**bold**"), "{markdown}");
+    assert!(
+        markdown.contains("[link text](https://example.com/a)"),
+        "{markdown}"
+    );
+    assert!(markdown.contains("```"), "代码块应带围栏：{markdown}");
+    assert!(markdown.contains("let x = 1;"), "{markdown}");
+    // 表格由 dom_query 的 markdown 序列化器输出为管道表（#187 验收要求表格结构）。
+    assert!(markdown.contains("| Name | Value | Note |"), "{markdown}");
+    assert!(markdown.contains("| alpha | 1 | first |"), "{markdown}");
+    // text 视图仍是同一提取器的文本，不因 markdown 改变。
+    assert!(
+        data.text
+            .as_deref()
+            .is_some_and(|text| text.contains("Title")),
+        "{:?}",
+        data.text
+    );
+}
+
+/// #187：默认视图不序列化 markdown，text 与解析层逐字节一致（零回归）。
+#[test]
+fn doc_html_default_view_is_byte_compatible() {
+    let env = doc_text(MARKDOWN_HTML.as_bytes(), &doc());
+    assert_eq!(env.code, ErrorCode::Ok);
+    let data = env.data.as_ref().expect("data");
+    assert!(data.markdown.is_none());
+    let value = serde_json::to_value(&env).expect("serialize");
+    assert!(
+        value["data"]
+            .as_object()
+            .is_some_and(|data| !data.contains_key("markdown")),
+        "默认输出不得多出 markdown 字段：{value}"
+    );
+    let article = extract_article(MARKDOWN_HTML, None).data.expect("article");
+    assert_eq!(data.text.as_deref(), Some(article.text.as_str()));
+}
+
+/// #187：markdown 只对 HTML 可用；其它格式显式 UNSUPPORTED，不把 text 冒充 markdown。
+#[test]
+fn doc_markdown_view_is_html_only() {
+    let cases: [(&[u8], DocFormat); 4] = [
+        (TEXT_PDF, DocFormat::Pdf),
+        (SAMPLE_TXT, DocFormat::Text),
+        (SAMPLE_XML, DocFormat::Xml),
+        (SAMPLE_JSON, DocFormat::Json),
+    ];
+    for (bytes, expected) in cases {
+        let env = doc_text(bytes, &doc_markdown());
+        assert!(env.ok, "{expected:?}");
+        assert_eq!(env.code, ErrorCode::Unsupported, "{expected:?}");
+        assert_eq!(
+            env.meta.degraded_from.as_deref(),
+            Some("markdown-html-only"),
+            "{expected:?}"
+        );
+        assert_eq!(env.validate(), Ok(()), "{expected:?}");
+        let data = env.data.as_ref().expect("data");
+        assert_eq!(data.format, expected);
+        assert!(data.markdown.is_none(), "{expected:?}");
+        assert!(data.text.is_none(), "{expected:?}");
+        assert!(!data.diagnostics.is_empty(), "{expected:?}");
+    }
 }
