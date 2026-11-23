@@ -10,15 +10,16 @@
 //! - **确定性（有边界）**：不注入**宿主**时间/随机源；ECMAScript 自带的 `Date` / `Math.random` 仍在，
 //!   依赖它们的脚本两次求值可能不同。对不依赖时间/随机的脚本，结果一致（有测试）。
 //!
-//! ## 不承诺什么（诚实边界，不许宣传成"有墙钟上限"）
+//! ## 不承诺什么（诚实边界，不许宣传成"有墙钟/内存上限"）
 //!
 //! `boa_engine` 0.20 **没有抢占式中断**（无墙钟/指令数中断 API），只有 loop / recursion / stack 限值。
 //! 因此"任意脚本都在 X 毫秒内结束"**不是**本 crate 的承诺：直线型长脚本只受"脚本字节上限 + 引擎吞吐"约束。
-//! CPU/内存的硬隔离由进程级手段（如 `ulimit`）承担，不由本 crate 冒充。
 //!
-//! **具体一点**：`boa_engine` 0.20 **没有堆内存/GC 上限 API**，因此本 crate **不限制堆分配**——
-//! 实测 `new Uint8Array(256 * 1024 * 1024)` 会成功（约 0.9 s）。真要卡内存，请配合进程级限制
-//! （`ulimit -v` 等），或等 [#130](https://github.com/Thatgfsj/webctl/issues/130) 的宿主侧方案。
+//! **堆内存同样不设上限**：`boa_engine` 0.20 **没有堆内存/GC 上限 API**，本 crate **不限制堆分配**——
+//! 实测 `new Uint8Array(256 * 1024 * 1024)` 会成功（约 0.9 s）。#130 已定案：**内存边界由宿主承担**，
+//! 引擎只如实声明、不冒充有上限。推荐由调用方/宿主在**进程级**强制：CLI 用 `ulimit -v`（`RLIMIT_AS`），
+//! MCP 宿主见 `docs/DSH-INTEGRATION.md` §3.1；`caps` 的 `data.js.memory` 报告
+//! `engine_limit_bytes: null` 与 `enforced_by: "host"`。
 
 use std::rc::Rc;
 use std::time::{Duration, Instant};

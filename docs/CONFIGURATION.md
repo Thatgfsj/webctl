@@ -101,7 +101,9 @@ js_render = false     # 是否执行页面内联脚本；默认 false（ADR-0005
 - **只执行内联脚本**：外链 `<script src>` **不取**（避免页面内容驱动网络请求）——因此依赖 jQuery 等外部库的页面会**如实降级**
   （`js-render-failed`，附 `ReferenceError: $ is not defined` 这类原始证据），而不是"成功但空"。
 - 引擎是**进程内**的 `crates/webctl-js`（纯 Rust，`boa_engine`）：不启动外部进程、不碰网络与文件系统；
-  限值只有 loop / recursion / stack 与输入预算，**墙钟与堆内存不设限**（见 [#130](https://github.com/Thatgfsj/webctl/issues/130)）。
+  限值只有 loop / recursion / stack 与输入预算；**墙钟与堆内存不设限**（boa 0.20 无对应 API）。
+  #130 已定案：**内存边界由宿主进程级手段（`ulimit`/`rlimit`）承担**，引擎不设上限也不会冒充有上限；
+  `caps --json` 的 `data.js.memory` 报告 `engine_limit_bytes: null` 与 `enforced_by: "host"`。
 
 ## 6. 输出格式与退出码
 

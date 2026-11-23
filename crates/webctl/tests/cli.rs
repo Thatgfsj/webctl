@@ -300,6 +300,14 @@ fn cli_04_output_format_switches() {
     let value = parse_json(&out);
     assert_eq!(value["data"]["capabilities"].as_array().unwrap().len(), 5);
     assert_eq!(value["meta"]["trust"], "trusted_local");
+    assert!(
+        value["data"]["js"]["memory"]["engine_limit_bytes"].is_null(),
+        "引擎无堆内存上限 API，caps 必须报 null"
+    );
+    assert_eq!(
+        value["data"]["js"]["memory"]["enforced_by"], "host",
+        "caps 必须如实报告内存边界由宿主承担"
+    );
 
     let out = run(&mut webctl(), &["caps", "--output", "text"]);
     assert_eq!(out.code, 0);

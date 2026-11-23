@@ -571,9 +571,12 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 
 依赖边界守卫新增归属校验：`boa_engine` **只允许**被 `webctl-js` 依赖（`scripts/check-dependency-boundary.sh`）。
 
-> **已知边界（不许含糊）**：boa 0.20 无指令数/墙钟/堆内存上限 API，故本片**不限制堆分配**
-> （实测 `new Uint8Array(256 MB)` 成功、约 0.9 s）；`safe` 的 CPU 防护只有 loop/recursion/stack 限值 + 输入预算，
-> 内存需配合进程级 `ulimit`。归属校验用 `cargo metadata` 依赖图（不 grep 清单，避免缩进/子表/重命名绕过）。
+> **已知边界（不许含糊，#130 已定案）**：boa 0.20 无指令数/墙钟/堆内存上限 API，故本片**不限制堆分配**
+> （实测 `new Uint8Array(256 MB)` 成功、约 0.9 s）。引擎只承诺**输入预算 + loop/recursion/stack 限值**；
+> **堆内存不设上限，由宿主进程级手段承担**（CLI 用户自行 `ulimit -v`；MCP 宿主见
+> [DSH-INTEGRATION §3.1](DSH-INTEGRATION.md)）。`caps` 的 `data.js.memory` 如实报告
+> `engine_limit_bytes: null` 与 `enforced_by: "host"`，测试断言这两项。
+> 归属校验用 `cargo metadata` 依赖图（不 grep 清单，避免缩进/子表/重命名绕过）。
 
 ### 6.8e #117 站点级通道与元数据（`parse/site_channels.rs`，第 1 步）
 
@@ -624,7 +627,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 - **引擎接线**（#128 步骤 2）：`js_render_off_keeps_existing_degradation`（**默认关闭**：脚本页仍 DEGRADED、0 命中）、
   `js_render_on_extracts_content_from_script_only_page`（**开启后**：内容只在 `document.write` 的页面抽出 **10 条**）、
   `js_render_failure_is_degraded_not_silent_success`（渲染失败 → `DEGRADED` + `degraded_from=js-render-failed` + `actionable`，**不是**成功空结果）、
-  `caps_reports_js_wired_with_coverage`（`caps.js.wired=true` 且 `reason` 说清触发条件与能力边界）；
+  `caps_reports_js_wired_with_coverage`（`caps.js.wired=true`、`reason` 说清触发条件与能力边界，且 `caps.js.memory` 三项按 #130 断言：`engine_limit_bytes=null`、`enforced_by="host"`、`note` 说明内存由宿主承担）；
 
 - **可行动降级**（#115）：`spa_surface_channels_are_registered_tools`（建议通道必须是真实工具）、`degraded_envelope_carries_actionable_next_steps`（降级信封带 reason/detected/next_steps，且 next_steps 用派发表反查）、`ok_envelope_has_no_actionable`（干净成功不得带 actionable）、`limit_degradation_has_no_actionable_yet`（**口径边界**：LIMIT 降级不带 actionable；带 actionable 的降级目前是 JS 渲染与 `resolve_site` 低置信）、`paginate_propagates_actionable_from_upstream`（**传播不丢信息**：复审实测 paginate 曾丢 actionable，此用例钉住修复）、`paginate_normal_finish_keeps_actionable`（#119 补：#123 复审发现原用例只覆盖 `pagination-fetch-failed` 早返回，**正常收尾**分支此前没被钉住）
 - **MCP-02**：`mcp_02_tools_list_is_exactly_the_plan_set`

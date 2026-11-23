@@ -728,6 +728,17 @@ fn caps_reports_js_wired_with_coverage() {
         "要说清能力边界：{}",
         off.reason
     );
+    assert!(
+        off.memory.engine_limit_bytes.is_none(),
+        "引擎不设堆内存上限，必须报 null：{:?}",
+        off.memory.engine_limit_bytes
+    );
+    assert_eq!(off.memory.enforced_by, "host");
+    assert!(
+        off.memory.note.contains("宿主") && off.memory.note.contains("不设"),
+        "要说清内存由宿主承担、引擎不设上限：{}",
+        off.memory.note
+    );
     let on = webctl_mcp::caps::js_capability(&Config {
         js_render: true,
         ..Config::default()

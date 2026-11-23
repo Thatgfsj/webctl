@@ -102,16 +102,45 @@ impl ToolCapability {
     }
 }
 
+/// 内置 JS 引擎的**堆内存边界**（议题 #130 / [ADR-0005](../../docs/adr/0005-embedded-js-engine.md)）。
+///
+/// `boa_engine` 0.20 **没有**堆内存/GC 上限 API，因此 `engine_limit_bytes` **恒为 `None`**：
+/// 这不是"内存没问题"，而是"引擎不设上限"。真实边界只能由宿主/调用方用**进程级**手段
+/// （`ulimit -v` / `RLIMIT_AS`）承担。把它写进 `caps`，是为了让"没有上限"不被读成"有上限"。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct JsMemoryBoundary {
+    /// 引擎侧的堆内存上限（字节）。boa 0.20 无此 API，**恒为 `None`（不设上限）**。
+    pub engine_limit_bytes: Option<u64>,
+    /// 承担边界的一方。固定为 `"host"`：由宿主/调用方用进程级手段强制。
+    pub enforced_by: String,
+    /// 人类可读说明（不得为空）。
+    pub note: String,
+}
+
+impl Default for JsMemoryBoundary {
+    fn default() -> Self {
+        Self {
+            engine_limit_bytes: None,
+            enforced_by: "host".to_owned(),
+            note: "引擎不设堆内存上限（boa_engine 0.20 无该 API）；内存边界由宿主进程级手段（ulimit -v / RLIMIT_AS）承担"
+                .to_owned(),
+        }
+    }
+}
+
 /// 内置 JS 引擎的能力状态（议题 #128 / [ADR-0005](../../docs/adr/0005-embedded-js-engine.md)）。
 ///
 /// `enabled` 与 `wired` **必须分开**：前者是调用方是否显式开启，后者是引擎是否真的接上了
 /// 取回/抽取路径。分开是为了消灭"配置说开着、实际没执行"这种假象。
+/// `memory` 单独报告堆内存边界（#130）：引擎不设上限，由宿主承担。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct JsCapability {
     /// 调用方是否显式开启（默认关闭）。
     pub enabled: bool,
     /// 引擎是否**已接线**（能真正执行页面脚本）。
     pub wired: bool,
+    /// 堆内存边界（#130）：引擎不设上限，由宿主进程级承担。
+    pub memory: JsMemoryBoundary,
     /// 诚实说明（不得为空，也不必与 `enabled` 一致）。
     pub reason: String,
 }
@@ -121,6 +150,7 @@ impl Default for JsCapability {
         Self {
             enabled: false,
             wired: false,
+            memory: JsMemoryBoundary::default(),
             // 默认值**不声称**任何接线状态：接线情况由接口层按实际填充（见 mcp/caps.rs）。
             reason: "未提供引擎状态（由接口层按实际接线情况填充）".to_owned(),
         }
@@ -268,6 +298,15 @@ mod tests {
             "默认值不得声称已接线（接线状态由接口层填）"
         );
         assert!(!default_report.js.reason.is_empty(), "原因不得为空");
+        assert_eq!(
+            default_report.js.memory.engine_limit_bytes, None,
+            "引擎不设堆内存上限（boa 0.20 无该 API），必须报 null 而不是编造的数字"
+        );
+        assert_eq!(default_report.js.memory.enforced_by, "host");
+        assert!(
+            !default_report.js.memory.note.is_empty(),
+            "内存边界说明不得为空"
+        );
         let enabled_config = Config {
             js_render: true,
             ..Config::default()
@@ -275,6 +314,7 @@ mod tests {
         let report = CapsReport::detect(&enabled_config).with_js(JsCapability {
             enabled: true,
             wired: false,
+            memory: JsMemoryBoundary::default(),
             reason: "已开启；接线状态由接口层填".to_owned(),
         });
         assert!(report.js.enabled);
