@@ -32,21 +32,21 @@
 ## 1. 项目规范调查
 
 
-补充事实：PR [#102](https://github.com/T-Auto/dsh-ops/pull/102)（标题为 "docs: document the local gate and add pull request and issue templates"）**未合并**（`mergedAt: null`），仓库中**没有 PR 模板文件**；规范只存在于 CONTRIBUTING。
+补充事实：上游参考仓库该补充 PR **未合并**（`mergedAt: null`），仓库中**没有 PR 模板文件**；规范只存在于 CONTRIBUTING。
 
 ### 1.1 「每 1000 行 PR 需审批」的核实结果：**仓库中不存在**
 
-做了反向核实（本地官方克隆 + T-Auto 6 个仓库 clone 到 `/tmp/tauto` + 用户账号与 4 个组织 + GitHub 全站代码搜索）：
+做了反向核实（本地官方克隆 + 上游参考组织 6 个仓库 clone 到 `/tmp` + 用户账号与 4 个组织 + GitHub 全站代码搜索）：
 
 - `grep -rn "1000"` 在 `.scratch/dsh-src` 命中约 30 处，**全部无关**（`pasteReadTimeoutMs` 默认 1000ms、`maxEntries` 默认 1000、分页 `limit=1000`、`maxDiffEditLength` 默认 1000 等）。
-- T-Auto 6 仓库的尺寸类 grep（`1000 (行|line|lines|loc)`）→ **零命中**；`模块化|modulariz` 只命中 `awesome-dsh-plugins` 的插件描述文本。
-- `gh search code "1000 lines" --owner T-Auto`、`"1000 行"`、`"1000 lines approval"`、`"PR 1000 行"` → **全部为空**。
+- 上游参考组织 6 仓库的尺寸类 grep（`1000 (行|line|lines|loc)`）→ **零命中**；`模块化|modulariz` 只命中 `awesome-dsh-plugins` 的插件描述文本。
+- 在上游参考组织内检索 `1000 lines`、`1000 行`、`1000 lines approval`、`PR 1000 行` → **全部为空**。
 - `Thatgfsj` / `Thatgfsj-easyRep` / `Thatgfsj-contribs` / `XXGCIELab` 的 `.github` 仓库仅有 README，**无 CONTRIBUTING、无 PR 模板、无 CODEOWNERS、无 workflow**。
 - 官方克隆中**无 CODEOWNERS 文件**（`find . -iname CODEOWNERS` 为空）。
 
-**反证（证明是"不存在"而非"没找到"）**：dsh-ops 有大面积超千行 PR 正常合并 —— `#110`（+5864/−496）、`#81`（+5347/−245）、`#121`（+754/−174005）、`#103`（+3073，仍 open）。若存在 1000 行审批线，这些无法无摩擦落地。
+**反证（证明是"不存在"而非"没找到"）**：上游参考仓库有大面积超千行 PR 正常合并 —— `#110`（+5864/−496）、`#81`（+5347/−245）、`#121`（+754/−174005）、`#103`（+3073，仍 open）。若存在 1000 行审批线，这些无法无摩擦落地。
 
-**T-Auto 真实存在的门禁是"加权 2 分制"，与行数无关**（`T-Auto/.github` → `.github/review-ownership/`）：
+**上游参考组织真实存在的门禁是"加权 2 分制"，与行数无关**（其 `.github/review-ownership/`）：
 
 | 机制 | 数值 |
 |---|---|
@@ -60,7 +60,7 @@
 
 另两处易混的「1000」：DSH 的 fine-grained approval **每 1000 个输出条目**通知一次（`itemIndex % 1000 === 0`）；`awesome-dsh-plugins/CONTRIBUTING.md` 里的 1000 是 **GitHub 搜索 API 结果上限**。三者均与 PR 代码行数无关。
 
-**分布实证（不是规则依据，仅供参考）**：dsh-ops 54 个 PR 的改动行数中位数 **262**；900–1000 区间有 `#79`=904、`#2`=966；超过 1000 行的 7 个均为大特性 / 平台移植 / 发布 / 大重构。
+**分布实证（不是规则依据，仅供参考）**：上游参考仓库 54 个 PR 的改动行数中位数 **262**；900–1000 区间有 `#79`=904、`#2`=966；超过 1000 行的 7 个均为大特性 / 平台移植 / 发布 / 大重构。
 
 **结论**：「每 1000 行代码的 PR 需要审批」属于**尚未写下的新规则**。本计划按维护者指令执行它，并在 PLAN §6.2 给出可机械校验的措辞（口径、排除项、批准方式）。
 
@@ -73,7 +73,7 @@
 | B3 | 「一次 PR 不应同时」做多类变更（挂载 / `registry/` 索引 / `docs/` / revision 升级 / 治理与 CI 规则），禁止"顺手规范化" | `dsh-ecosystem-spec/CONTRIBUTING.md` §4 |
 | B4 | 生态收录「**一次 PR 只加一类**」 | 同上，表格第 2 行 |
 | B5 | 挂载 revision 升级必须是**独立 PR** | `dsh-ecosystem-spec/governance/rules.md` §3 |
-| B6 | 「对插件间联动层的实现**单开逻辑区域，要完全和核心逻辑解耦**」 | `dsh-ops/docs/CONTRIBUTING.md` 第 5 条 |
+| B6 | 「对插件间联动层的实现**单开逻辑区域，要完全和核心逻辑解耦**」 | 上游参考仓库 CONTRIBUTING 第 5 条 |
 | B7 | 「pr 必须关联 issue，且主动在 issue 领取 —— 否则不通过」；「feat 前请先写 issue，经由维护团队批准后再写 feat 功能」 | 同上，第 2–4 条 |
 | B8 | capability seam「split only when roles evolve independently」；「**Don't split preemptively**」 | DSH `AGENTS.md` + capability-seams 决策记录 |
 | B9 | 「Keep business rules in their own package」 | DSH `packages/AGENTS.md` |
