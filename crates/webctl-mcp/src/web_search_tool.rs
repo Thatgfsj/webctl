@@ -17,9 +17,9 @@ use webctl_core::{Envelope, ErrorCode, Trust};
 use webctl_web::politeness::{PoliteFetcher, PolitenessConfig};
 use webctl_web::web_search::aggregate::{self, MergeOptions, Merged};
 use webctl_web::web_search::{
-    DEFAULT_MAX_RESULTS, DEFAULT_SNIPPET_MAX_CHARS, EngineSerp, EngineStatus, Jitter,
-    MAX_RESULTS_LIMIT, SearchEngine, SearchReport, baidu, bing, engine, is_wired, so360,
-    unavailable_note,
+    CANDIDATE_RESULTS_PER_PAGE, DEFAULT_MAX_RESULTS, DEFAULT_SNIPPET_MAX_CHARS, EngineSerp,
+    EngineStatus, Jitter, MAX_RESULTS_LIMIT, SearchEngine, SearchReport, baidu, bing, engine,
+    is_wired, so360, unavailable_note,
 };
 
 use crate::context::McpContext;
@@ -178,6 +178,8 @@ pub(crate) async fn tool_web_search(ctx: &McpContext, args: &Value) -> Value {
         .max_results
         .unwrap_or(DEFAULT_MAX_RESULTS)
         .clamp(1, MAX_RESULTS_LIMIT);
+    // 单页候选预算与展示上限解耦（议题 #242）：解析层先多收候选，聚合层折叠后再截到 max_results。
+    let candidate_limit = max_results.max(CANDIDATE_RESULTS_PER_PAGE.min(MAX_RESULTS_LIMIT));
     let page = params.page.unwrap_or(1).clamp(1, MAX_PAGE);
     let engines = match resolve_engines(params.engines.as_ref()) {
         Ok(engines) => engines,
@@ -205,6 +207,8 @@ pub(crate) async fn tool_web_search(ctx: &McpContext, args: &Value) -> Value {
     let started = Instant::now();
     let mut statuses = Vec::new();
     let mut inputs: Vec<(SearchEngine, Vec<webctl_web::web_search::SearchHit>)> = Vec::new();
+    // 排除操作符生效校验的证词：聚合前的各引擎自然结果，不受 snippet 截断/同域折叠/max_results 影响。
+    let mut evidence: Vec<webctl_web::web_search::SearchHit> = Vec::new();
     let mut attempted = 0usize;
     let mut succeeded = 0usize;
     let mut filtered_ads = 0usize;
@@ -230,7 +234,7 @@ pub(crate) async fn tool_web_search(ctx: &McpContext, args: &Value) -> Value {
                     &base,
                     &query,
                     page,
-                    max_results,
+                    candidate_limit,
                     &exclude,
                     &jitter,
                     &fetcher,
@@ -243,7 +247,7 @@ pub(crate) async fn tool_web_search(ctx: &McpContext, args: &Value) -> Value {
                     &base,
                     &query,
                     page,
-                    max_results,
+                    candidate_limit,
                     &exclude,
                     &jitter,
                     &fetcher,
@@ -255,7 +259,7 @@ pub(crate) async fn tool_web_search(ctx: &McpContext, args: &Value) -> Value {
                     &base,
                     &query,
                     page,
-                    max_results,
+                    candidate_limit,
                     &exclude,
                     &jitter,
                     &fetcher,
@@ -281,6 +285,7 @@ pub(crate) async fn tool_web_search(ctx: &McpContext, args: &Value) -> Value {
             && let Some(data) = &serp.data
         {
             succeeded += 1;
+            evidence.extend(data.results.iter().cloned());
             inputs.push((*engine, data.results.clone()));
             related.extend(data.related.iter().cloned());
             continue;
@@ -322,10 +327,9 @@ pub(crate) async fn tool_web_search(ctx: &McpContext, args: &Value) -> Value {
     {
         return to_value(Envelope::<SearchReport>::fail(code, message, elapsed));
     }
-    // 排除操作符生效校验：只看本次返回的结果，不发额外请求（best-effort）。
-    let ignored = succeeded > 0
-        && !exclude.is_empty()
-        && engine::operators_ignored(&report.results, &exclude);
+    // 排除操作符生效校验：只看聚合前各引擎的自然结果，不发额外请求（best-effort）。
+    let ignored =
+        succeeded > 0 && !exclude.is_empty() && engine::operators_ignored(&evidence, &exclude);
     let envelope = if attempted == 0 || succeeded == 0 {
         // 单引擎失败时保留它自己的原因（与 M1 行为一致）；多引擎全失败用 search-all-failed。
         let reason = if attempted <= 1 {

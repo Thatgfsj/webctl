@@ -24,6 +24,13 @@ use serde::{Deserialize, Serialize};
 pub const DEFAULT_MAX_RESULTS: usize = 10;
 /// 单次最多返回条数。
 pub const MAX_RESULTS_LIMIT: usize = 30;
+/// 单页候选结果预算（**不决定返回条数**，议题 #242）。
+///
+/// 与展示上限 `max_results` 解耦：引擎解析层先按该预算多收候选，聚合层做同域折叠，
+/// 最后才截到 `max_results`——否则同域条目会在折叠前就把其它域的候选挤掉。
+/// 取 10 与 Bing 默认 `count=10` 一致：默认 `max_results=10` 时请求 URL 不变，
+/// 也不增加请求次数（每引擎每次调用仍然只发 1 个请求）。
+pub const CANDIDATE_RESULTS_PER_PAGE: usize = 10;
 /// 抖动下界（毫秒）。
 pub const JITTER_MIN_MS: u64 = 50;
 /// 抖动上界（毫秒）。
@@ -233,7 +240,9 @@ pub struct EngineStatus {
     pub engine: String,
     /// 状态：`hit` / `empty` / `blocked` / `timeout` / `unavailable` / `unsupported`。
     pub status: String,
-    /// 结果条数。
+    /// 聚合前该引擎解析到的候选条数。
+    ///
+    /// 同域折叠与 `max_results` 截断发生在聚合层，因此该值可能大于最终 `results` 长度。
     pub count: usize,
     /// 耗时（毫秒）。
     pub elapsed_ms: u64,
