@@ -100,6 +100,20 @@ $ curl -o /dev/null -w "%{http_code}" http://127.0.0.1:3081/
 与说明文本；**JS 引擎默认关闭**，未开启时该风险不生效。CLI 用户同理：需要硬边界时先在自己的
 shell 里 `ulimit -v` 再调用 `webctl`。
 
+### 3.2 超时行为实测（2026-11-23，议题 #107）
+
+用本地慢响应 fixture（75s 才返回）驱动真实 DSH 会话里的 `mcp__webctl__fetch`：
+
+~~~text
+mcp__webctl__fetch(http://127.0.0.1:53679/)  -> ok=false, code=TIMEOUT,
+  error="request timed out: ... operation timed out", meta.elapsed_ms=30001
+调用方观测墙钟 ≈ 30.0s
+~~~
+
+结论：**网络请求预算（30s）先于工具调用预算（60s）与 DSH 默认工具超时（60s）生效**，
+返回的是 webctl 自己的 `TIMEOUT` 信封（可诊断），而不是 harness 级错误。仍需注意：
+多请求工具（如 `paginate`）的总耗时可能逼近/超过 60s 边界，长任务应继续按 §3 分片。
+
 ## 4. "装了没反应"的排查顺序（约束 4）
 
 1. `webctl mcp --list-tools` —— 确认 server 自身能起来并列出 18 个工具；
@@ -110,5 +124,5 @@ shell 里 `ulimit -v` 再调用 `webctl`。
 ## 5. 未覆盖 / 待办（诚实登记）
 
 - ~~未经真实 DSH 挂载的端到端验证~~ -> **主体已完成（2026-11-23）**：见 §2.3。真实 DSH 会话中 `mcp__webctl__caps` / `fetch` / `extract` 均成功；当前主干构建（0.2.3）在独立 3081 实例中已观察到 MCP 子进程被拉起，但该实例内的 agent 级调用未做。
-- `toolCallTimeoutMs` 的**超时行为实测**（让一次调用故意跑满 60s 观察 harness 反应）仍未做：本次所有调用均 <1s。
+- `toolCallTimeoutMs` 的**超时行为**：已观察网络预算路径（30s → webctl `TIMEOUT` 信封，见 §3.2）；60s 的 harness 级边界未单独触发（30s 先返回）。多请求工具的总耗时仍可能贴近 60s，按 §3 分片。
 - 版本口径：当前 `dsh-webctl` 插件按 PATH 拉起 `webctl`（实测 0.1.1）；主干 0.2.3 的挂载证据为 §2.3 的 3081 实例（spawn 级，未含工具调用）。
