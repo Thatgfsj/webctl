@@ -10,7 +10,7 @@
 //! 工具“存在但不可用”不得被报告成 available——这是发布说明与 README 的唯一事实来源。
 use serde::{Deserialize, Serialize};
 
-use crate::config::Config;
+use crate::config::{Config, JsRenderMode};
 
 /// 能力域（PLAN v0.4 §2）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -135,7 +135,12 @@ impl Default for JsMemoryBoundary {
 /// `memory` 单独报告堆内存边界（#130）：引擎不设上限，由宿主承担。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct JsCapability {
-    /// 调用方是否显式开启（默认关闭）。
+    /// 配置的三态策略：`off` / `on` / `auto`（#192）。
+    ///
+    /// `#[serde(default)]`：旧版 `caps` JSON 没有该字段时按 `off` 解析，不让反序列化变脆。
+    #[serde(default)]
+    pub mode: JsRenderMode,
+    /// 引擎是否被允许执行页面脚本（`on`/`auto` 为真，`off` 为假）。
     pub enabled: bool,
     /// 引擎是否**已接线**（能真正执行页面脚本）。
     pub wired: bool,
@@ -148,6 +153,7 @@ pub struct JsCapability {
 impl Default for JsCapability {
     fn default() -> Self {
         Self {
+            mode: JsRenderMode::Off,
             enabled: false,
             wired: false,
             memory: JsMemoryBoundary::default(),
@@ -307,11 +313,17 @@ mod tests {
             !default_report.js.memory.note.is_empty(),
             "内存边界说明不得为空"
         );
+        assert_eq!(
+            default_report.js.mode,
+            JsRenderMode::Off,
+            "默认三态必须是 off"
+        );
         let enabled_config = Config {
-            js_render: true,
+            js_render: JsRenderMode::On,
             ..Config::default()
         };
         let report = CapsReport::detect(&enabled_config).with_js(JsCapability {
+            mode: JsRenderMode::On,
             enabled: true,
             wired: false,
             memory: JsMemoryBoundary::default(),

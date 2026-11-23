@@ -39,6 +39,63 @@ impl OutputFormat {
     }
 }
 
+/// 页面脚本执行策略（#192）：`off`（默认）/ `on`（全量）/ `auto`（按页自适应）。
+///
+/// - `off`：绝不执行页面脚本（ADR-0005 的默认策略，行为与旧 `false` 完全一致）；
+/// - `on`：所有 HTML 页面先渲染一次再解析（等价于旧 `true`）；
+/// - `auto`：先走静态管线，**只**在 `degrade` 判定该页需要 JS 时渲染一次。
+///
+/// 配置文件与 `WEBCTL_JS_RENDER` 仍接受布尔值：`true` → `on`，`false` → `off`。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum JsRenderMode {
+    /// 默认：不执行任何页面脚本。
+    #[default]
+    Off,
+    /// 全量：对每个 HTML 页面渲染一次（旧 `true`）。
+    On,
+    /// 自适应：仅对判定需要 JS 的页面渲染（#192）。
+    Auto,
+}
+
+impl JsRenderMode {
+    /// 稳定的线上字符串。
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Off => "off",
+            Self::On => "on",
+            Self::Auto => "auto",
+        }
+    }
+
+    /// 是否允许执行页面脚本（`on` 与 `auto` 都为真，语义与旧的 `bool` 对齐）。
+    pub fn is_enabled(self) -> bool {
+        !matches!(self, Self::Off)
+    }
+}
+
+/// 兼容既有布尔配置：`true`/`false` 分别映射到 `on`/`off`。
+impl<'de> serde::Deserialize<'de> for JsRenderMode {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Repr {
+            Bool(bool),
+            Text(String),
+        }
+        match Repr::deserialize(deserializer)? {
+            Repr::Bool(true) => Ok(Self::On),
+            Repr::Bool(false) => Ok(Self::Off),
+            Repr::Text(text) => {
+                parse_js_render("js_render", &text).map_err(serde::de::Error::custom)
+            }
+        }
+    }
+}
+
 /// 运行配置（合并后的最终结果）。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Config {
@@ -58,12 +115,12 @@ pub struct Config {
     ///
     /// 可能带 user:password@ 凭据，任何对外输出都必须先经 Config::redacted。
     pub proxy: Option<String>,
-    /// 是否执行页面内联脚本（[ADR-0005](../../docs/adr/0005-embedded-js-engine.md)）。
+    /// 页面脚本执行策略（[ADR-0005](../../docs/adr/0005-embedded-js-engine.md)；#192）。
     ///
     /// **默认关闭**：开启是显式的（配置文件 `js_render` 或 `WEBCTL_JS_RENDER`）。
-    /// 注意：开关只表示"调用方愿意"，引擎是否真的**已接线**由 `caps` 的 `js.wired` 如实报告
+    /// 注意：策略只表示"调用方愿意"，引擎是否真的**已接线**由 `caps` 的 `js.wired` 如实报告
     /// （两者分开，是为了不出现"配置说开着、实际没执行"这种假象）。
-    pub js_render: bool,
+    pub js_render: JsRenderMode,
 }
 
 impl Default for Config {
@@ -76,7 +133,7 @@ impl Default for Config {
             max_concurrency_per_host: 2,
             min_interval_ms: 1_000,
             proxy: None,
-            js_render: false,
+            js_render: JsRenderMode::Off,
         }
     }
 }
@@ -112,9 +169,9 @@ pub struct ConfigLayer {
     /// 代理 URL。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub proxy: Option<String>,
-    /// 是否执行页面内联脚本（默认关闭）。
+    /// 页面脚本执行策略（默认 `off`；兼容旧布尔值）。
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub js_render: Option<bool>,
+    pub js_render: Option<JsRenderMode>,
 }
 
 impl ConfigLayer {
@@ -156,7 +213,7 @@ impl ConfigLayer {
             layer.offline = Some(parse_bool(ENV_OFFLINE, &raw)?);
         }
         if let Some(raw) = env_value(&get, ENV_JS_RENDER) {
-            layer.js_render = Some(parse_bool(ENV_JS_RENDER, &raw)?);
+            layer.js_render = Some(parse_js_render(ENV_JS_RENDER, &raw)?);
         }
         // 只有 webctl 专用变量才开启代理；宿主 HTTP(S)_PROXY 一律忽略（见模块文档）。
         if let Some(raw) = env_value(&get, ENV_PROXY)
@@ -363,6 +420,20 @@ fn parse_bool(key: &str, raw: &str) -> Result<bool, ConfigError> {
     }
 }
 
+/// 解析三态 `js_render`：`off` / `on` / `auto`，并兼容旧布尔词（true/false、1/0、yes/no）。
+fn parse_js_render(key: &str, raw: &str) -> Result<JsRenderMode, ConfigError> {
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "auto" => Ok(JsRenderMode::Auto),
+        "1" | "true" | "yes" | "on" => Ok(JsRenderMode::On),
+        "0" | "false" | "no" | "off" => Ok(JsRenderMode::Off),
+        _ => Err(ConfigError::Env {
+            key: key.to_owned(),
+            value: raw.to_owned(),
+            expected: "off/on/auto（兼容 true/false、1/0、yes/no）",
+        }),
+    }
+}
+
 fn parse_u64(key: &str, raw: &str) -> Result<u64, ConfigError> {
     raw.trim().parse::<u64>().map_err(|_| ConfigError::Env {
         key: key.to_owned(),
@@ -406,7 +477,11 @@ mod tests {
         assert_eq!(config.timeout_ms, 30_000);
         assert_eq!(config.output, OutputFormat::Json);
         assert_eq!(config.proxy, None, "默认不使用代理");
-        assert!(!config.js_render, "默认不执行页面脚本（ADR-0005）");
+        assert_eq!(
+            config.js_render,
+            JsRenderMode::Off,
+            "默认不执行页面脚本（ADR-0005）"
+        );
         assert!(config.state_dir.is_absolute() || config.state_dir.ends_with(".webctl"));
     }
 
@@ -480,19 +555,48 @@ mod tests {
         );
     }
 
-    /// #128：`js_render` 的默认、env 与非法值（**默认关闭**是 ADR-0005 的硬约束）。
+    /// #128 / #192：`js_render` 三态取自 env、兼容旧布尔值，默认 `off` 是 ADR-0005 的硬约束。
     #[test]
-    fn js_render_defaults_off_and_comes_from_env() {
-        assert!(
-            !Config::default().js_render,
+    fn js_render_three_states_from_env_and_bools() {
+        assert_eq!(
+            Config::default().js_render,
+            JsRenderMode::Off,
             "默认必须关闭：不开启时不得执行任何页面脚本"
         );
-        let on = ConfigLayer::from_env(env(&[("WEBCTL_JS_RENDER", "1")])).expect("env layer");
-        assert_eq!(on.js_render, Some(true));
-        let off = ConfigLayer::from_env(env(&[("WEBCTL_JS_RENDER", "false")])).expect("env layer");
-        assert_eq!(off.js_render, Some(false));
+        for (raw, expected) in [
+            ("on", JsRenderMode::On),
+            ("true", JsRenderMode::On),
+            ("1", JsRenderMode::On),
+            ("off", JsRenderMode::Off),
+            ("false", JsRenderMode::Off),
+            ("0", JsRenderMode::Off),
+            ("auto", JsRenderMode::Auto),
+            ("AUTO", JsRenderMode::Auto),
+        ] {
+            let layer = ConfigLayer::from_env(env(&[("WEBCTL_JS_RENDER", raw)]))
+                .unwrap_or_else(|error| panic!("{raw}: {error}"));
+            assert_eq!(layer.js_render, Some(expected), "raw={raw}");
+        }
         let bad = ConfigLayer::from_env(env(&[("WEBCTL_JS_RENDER", "也许")]));
         assert!(bad.is_err(), "非法取值必须报错，不许静默忽略");
+    }
+
+    /// #192：配置文件同时接受三态字符串与旧布尔值。
+    #[test]
+    fn config_file_parses_js_render_three_states() {
+        for (raw, expected) in [
+            ("js_render = true", JsRenderMode::On),
+            ("js_render = false", JsRenderMode::Off),
+            ("js_render = \"auto\"", JsRenderMode::Auto),
+            ("js_render = \"on\"", JsRenderMode::On),
+            ("js_render = \"off\"", JsRenderMode::Off),
+        ] {
+            let layer: ConfigLayer =
+                toml::from_str(raw).unwrap_or_else(|error| panic!("{raw}: {error}"));
+            assert_eq!(layer.js_render, Some(expected), "{raw}");
+        }
+        let bad = toml::from_str::<ConfigLayer>("js_render = \"sometimes\"");
+        assert!(bad.is_err(), "非法三态必须报错，不许静默忽略");
     }
 
     /// CLI-03：代理只认 WEBCTL_PROXY；宿主 HTTP(S)_PROXY 必须被忽略（直连）。

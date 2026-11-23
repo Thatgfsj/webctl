@@ -27,7 +27,7 @@ description: 纯内置的网页取回/解析/抽取 MCP server（零外部进程
 - `download` — 文件下载到指定目录（尺寸上限与落盘路径）。
 - `robots` — robots.txt 与站点策略查询（礼貌爬取依据；含 `Sitemap:` 声明清单）。
 - `resolve_site` — 按站点名给出入口候选（L1 内置映射/域名直推 + L2 站点内建搜索 + L3 Wikidata P856 + L4 候选域名的 sitemap 声明 + **显式 opt-in** 的 L5 SERP 兜底；多候选、带证据与置信度，**绝不单选**；L2/L3/L4/L5 会联网且过 politeness，offline 模式只走 L1；sitemap 声明只作证据，L5 默认关且结果不跨可靠阈值）。
-- `caps` — 内置能力与版本自检，逐项列出 18 个工具的可用性。
+- `caps` — 内置能力与版本自检，逐项列出 18 个工具的可用性；`data.js.mode` 给出页面脚本三态（`off`/`on`/`auto`），`enabled` / `wired` / `reason` 说明能力边界。
 - `web_search` — 全网搜索（默认 Bing；`engines` 可选 bing/baidu/360）：查询词 → 结果卡片（title/url/snippet/rank/engine），多引擎结果按 URL 去重并用 **RRF** 融合；部分引擎失败会 `DEGRADED + search-partial`；摘要解析在 **0.2.2 M2**（本版不返回），正文用 fetch/extract 取。
 <!-- tools:end -->
 
@@ -54,9 +54,12 @@ webctl 只提供证据与提示。**
 
 1. **先看 `embedded_data`**（若本环境已启用）：页面内嵌的 JSON-LD / `script[type=json]` /
    框架状态容器常含正文，零 JS、零外部进程。降级信封的 `next_steps` 会指向它。
-2. **再看内置 `js_engine`**：仅当 `caps` 的 `js.enabled=true`（显式开启）**且**
-   `fallback_hint.js_engine_suitable=true` 时才值得开启 `js_render` 重试；
+2. **再看内置 `js_engine`**：仅当 `caps` 的 `js.enabled=true`（`js_render` 为 `on`/`auto`）**且**
+   `fallback_hint.js_engine_suitable=true` 时才值得开启/依赖 `js_render` 重试；
    `js_engine_suitable=false`（依赖外链库）就不要试——进程内引擎不会代取远端库。
+   `caps.js.mode` 是**三态**：`off`（默认，绝不执行脚本）、`on`（所有 HTML 全量渲染一次）、
+   `auto`（先静态解析，仅对 `degrade` 判定需要 JS 的空壳页渲染一次，静态页 **0 次渲染**）。
+   `auto` 是推荐的自适应档；成功信封的 `meta.engine_path`（`static` / `static+js`）说明这一次实际走没走渲染。
 3. **最后才考虑外部工具**：仅当 `fallback_hint.playwright_suitable=true`，**且** `caps`
    的 `fallback_capability` 存在（宿主通过 `WEBCTL_FALLBACK_TOOL` 声明）时，由 agent
    决定是否调用该工具；此时降级信封的 `next_steps` 末尾会有一条 `use <tool>`。

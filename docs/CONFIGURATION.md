@@ -38,7 +38,7 @@ output = "json"       # json | text
 timeout_ms = 30000    # 单次请求预算（毫秒）
 offline = false       # true 时拒绝一切网络访问
 proxy = "http://127.0.0.1:8080"  # 显式代理；不写即直连
-js_render = false     # 是否执行页面内联脚本；默认 false（ADR-0005）
+js_render = "off"     # off | on | auto；默认 off（兼容 true/false，见 §5）
 ```
 
 语法错误或未知键会报“配置文件 <path> 解析失败：…”并以非零退出码结束；
@@ -57,7 +57,7 @@ js_render = false     # 是否执行页面内联脚本；默认 false（ADR-0005
 | `WEBCTL_TIMEOUT_MS` | 单次请求预算 | 非负整数（毫秒） |
 | `WEBCTL_OFFLINE` | 离线模式 | `1/true/yes/on` 或 `0/false/no/off` |
 | `WEBCTL_PROXY` | 显式代理 URL | 例 `http://user:pass@host:8080` |
-| `WEBCTL_JS_RENDER` | 是否执行页面内联脚本（**默认关闭**） | `1/true/yes/on` 或 `0/false/no/off` |
+| `WEBCTL_JS_RENDER` | 页面脚本策略（**默认 `off`**） | `off` / `on` / `auto`；兼容旧布尔词 `1/true/yes`（=`on`）与 `0/false/no`（=`off`） |
 | `WEBCTL_SEARCH_STRICT_ROBOTS` | web_search 是否严格遵守 robots（**默认关闭**：用户决策「搜索优先、合规其次」） | `1/true/yes/on` 或 `0/false/no/off` |
 | `WEBCTL_SEARCH_BASE` | web_search 的 SERP 基址覆盖（**仅调试/离线测试**；覆盖所有已接线引擎；生产不设置时各引擎用自己的默认基址） | 任意 URL（离线 lane 指向 fixture） |
 | `WEBCTL_FALLBACK_TOOL` | 宿主声明的外部回退工具（**仅提示**；webctl 绝不调用，见下文） | `<名字>:<工具名>`，例 `playwright:mcp__playwright__browser_navigate` |
@@ -91,13 +91,26 @@ js_render = false     # 是否执行页面内联脚本；默认 false（ADR-0005
 - 代理 URL 中的 `user:password@` 凭据在**任何输出**里都以 `***` 掩码；
   响应中的 `Set-Cookie` / `Authorization` 等敏感头在 CLI 输出里替换为 `<redacted>`。
 
-## 5. 引擎开关（`js_render`，默认关闭，见 [ADR-0005](adr/0005-embedded-js-engine.md)）
+## 5. 页面脚本策略（`js_render`：`off` / `on` / `auto`，默认 `off`，见 [ADR-0005](adr/0005-embedded-js-engine.md)）
 
-- 默认 **不执行**任何页面脚本；开启是显式的（配置文件 `js_render` 或 `WEBCTL_JS_RENDER`）。
-- **开关 ≠ 已接线**：`caps --json` 的 `data.js` 分开报告 `enabled`（调用方是否开启）与 `wired`（引擎是否真的接上了取回/抽取路径），并给出 `reason`。
-  这样不会出现"配置说开着、实际没执行"的假象。
-- **已接线的范围（`wired: true`）**：`resolve_source`（所有以 URL 为输入的解析类工具）与 `extract` 的 URL 分支；
-  条件：**开关开启 且 内容是 HTML**。
+`js_render` 自 [#192](https://github.com/Thatgfsj/webctl/issues/192) 起是**三态**，不再是布尔开关：
+
+| 取值 | 行为 | 对应旧布尔值 |
+|---|---|---|
+| `off`（默认） | **绝不执行**页面脚本；解析一律用服务端原样 HTML | `false` |
+| `on` | 所有 HTML 页面先渲染一次再解析 | `true` |
+| `auto` | 先走静态管线；**只**在页面被 `degrade` 判定为需要 JS（空壳/脚本主导）时，才对**这一页**渲染一次 | 无（#192 新增） |
+
+- 兼容性：配置文件与 `WEBCTL_JS_RENDER` 都继续接受布尔值（`true` → `on`，`false` → `off`），也接受 `1/0`、`yes/no`；
+  非法取值（`maybe`、`sometimes`）**报错退出**，不静默回落。
+- **策略 ≠ 已接线**：`caps --json` 的 `data.js` 分开报告 `mode`（三态原样）、`enabled`（`on`/`auto` 为真、`off` 为假）、
+  `wired`（引擎是否真的接上了取回/抽取路径）与 `reason`。这样不会出现"配置说开着、实际没执行"的假象。
+- **已接线的范围（`wired: true`）**：`resolve_source`（所有以 URL 为输入的解析类工具）与 `extract` 的 URL / 内联 HTML 分支；
+  条件：**策略允许（`on`/`auto`）且内容是 HTML**。
+- **`auto` 的判定**：只认 `webctl_web::degrade::assess` 的 `NeedsJs` 结论；`extract` 还要求**静态抽取零命中**才补渲染，
+  因此正文充分的静态页是 **0 次渲染**。
+- **`meta.engine_path`**：解析成功时如实记录实际路径——`static`（未执行脚本）或 `static+js`（执行过脚本、解析的是渲染后 DOM）；
+  没做页面解析的能力（`caps` 等）不出现该字段。
 - **只执行内联脚本**：外链 `<script src>` **不取**（避免页面内容驱动网络请求）——因此依赖 jQuery 等外部库的页面会**如实降级**
   （`js-render-failed`，附 `ReferenceError: $ is not defined` 这类原始证据），而不是"成功但空"。
 - 引擎是**进程内**的 `crates/webctl-js`（纯 Rust，`boa_engine`）：不启动外部进程、不碰网络与文件系统；

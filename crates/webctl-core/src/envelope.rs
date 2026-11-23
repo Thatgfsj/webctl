@@ -26,6 +26,30 @@ impl Engine {
     }
 }
 
+/// 解析所用 HTML 的生成路径（#192）。
+///
+/// 只描述**实际发生过的**路径：静态响应原样参与解析是 `static`；
+/// 页面脚本被真正执行过一次、解析用的是渲染后的 DOM 才是 `static+js`。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum EnginePath {
+    /// 静态响应（未执行任何页面脚本）。
+    #[serde(rename = "static")]
+    Static,
+    /// 执行过页面脚本，解析的是渲染后的 DOM。
+    #[serde(rename = "static+js")]
+    StaticThenJs,
+}
+
+impl EnginePath {
+    /// 线上字符串。
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Static => "static",
+            Self::StaticThenJs => "static+js",
+        }
+    }
+}
+
 /// 信任标记。默认取最不可信的一侧（失败关闭）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -85,6 +109,12 @@ pub struct Meta {
     /// 降级时的可行动信息（#115）。未降级时**不出现**在 JSON 里。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub actionable: Option<Actionable>,
+    /// 解析所用 HTML 的生成路径（#192）。
+    ///
+    /// 未做页面解析的能力（如 caps / 纯取回）不出现该字段；只要出现，
+    /// `static+js` 就表示解析的是**渲染后**的 DOM，而不是服务端原样。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub engine_path: Option<EnginePath>,
     /// 结果是否来自过期数据。v0.4 无跨请求引用，恒为 false，字段保留供将来使用。
     pub stale: bool,
     /// 端到端耗时（毫秒）。
@@ -132,6 +162,7 @@ impl<T> Envelope<T> {
             trust,
             degraded_from,
             actionable: None,
+            engine_path: None,
             stale: false,
             elapsed_ms,
         }
@@ -178,6 +209,12 @@ impl<T> Envelope<T> {
     /// 附加降级时的可行动信息（#115）。链式调用，便于在 `Envelope::degraded` 之后补。
     pub fn with_actionable(mut self, actionable: Actionable) -> Self {
         self.meta.actionable = Some(actionable);
+        self
+    }
+
+    /// 附加解析所用 HTML 的生成路径（#192）。
+    pub fn with_engine_path(mut self, path: EnginePath) -> Self {
+        self.meta.engine_path = Some(path);
         self
     }
 
@@ -356,5 +393,29 @@ mod tests {
         assert!(hint.signals.is_empty());
         assert!(hint.playwright_suitable);
         assert!(!hint.js_engine_suitable);
+    }
+
+    /// #192：engine_path 的线上字符串冻结为 static / static+js，未设置时不出现。
+    #[test]
+    fn engine_path_serializes_as_stable_strings() {
+        assert_eq!(
+            serde_json::to_value(EnginePath::Static).expect("serialize"),
+            serde_json::json!("static")
+        );
+        assert_eq!(
+            serde_json::to_value(EnginePath::StaticThenJs).expect("serialize"),
+            serde_json::json!("static+js")
+        );
+        assert_eq!(EnginePath::StaticThenJs.as_str(), "static+js");
+
+        let plain = Envelope::ok(serde_json::json!({"a": 1}), Trust::TrustedLocal, 0);
+        let value = serde_json::to_value(&plain).expect("serialize");
+        assert!(
+            value["meta"].get("engine_path").is_none(),
+            "未解析页面时不得凭空写 engine_path：{value}"
+        );
+        let flagged = plain.with_engine_path(EnginePath::StaticThenJs);
+        let value = serde_json::to_value(&flagged).expect("serialize");
+        assert_eq!(value["meta"]["engine_path"], "static+js");
     }
 }
