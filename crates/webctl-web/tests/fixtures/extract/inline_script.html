@@ -1,0 +1,31 @@
+<!doctype html>
+<html>
+<head>
+  <title>Inline Script Fixture</title>
+  <script>window.headOnly = "HEAD-SCRIPT-SHOULD-NOT-LEAK";</script>
+  <style>.head { color: red; }</style>
+</head>
+<body>
+  <main>
+    <section class="pre">
+      <script>window.pre = "PRE-SCRIPT-SHOULD-NOT-LEAK";</script>
+      <style>.pre { color: red; }</style>
+      <p>PRE-VISIBLE</p>
+    </section>
+    <article class="story">
+      <script type="application/json">{"secret":"JSON-SCRIPT-SHOULD-NOT-LEAK"}</script>
+      <style>.story { margin: 0; }</style>
+      <h1>BODY-ALPHA</h1>
+      <script>window.app = function () { return "INLINE-SCRIPT-SHOULD-NOT-LEAK"; };</script>
+      <template><p>TEMPLATE-SHOULD-NOT-LEAK</p></template>
+      <noscript>NOSCRIPT-FALLBACK-VISIBLE</noscript>
+      <p>BODY-OMEGA visible text.</p>
+    </article>
+    <section class="post">
+      <style>.post { color: red; }</style>
+      <script>window.post = "POST-SCRIPT-SHOULD-NOT-LEAK";</script>
+      <p>POST-VISIBLE</p>
+    </section>
+  </main>
+</body>
+</html>

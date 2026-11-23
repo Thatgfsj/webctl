@@ -121,7 +121,7 @@ pub struct ExtractMatch {
     pub tag: String,
     /// 结构化路径。
     pub path: ElementPath,
-    /// 元素后代文本，折叠空白。
+    /// 元素后代文本，折叠空白；不含 script/style/template 子树（#188）。
     pub text: String,
     /// text 是否因字符预算被截断。
     pub text_truncated: bool,
@@ -380,7 +380,7 @@ fn build_match(
     document_text: &context::DocumentText<'_>,
     options: &ExtractOptions,
 ) -> (ExtractMatch, usize) {
-    let text = crate::parse::html::collapse_ws(&element.text().collect::<String>());
+    let text = crate::parse::html::collapse_ws(&context::visible_text(element));
     let (before, after) = match document_text.range_of(element) {
         Some((start, end)) => (
             crate::parse::html::collapse_ws(&document_text.before(start, options.context_chars)),
