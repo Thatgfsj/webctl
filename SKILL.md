@@ -12,7 +12,7 @@ description: 纯内置的网页取回/解析/抽取 MCP server（零外部进程
 
 <!-- tools:start -->
 - `fetch` — 取回 http(s) URL：状态、头、重定向链、内容或落盘路径。
-- `extract` — 用 CSS 选择器抽取元素（返回结构化命中），或用 `fields` schema 一次抽多字段：`{"字段名": {"selector": "h1", "attr": "src", "all": true}}`（`attr` 缺省取文本、`all=true` 返回数组）。两者至少给一个，同给则合并结果；**单个字段失败只进 `data.diagnostics`**，不中断整个调用；零命中是合法空结果（`all=true` 为 `[]`，`all=false` 为 `null`）。
+- `extract` — 用 CSS 选择器抽取元素（返回结构化命中），或用 `fields` schema 一次抽多字段：`{"字段名": {"selector": "h1", "attr": "src", "all": true}}`（`attr` 缺省取文本、`all=true` 返回数组）。两者至少给一个，同给则合并结果；**单个字段失败只进 `data.diagnostics`**，不中断整个调用；零命中是合法空结果（`all=true` 为 `[]`，`all=false` 为 `null`）。长文可用 `start_index`（UTF-8 字节偏移）与 `char_budget` 分块续读：结果里的 `next_start_index` 是下一块应传的值（末尾为 `null`）；越界是 `PARSE`。
 - `search` — 页面内文本/正则搜索，返回命中位置与上下文。
 - `links` — 链接清单：绝对化与 rel/域名/正则过滤。
 - `tables` — 表格结构化：行列与跨行跨列语义确定。
@@ -22,7 +22,7 @@ description: 纯内置的网页取回/解析/抽取 MCP server（零外部进程
 - `session` — 会话查看/保存/加载/清理（cookie 持久化）。
 - `cookies` — 查看/导出 cookie（导出需 yes=true，值脱敏，文件权限 0600）。
 - `json_query` — 内置 JSON 查询子集（替代 jq，零外部进程）。
-- `doc_text` — PDF/HTML/XML 文本层提取（替代 pdftotext/pandoc）。
+- `doc_text` — PDF/HTML/XML 文本层提取（替代 pdftotext/pandoc）；长文同样支持 `start_index` + `char_budget` 续读。
 - `embedded_data` — 抽取页面**内嵌**的结构化数据（JSON-LD / `script[type=json]` / 框架状态容器 / `data-page`）；**零 JS 执行**，零结果是合法空结果。另有 `fetch_channels`（默认关）：把页面声明的 RSS/Atom/oEmbed 通道过 politeness 取回（每次最多 2 个、每 feed 10 条；oEmbed 只保留白名单字段，HTML 型只取标题/摘要；robots 拦下不请求并逐通道报 `blocked`；全失败显式降级）。另有 `fetch_sitemap`（默认关）：robots 声明的 `Sitemap:` 优先，解析 sitemap.xml / sitemap index 只列 URL（不抓取这些页面；有递归层数与条目上限）。另有 `api_candidates`（#116）：从内联脚本 / 内嵌 JSON 报告页面自己写着的 API 线索（`fetch(...)` / `axios.get(...)`、`/api/...`、`/graphql`、`/_next/data/<buildId>/...`、JSON 的 `url` 字段），相对路径按页面最终 URL 或 `base` 归一化，同源 / 跨域分开；**这是线索，不是已经取到的数据**，本工具绝不探测，候选数 32、单条 URL 1024 字符上限，超限 `truncated=true`。
 - `download` — 文件下载到指定目录（尺寸上限与落盘路径）。
 - `robots` — robots.txt 与站点策略查询（礼貌爬取依据；含 `Sitemap:` 声明清单）。
@@ -70,7 +70,7 @@ webctl 只提供证据与提示。**
 ## 会话归属与预算
 
 - 服务器绑定启动时的 live Agent + Session；传入其他 `session` 名会被拒绝。
-- 单次工具调用预算默认 60 秒（MCP-09，与 DSH 默认工具超时一致）；单次网络请求预算默认 30 秒（`timeout_ms` 可配置）。长任务请用分片参数（`paginate.max_pages`、`extract.max_results`）。
+- 单次工具调用预算默认 60 秒（MCP-09，与 DSH 默认工具超时一致）；单次网络请求预算默认 30 秒（`timeout_ms` 可配置）。长任务请用分片参数（`paginate.max_pages`、`extract.max_results`、`extract`/`doc_text` 的 `start_index` + `char_budget`）。
 - 与 CLI 共享同一个 state dir（由 core 的配置解析，`WEBCTL_STATE_DIR` 优先）。
 - 超过 32 KiB 的结果写入 state dir 的 `results/` 目录并返回 `saved_to` 路径。
 

@@ -36,6 +36,10 @@ pub struct ExtractParams {
     pub char_budget: Option<usize>,
     /// 每条命中保留的上下文两侧字符数。
     pub context_chars: Option<usize>,
+    /// 从扁平结果（`matches[].text` 按换行连接；无 selector 时取 fields 值）的第 N 个**字节**开始返回；
+    /// 落在多字节字符中间时向后对齐到下一个字符边界。配合 `char_budget`
+    /// 分块续读；结果里的 `next_start_index` 是下一次应传的值（末尾为 null）。
+    pub start_index: Option<usize>,
     /// schema 化字段：字段名 -> {selector, attr, all}；与 `selector` 至少给一个。
     ///
     /// `attr` 为 null/缺省时取元素文本，否则取该属性；`all=true` 返回数组。
@@ -249,6 +253,11 @@ pub struct DocTextParams {
     pub path: Option<String>,
     /// 取回文档的 URL；与 path 二选一。
     pub url: Option<String>,
+    /// 从文本层的第 N 个**字节**开始返回；语义同 `extract.start_index`。
+    pub start_index: Option<usize>,
+    /// 本次最多返回的字符数（缺省不截断）。截断时 `code=LIMIT`，
+    /// `next_start_index` 指向续读位置。
+    pub char_budget: Option<usize>,
 }
 
 /// embedded_data：抽取页面内嵌的结构化数据（零 JS 执行）。
@@ -324,6 +333,21 @@ pub struct ResolveSiteParams {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// #190：续读参数缺省必须为 None（默认行为不变）。
+    #[test]
+    fn chunking_parameters_default_to_none() {
+        let extract: ExtractParams = serde_json::from_value(serde_json::json!({
+            "selector": "p",
+            "html": "<p>x</p>"
+        }))
+        .expect("最小 extract 参数应可解析");
+        assert!(extract.start_index.is_none());
+        let doc: DocTextParams =
+            serde_json::from_value(serde_json::json!({"path": "x"})).expect("最小 doc_text 参数");
+        assert!(doc.start_index.is_none());
+        assert!(doc.char_budget.is_none());
+    }
 
     /// #222：exclude 是可选参数，缺省必须为 None（不是空数组、更不是报错）。
     #[test]

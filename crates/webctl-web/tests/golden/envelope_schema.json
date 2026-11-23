@@ -8,7 +8,8 @@
     "meta": {
       "actionable": {
         "detected": [
-          "degraded_from: response-body-truncated"
+          "degraded_from: response-body-truncated",
+          "not resumable: truncated response bytes are not retained; start_index applies only to extract/doc_text"
         ],
         "next_steps": [
           "download"

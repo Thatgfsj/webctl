@@ -379,13 +379,18 @@ async fn tool_extract(ctx: &McpContext, args: &Value) -> Value {
     if let Some(value) = params.context_chars {
         options.context_chars = value;
     }
+    // #190：续读模式必须拿到 start_index 之后的全部匹配，抽取阶段不能再按
+    // char_budget 提前截断；char_budget 在窗口层作为本次返回的字符预算。
+    if params.start_index.is_some() {
+        options.char_budget = usize::MAX;
+    }
     let selector = params.selector.as_deref();
     let fields = field_specs(&params);
     let fields = fields.as_ref();
     if selector.is_none() && fields.is_none() {
         return fail(ErrorCode::Parse, MISSING_TARGET);
     }
-    match (params.url.as_deref(), params.html.as_deref()) {
+    let envelope = match (params.url.as_deref(), params.html.as_deref()) {
         (Some(url), None) => {
             if let Some(rejected) = offline_guard(ctx) {
                 return rejected;
@@ -398,26 +403,28 @@ async fn tool_extract(ctx: &McpContext, args: &Value) -> Value {
             let is_html = matches!(fetched.content.kind, webctl_web::ContentKind::Html);
             // 非 HTML：逐字走原路径（内容类型路由不属于渲染范畴）。
             if !is_html {
-                return extract_body_value(&fetched.content, selector, fields, &options);
-            }
-            let raw = fetched.content.text.clone().unwrap_or_default();
-            match ctx.config.js_render {
-                // 关闭时**逐字**走原路径（硬要求：默认行为不变）。
-                JsRenderMode::Off => apply_engine_path(
-                    extract_body_value(&fetched.content, selector, fields, &options),
-                    EnginePath::Static,
-                ),
-                // 全量：所有 HTML 渲染一次再解析（旧 true 语义）。
-                JsRenderMode::On => {
-                    finish_extract_fields(render_page(&raw), selector, fields, &options)
-                }
-                // 自适应：先静态抽取；只有零命中且判空壳时才渲染该页。
-                JsRenderMode::Auto => {
-                    let envelope = extract_body_value(&fetched.content, selector, fields, &options);
-                    if static_extract_empty(&envelope) && auto_wants_render(&raw) {
+                extract_body_value(&fetched.content, selector, fields, &options)
+            } else {
+                let raw = fetched.content.text.clone().unwrap_or_default();
+                match ctx.config.js_render {
+                    // 关闭时**逐字**走原路径（硬要求：默认行为不变）。
+                    JsRenderMode::Off => apply_engine_path(
+                        extract_body_value(&fetched.content, selector, fields, &options),
+                        EnginePath::Static,
+                    ),
+                    // 全量：所有 HTML 渲染一次再解析（旧 true 语义）。
+                    JsRenderMode::On => {
                         finish_extract_fields(render_page(&raw), selector, fields, &options)
-                    } else {
-                        apply_engine_path(envelope, EnginePath::Static)
+                    }
+                    // 自适应：先静态抽取；只有零命中且判空壳时才渲染该页。
+                    JsRenderMode::Auto => {
+                        let envelope =
+                            extract_body_value(&fetched.content, selector, fields, &options);
+                        if static_extract_empty(&envelope) && auto_wants_render(&raw) {
+                            finish_extract_fields(render_page(&raw), selector, fields, &options)
+                        } else {
+                            apply_engine_path(envelope, EnginePath::Static)
+                        }
                     }
                 }
             }
@@ -443,7 +450,8 @@ async fn tool_extract(ctx: &McpContext, args: &Value) -> Value {
             ErrorCode::BadUrl,
             "url 与 html 只能给一个；extract 需要其中之一",
         ),
-    }
+    };
+    crate::resume::chunk_extract(envelope, params.start_index, params.char_budget)
 }
 
 async fn tool_search(ctx: &McpContext, args: &Value) -> Value {
@@ -876,10 +884,11 @@ async fn tool_doc_text(ctx: &McpContext, args: &Value) -> Value {
         Ok(source) => source,
         Err(value) => return value,
     };
-    apply_upstream_degradation(
+    let value = apply_upstream_degradation(
         to_value(doc_text(&bytes, &DocOptions::default())),
         upstream.as_ref(),
-    )
+    );
+    crate::resume::chunk_doc_text(value, params.start_index, params.char_budget)
 }
 
 async fn tool_download(ctx: &McpContext, args: &Value) -> Value {
