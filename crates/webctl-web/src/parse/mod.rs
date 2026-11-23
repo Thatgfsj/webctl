@@ -21,6 +21,7 @@ use webctl_core::{Envelope, ErrorCode, Trust};
 
 pub mod article;
 pub mod embedded;
+pub mod endpoints;
 pub mod feed;
 pub mod forms;
 pub mod html;
@@ -32,6 +33,7 @@ pub mod tables;
 
 pub use article::{Article, extract_article, extract_article_fallback};
 pub use embedded::{EmbeddedEntry, EmbeddedOptions, EmbeddedReport, extract_embedded};
+pub use endpoints::{ApiDiscoveryOptions, ApiDiscoveryReport, ApiEndpoint, discover_api_endpoints};
 pub use feed::{FeedItem, FeedReport, MAX_FEED_ITEMS, parse_feed};
 pub use forms::{Form, FormField, FormOption, extract_forms};
 pub use links::{Link, extract_links};

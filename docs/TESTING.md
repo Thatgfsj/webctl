@@ -639,7 +639,8 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 - **L5 通道**（0.2 M5，`tests/resolve_site_serp.rs`，4 条，纯本地 fixture）：`serp_results_become_low_score_candidates`（结果 → 低分候选、证据带名次、引擎链接被过滤、跳转链接还原）、`max_results_is_respected`、`robots_disallow_stops_before_requesting`（robots 禁止时**不请求**）、`empty_page_is_empty_failure`。另有 `resolve_site::serp` 单测 6 条（编码/引擎过滤/跳转还原/协议过滤/原因码）。
 
 - **MCP-01**：`mcp_01_initialize_negotiates_protocol_version`
-- **embedded_data**（#114）：`embedded_data_extracts_json_ld_from_inline_html`、`embedded_data_empty_result_is_not_a_parse_failure`、`embedded_data_broken_payload_is_parse_error`、`embedded_data_schema_declares_only_wired_parameters`（**声明必须等于实现**）、`embedded_data_rejects_url_and_html_together`
+- **embedded_data**（#114）：`embedded_data_extracts_json_ld_from_inline_html`、`embedded_data_empty_result_is_not_a_parse_failure`、`embedded_data_broken_payload_is_parse_error`、`embedded_data_schema_declares_only_wired_parameters`（**声明必须等于实现**；#116 增 `base` 后同步更新）、`embedded_data_rejects_url_and_html_together`
+- **API 端点线索**（#116，`tests/api_discovery.rs`，4 条，纯本地 fixture）：`api_candidates_are_reported_without_extra_requests`（Next.js buildId / GraphQL / 相对路径归一化 / 跨域分组，且 fixture 计数证明**只取页面本身**）、`html_input_uses_base_and_makes_no_requests`（html + base：零网络）、`candidate_count_is_capped_and_truncated`（40 → 32，`truncated=true`）、`oversized_url_is_dropped_and_truncated`（超长 URL 不回显）。另有 `parse::endpoints` 单测 11 条（Next.js、GraphQL、相对路径、跨域、JSON `url` 字段、无基准 unresolved、候选数上限、URL 长度上限、超长硬上限、去重、合法空结果）
 - **引擎接线**（#128 步骤 2；#192 三态）：`js_render_off_keeps_existing_degradation`（**默认 off**：脚本页仍 DEGRADED、0 命中）、
   `js_render_on_extracts_content_from_script_only_page`（`on`：内容只在 `document.write` 的页面抽出 **10 条**）、
   `js_render_auto_does_not_render_static_page`（#192 `auto` 对静态页 **0 次渲染**：仍 10 条 + `engine_path=static`；若渲染会多出第 11 条）、

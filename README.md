@@ -54,6 +54,8 @@
 `session` / `cookies` / `json_query` / `doc_text` / `embedded_data` / `download` / `robots` / `resolve_site` / `caps` / `web_search`。
 **CLI 子命令**：`caps` / `fetch` / `config` / `cookies` / `mcp`；18 个工具由 MCP 工具面同时暴露（`webctl mcp --list-tools`）。
 
+`embedded_data` 还会报告 `data.api_candidates`：从内联脚本与内嵌 JSON 里找出页面**自己写着**的 `/api/...`、`/graphql`、`/_next/data/<buildId>/...` 与 `fetch(...)` / `axios.get(...)` 调用，相对路径按页面最终 URL（或 `base`）归一化成绝对 URL，同源与跨域分开列出。**这只是线索，不是已经取到的数据**：webctl 对候选端点**零请求**，要不要取、怎么取由调用方决定。
+
 <!-- 已回填（#68 已关闭）：`webctl caps --json` 枚举 18 个工具并逐项给出可用性与原因；能力表与 PLAN §3.7 一致。 -->
 
 ## 它不做什么（诚实清单）

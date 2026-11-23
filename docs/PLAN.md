@@ -173,7 +173,7 @@ v0.3 的 aria ref 依赖"最近一次快照"的 live 页面，**在无浏览器�
 | 10 | `cookies` | 查看/导出 cookie（导出需 `--yes`、权限 600、值脱敏） |
 | 11 | `json_query` | 内置 JSON 查询子集（替代 `jq`）；以 URL 为输入时**继承上游降级**（#125） |
 | 12 | `doc_text` | PDF / HTML / XML 文本层提取（替代 `pdftotext`/`pandoc`）；以 URL 为输入时**继承上游降级**（#125） |
-| 13 | `embedded_data` | 页面**内嵌**结构化数据抽取（JSON-LD / `script[type=json]` / 框架状态容器 / `data-page`），**零 JS 执行**（0.1.2，[#114](https://github.com/Thatgfsj/webctl/issues/114)）；**可选取回**页面声明的 RSS/Atom/oEmbed（`fetch_channels=true`，默认关；过 politeness，robots 拦下不请求；oEmbed 只保留白名单字段，HTML 型只取标题/摘要；#117/#196）；**可选**解析 sitemap 条目（`fetch_sitemap=true`，默认关；robots 声明的 `Sitemap:` 优先，只列 URL 不抓取页面；#196） |
+| 13 | `embedded_data` | 页面**内嵌**结构化数据抽取（JSON-LD / `script[type=json]` / 框架状态容器 / `data-page`），**零 JS 执行**（0.1.2，[#114](https://github.com/Thatgfsj/webctl/issues/114)）；**可选取回**页面声明的 RSS/Atom/oEmbed（`fetch_channels=true`，默认关；过 politeness，robots 拦下不请求；oEmbed 只保留白名单字段，HTML 型只取标题/摘要；#117/#196）；**可选**解析 sitemap 条目（`fetch_sitemap=true`，默认关；robots 声明的 `Sitemap:` 优先，只列 URL 不抓取页面；#196）；**API 端点线索**（`data.api_candidates`，#116）：从内联脚本/内嵌 JSON 找 `fetch(...)`、`/api/...`、`/graphql`、`/_next/data/<buildId>/...`，相对路径归一化，同源/跨域分开，**只报告不探测** |
 | 14 | `download` | 文件下载到指定目录（尺寸上限、类型白名单、落盘路径）；以 URL 为输入时**继承上游降级**（#125） |
 | 15 | `robots` | robots.txt 与站点策略查询（礼貌爬取依据；含 `Sitemap:` 声明清单） |
 | 16 | `resolve_site` | 站点名 → 入口候选（L1 内置映射/域名直推 + L2 站点内建搜索 + L3 Wikidata P856 + L4 sitemap 声明 + **显式 opt-in** 的 L5 SERP 兜底；多候选 + 证据 + 置信度，**绝不单选**；offline 时只走 L1） |
