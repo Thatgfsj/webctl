@@ -265,7 +265,7 @@ fn static_extract_empty(envelope: &Value) -> bool {
     let matches_empty = data
         .get("matches")
         .and_then(Value::as_array)
-        .map_or(true, |matches| matches.is_empty());
+        .is_none_or(|matches| matches.is_empty());
     let fields_empty = match data.get("fields") {
         Some(Value::Object(map)) => !map.is_empty() && map.values().all(Value::is_null),
         Some(_) => false,
