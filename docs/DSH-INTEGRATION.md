@@ -47,6 +47,32 @@ $ 两个并发 webctl mcp
 
 **为什么这条重要**：DSH 会*先起一个探测进程、再起服务进程*；如果 MCP server 在启动时抢独占锁或写死单例文件，第二次启动就会失败，表现为"装了没反应、工具不出现"。webctl 不在启动时抢锁，因此两种启动都成立。
 
+### 2.3 真实 DSH 挂载与调用（2026-11-23）
+
+挂载方式：`dsh-webctl` bundle 的 `mcp-client-webctl`（`transport: stdio`、`command: webctl`、`args: ["mcp"]`、`toolCallTimeoutMs: 60000`），可用 profile 层 `--patch` overlay 覆盖 `command` 指向本地构建。
+
+**实测 A：真实 DSH Web 会话（3080，本次运行会话）**
+
+~~~text
+mcp__webctl__caps                         -> ok=true, code=OK（插件内置二进制 version=0.1.1，工具全部 available）
+mcp__webctl__fetch(http://127.0.0.1:46243/)  -> ok=true, code=OK, status=200, 64 B, trust=untrusted_page_content
+mcp__webctl__extract(selector="h1")          -> ok=true, code=OK, text="MCP-107-OK"
+~~~
+
+**实测 B：当前主干构建（0.2.3 @ 71bc206）在独立实例中的挂载**
+
+~~~text
+$ dsh --profile web --patch /tmp/webctl-107-overlay.yml --port 3081 --no-open
+  # overlay: - id: mcp-client-webctl
+  #            config: { ..., command: /home/thatgfsj/AIagent/webctl/target/debug/webctl, args: ["mcp"] }
+$ ps -eo args | grep "webctl mcp"
+  /home/thatgfsj/AIagent/webctl/target/debug/webctl mcp      # 已由 DSH 拉起
+$ curl -o /dev/null -w "%{http_code}" http://127.0.0.1:3081/
+  401                                                        # 浏览器信任栅栏，属预期
+~~~
+
+**未做**：3081 实例内的 agent 级工具调用（headless lane 缺 `DEEPSEEK_API_KEY`，未改用户凭据配置）。
+
 ## 3. 长任务与 60s 预算
 
 **两个预算要分清**（两个都写进代码，别混用）：
@@ -69,5 +95,6 @@ $ 两个并发 webctl mcp
 
 ## 5. 未覆盖 / 待办（诚实登记）
 
-- **未经真实 DSH 挂载的端到端验证**：本文全部结论来自 stdio 层探针与代码核对，**没有**在 DSH 里实际挂载后调用 `mcp__webctl__*`。该端到端验证仍是 [PR 17 / 议题 #28](https://github.com/Thatgfsj/webctl/issues/28) 的验收项，未完成前不得声称"DSH 集成已验收"。
-- `toolCallTimeoutMs` 的**超时行为实测**（让一次调用故意跑满 60s 观察 harness 反应）未做。
+- ~~未经真实 DSH 挂载的端到端验证~~ -> **主体已完成（2026-11-23）**：见 §2.3。真实 DSH 会话中 `mcp__webctl__caps` / `fetch` / `extract` 均成功；当前主干构建（0.2.3）在独立 3081 实例中已观察到 MCP 子进程被拉起，但该实例内的 agent 级调用未做。
+- `toolCallTimeoutMs` 的**超时行为实测**（让一次调用故意跑满 60s 观察 harness 反应）仍未做：本次所有调用均 <1s。
+- 版本口径：当前 `dsh-webctl` 插件按 PATH 拉起 `webctl`（实测 0.1.1）；主干 0.2.3 的挂载证据为 §2.3 的 3081 实例（spawn 级，未含工具调用）。
