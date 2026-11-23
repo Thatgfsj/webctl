@@ -691,7 +691,7 @@ PR 11 留下的 `#[ignore]` 交接哨兵及其常量已随 #82 删除；随后 `
 默认严格，全部用例在默认配置下跑（L3），零外网、零子进程。
 
 - **`crates/webctl-web/tests/security.rs` 9 条**：`sec_04_envelope_redacts_cookie_and_query_token`（SEC-04）、`sec_06_cross_origin_redirect_drops_authorization`、`sec_06_same_origin_redirect_keeps_authorization`（SEC-06，含对照组）、`sec_07_url_query_tokens_are_redacted_in_logs`（SEC-07）、`sec_08_password_form_fields_are_redacted_in_logs`（SEC-08）、`sec_14_download_whitelist_and_size_limit`、`sec_14_commit_download_enforces_policy_and_containment`（SEC-14）、`sec_11_file_arguments_are_canonicalized`（SEC-11）、`sec_15_dangerous_schemes_are_rejected`（SEC-15）。
-- **`crates/webctl/tests/security.rs` 7 条**：`sec_01_sec_02_default_strict_and_export_confirmation`（SEC-01 + SEC-02）、`sec_03_export_file_is_mode_600`（SEC-03）、`sec_05_cookie_values_never_reach_output_or_logs`（SEC-05）、`sec_07_url_query_token_is_redacted_in_logs`（SEC-07）、`sec_11_cli_file_arguments_are_contained`（SEC-11：`../`、绝对路径、越界 symlink、坏会话名）、`sec_13_errors_carry_no_stack_or_paths`（SEC-13）、`sec_15_dangerous_scheme_via_cli`（SEC-15）。
+- **`crates/webctl/tests/security.rs` 8 条**：`sec_01_sec_02_default_strict_and_export_confirmation`（SEC-01 + SEC-02）、`sec_03_export_file_is_mode_600`（SEC-03）、`sec_05_cookie_values_never_reach_output_or_logs`（SEC-05）、`sec_07_url_query_token_is_redacted_in_logs`（SEC-07）、`sec_11_cli_file_arguments_are_contained`（SEC-11：`../`、绝对路径、越界 symlink、坏会话名）、`sec_13_errors_carry_no_stack_or_paths`（SEC-13）、`sec_15_dangerous_scheme_via_cli`（SEC-15）、`sec_16_default_denies_loopback_without_connecting`（SEC-16，#191：默认拒绝回环且目标零请求）。
 - **新增单元/护栏**：`webctl-core::security::redact`（`cookie_values_are_redacted_but_names_kept`、`authorization_is_fully_redacted`、`url_query_tokens_are_redacted`、`log_line_redacts_urls_headers_and_form_fields`）、`webctl-core::security::paths`（`rejects_traversal_and_absolute_arguments`、`allows_relative_argument_under_root`、`rejects_symlink_escape`、`secret_file_is_mode_600_even_if_previously_wider`、`scheme_whitelist_rejects_file_and_data`）、`webctl-web::redact`（`envelope_redaction_removes_secrets_everywhere`、`session_state_display_never_contains_cookie_values`）、`webctl-web::paths`（`whitelist_and_size_limit_are_enforced`、`commit_download_writes_inside_root_only`、`commit_download_rejects_traversal_and_symlink`）、`webctl::logs`（`cookie_values_never_reach_the_log`、`url_query_tokens_are_redacted_in_logs`、`password_form_fields_are_redacted_in_logs`）。
 
 覆盖与交接（对齐 §2.14）：
@@ -713,6 +713,7 @@ PR 11 留下的 `#[ignore]` 交接哨兵及其常量已随 #82 删除；随后 `
 | SEC-13 | `webctl/tests/security.rs` | 正则断言无 `panicked` / `.rs:N` / `backtrace` / 本地路径 |
 | SEC-14 | `webctl-web/tests/security.rs` | 类型白名单 + 尺寸上限 + containment + 落盘 0600 |
 | SEC-15 | 两侧 + `webctl-core::security::paths` | `file://`/`data:`/`ftp://` 在连接前 `BAD_URL` |
+| SEC-16 | `webctl/tests/security.rs` + `webctl-web/tests/ssrf_guard.rs` | SSRF 守卫默认拒绝 loopback/私网/metadata（`BLOCKED` 且零请求）；放行开关不放过 metadata |
 
 **植入实验**（证明断言可失败，非恒真）：临时令 `redact_log_line` 变为恒等 → SEC-07/08 两侧失败并回显 `SUPER_SECRET_TOKEN`；临时跳过 `resolve_file_argument` 的 `ensure_contained` → SEC-11 两侧失败。两次均 `git checkout` 还原并复跑通过；证据见 PR 描述。
 
