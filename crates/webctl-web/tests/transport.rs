@@ -32,7 +32,8 @@ const BROTLI_BYTES: &[u8] = &[
 ];
 
 fn options() -> FetchOptions {
-    FetchOptions::default()
+    // #191：夹具只连 127.0.0.1，必须显式放行（默认拒绝回环）。
+    FetchOptions::default().with_private_network_allowed(true)
 }
 
 /// HTTP-01：UTF-8 正文与 fixture 完全一致。
@@ -511,7 +512,7 @@ async fn explicit_proxy_routes_request_through_proxy() {
     let proxy = Server::start(vec![(target, Route::html("via proxy"))]).await;
     let options = FetchOptions {
         proxy: Some(proxy.base()),
-        ..FetchOptions::default()
+        ..FetchOptions::default().with_private_network_allowed(true)
     };
     let env = fetch(target, &options).await;
     assert!(env.ok, "{}", env.error);

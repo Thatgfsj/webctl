@@ -78,6 +78,8 @@ impl McpContext {
             timeout: std::time::Duration::from_millis(self.config.timeout_ms),
             proxy: self.config.proxy.clone(),
             browser_context: self.browser_context.clone(),
+            // #191：SSRF 守卫的放行开关来自配置（默认 false）。
+            allow_private_network: self.config.allow_private_network,
             ..webctl_web::transport::FetchOptions::default()
         }
     }

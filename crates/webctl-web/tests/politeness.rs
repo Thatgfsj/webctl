@@ -155,7 +155,7 @@ fn fetcher(server: &Server, mutate: impl FnOnce(&mut PolitenessConfig)) -> Polit
     mutate(&mut config);
     let options = FetchOptions {
         timeout: Duration::from_secs(5),
-        ..FetchOptions::default()
+        ..FetchOptions::default().with_private_network_allowed(true)
     };
     let _ = server;
     PoliteFetcher::new(config, options)

@@ -58,6 +58,7 @@ js_render = "off"     # off | on | auto；默认 off（兼容 true/false，见 �
 | `WEBCTL_OFFLINE` | 离线模式 | `1/true/yes/on` 或 `0/false/no/off` |
 | `WEBCTL_PROXY` | 显式代理 URL | 例 `http://user:pass@host:8080` |
 | `WEBCTL_JS_RENDER` | 页面脚本策略（**默认 `off`**） | `off` / `on` / `auto`；兼容旧布尔词 `1/true/yes`（=`on`）与 `0/false/no`（=`off`） |
+| `WEBCTL_ALLOW_PRIVATE_NETWORK` | 是否放行 loopback / 私网 / 链路本地等非公网目标（**默认关闭**；云 metadata 不受此开关影响，见 §5） | `1/true/yes/on` 或 `0/false/no/off` |
 | `WEBCTL_SEARCH_STRICT_ROBOTS` | web_search 是否严格遵守 robots（**默认关闭**：用户决策「搜索优先、合规其次」） | `1/true/yes/on` 或 `0/false/no/off` |
 | `WEBCTL_SEARCH_BASE` | web_search 的 SERP 基址覆盖（**仅调试/离线测试**；覆盖所有已接线引擎；生产不设置时各引擎用自己的默认基址） | 任意 URL（离线 lane 指向 fixture） |
 | `WEBCTL_FALLBACK_TOOL` | 宿主声明的外部回退工具（**仅提示**；webctl 绝不调用，见下文） | `<名字>:<工具名>`，例 `playwright:mcp__playwright__browser_navigate` |

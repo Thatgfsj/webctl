@@ -23,7 +23,10 @@ pub fn temp_store(label: &str) -> SessionStore {
 }
 
 pub fn engine(label: &str) -> SessionEngine {
-    SessionEngine::with_store("default", temp_store(label)).expect("engine")
+    SessionEngine::with_store("default", temp_store(label))
+        .expect("engine")
+        // #191：夹具只连 127.0.0.1。
+        .with_private_network_allowed(true)
 }
 
 pub fn credentials() -> FormFill {

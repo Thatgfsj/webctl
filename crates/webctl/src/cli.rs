@@ -124,6 +124,8 @@ impl Cli {
             proxy: self.proxy.clone(),
             // 本片（#128 第 1 步）不加 CLI 开关；步骤 2 已接线，逐调用开关见 #128 后续。
             js_render: None,
+            // #191：私网放行只有环境变量/配置文件入口，不提供 CLI 开关（避免顺手打开）。
+            allow_private_network: None,
         }
     }
 }
@@ -373,6 +375,8 @@ fn run_fetch(
         proxy: config.proxy.clone(),
         // #183：CLI fetch 也要注入宿主上下文（与 MCP fetch / 会话路径一致）。
         browser_context: browser_context.cloned(),
+        // #191：地址守卫的放行开关来自配置（默认 false）。
+        allow_private_network: config.allow_private_network,
         ..FetchOptions::default()
     };
     let envelope = match block_on(fetch(url, &options)) {

@@ -44,6 +44,9 @@ pub fn temp_dir(tag: &str) -> PathBuf {
 pub fn in_process_context(tag: &str) -> McpContext {
     let config = Config {
         state_dir: temp_dir(tag),
+        // #191：离线夹具只连 127.0.0.1，显式放行地址守卫；
+        // 这里用配置字段而不是进程级 env，避免测试之间互相污染。
+        allow_private_network: true,
         ..Config::default()
     };
     McpContext::unbound(config)

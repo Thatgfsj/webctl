@@ -550,9 +550,12 @@ async fn tool_fill_form(ctx: &McpContext, args: &Value) -> Value {
         Ok(session) => session,
         Err(error) => return fail(ErrorCode::Blocked, error.to_string()),
     };
-    let engine = match SessionEngine::with_store(&session, ctx.session_store())
-        .map(|engine| engine.with_browser_context(ctx.browser_context.clone()))
-    {
+    let engine = match SessionEngine::with_store(&session, ctx.session_store()).map(|engine| {
+        engine
+            .with_browser_context(ctx.browser_context.clone())
+            // #191：会话的 GET/POST 与 transport 使用同一地址守卫策略。
+            .with_private_network_allowed(ctx.config.allow_private_network)
+    }) {
         Ok(engine) => engine,
         Err(error) => return fail(ErrorCode::SessionLost, error.message()),
     };
@@ -589,9 +592,12 @@ async fn tool_paginate(ctx: &McpContext, args: &Value) -> Value {
         Ok(session) => session,
         Err(error) => return fail(ErrorCode::Blocked, error.to_string()),
     };
-    let engine = match SessionEngine::with_store(&session, ctx.session_store())
-        .map(|engine| engine.with_browser_context(ctx.browser_context.clone()))
-    {
+    let engine = match SessionEngine::with_store(&session, ctx.session_store()).map(|engine| {
+        engine
+            .with_browser_context(ctx.browser_context.clone())
+            // #191：会话的 GET/POST 与 transport 使用同一地址守卫策略。
+            .with_private_network_allowed(ctx.config.allow_private_network)
+    }) {
         Ok(engine) => engine,
         Err(error) => return fail(ErrorCode::SessionLost, error.message()),
     };

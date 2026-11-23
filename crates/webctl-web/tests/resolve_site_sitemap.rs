@@ -22,7 +22,7 @@ fn fetcher() -> PoliteFetcher {
         },
         FetchOptions {
             timeout: Duration::from_secs(5),
-            ..FetchOptions::default()
+            ..FetchOptions::default().with_private_network_allowed(true)
         },
     )
 }

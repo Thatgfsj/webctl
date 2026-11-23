@@ -77,6 +77,9 @@ fn webctl(state: &Path) -> Command {
     }
     command.env("WEBCTL_CONFIG", support::missing_path("sec-default"));
     command.env("WEBCTL_STATE_DIR", state);
+    // #191：本文件的 fixture 只连 127.0.0.1，需要放行地址守卫；
+    // 默认拒绝由 sec_16 在移除该变量后单独断言。
+    command.env("WEBCTL_ALLOW_PRIVATE_NETWORK", "1");
     command
 }
 
@@ -351,4 +354,35 @@ fn sec_15_dangerous_scheme_via_cli() {
         let value = parse_json(&out);
         assert_eq!(value["code"], "BAD_URL", "{value}");
     }
+}
+
+/// SEC-16（#191）：默认配置拒绝回环目标，且**未向目标发起任何连接**。
+///
+/// 本文件的其它用例为了让 fixture 可达显式设置了 WEBCTL_ALLOW_PRIVATE_NETWORK；
+/// 本用例移除该变量，验证默认值仍是拒绝（BLOCKED + 可行动原因，不能伪装成 NETWORK）。
+#[test]
+fn sec_16_default_denies_loopback_without_connecting() {
+    let state = TempDir::new("sec16");
+    let origin = support::Fixture::start("private-target");
+    let mut command = webctl(state.path());
+    command.env_remove("WEBCTL_ALLOW_PRIVATE_NETWORK");
+    let out = run(&mut command, &["--json", "fetch", &origin.url("/secret")]);
+    assert_eq!(
+        out.code, 5,
+        "默认必须 BLOCKED（退出码 5）：{}{}",
+        out.stdout, out.stderr
+    );
+    let value = parse_json(&out);
+    assert_eq!(value["code"], "BLOCKED", "{value}");
+    assert_eq!(value["ok"], false, "{value}");
+    let error = value["error"].as_str().unwrap_or_default();
+    assert!(
+        error.contains("loopback-address-blocked"),
+        "错误必须带机器可读原因码：{error}"
+    );
+    assert!(
+        error.contains("WEBCTL_ALLOW_PRIVATE_NETWORK"),
+        "错误必须给出显式放行开关，才是可行动的：{error}"
+    );
+    assert_eq!(origin.hits(), 0, "被拒时不得向目标发起连接");
 }

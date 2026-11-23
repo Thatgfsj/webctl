@@ -272,7 +272,7 @@ async fn degrade_fetch_entry_marks_js_shell_degraded_offline() {
         ("/static", Response::html(STATIC_QUOTES)),
     ])
     .await;
-    let options = FetchOptions::default();
+    let options = FetchOptions::default().with_private_network_allowed(true);
 
     let js = fetch(&server.url("/js"), &options).await;
     assert_valid(&js);

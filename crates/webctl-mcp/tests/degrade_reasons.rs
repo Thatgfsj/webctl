@@ -115,7 +115,7 @@ async fn fetch_truncation_carries_actionable() {
             .await;
     let options = FetchOptions {
         max_body_bytes: 256,
-        ..FetchOptions::default()
+        ..FetchOptions::default().with_private_network_allowed(true)
     };
     let envelope = fetch(&server.url("/big"), &options).await;
     assert_eq!(envelope.code, ErrorCode::Limit, "{}", envelope.error);
@@ -176,7 +176,9 @@ async fn pagination_fetch_failure_carries_actionable() {
         "pagination-124",
         webctl_web::session::SessionStore::new(dir),
     )
-    .expect("engine");
+    .expect("engine")
+    // #191：夹具只连 127.0.0.1。
+    .with_private_network_allowed(true);
     let envelope = engine.paginate(&server.url("/page1"), Some(3)).await;
     assert_eq!(envelope.code, ErrorCode::Degraded, "{}", envelope.error);
     assert_eq!(
