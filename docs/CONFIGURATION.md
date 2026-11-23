@@ -38,7 +38,8 @@ output = "json"       # json | text
 timeout_ms = 30000    # 单次请求预算（毫秒）
 offline = false       # true 时拒绝一切网络访问
 proxy = "http://127.0.0.1:8080"  # 显式代理；不写即直连
-js_render = "off"     # off | on | auto；默认 off（兼容 true/false，见 §5）
+js_render = "off"     # off | on | auto；默认 off（兼容 true/false，见 §6）
+allow_private_network = false  # 是否放行私网/回环目标；默认 false（SSRF 守卫，#191）
 ```
 
 语法错误或未知键会报“配置文件 <path> 解析失败：…”并以非零退出码结束；
@@ -92,7 +93,43 @@ js_render = "off"     # off | on | auto；默认 off（兼容 true/false，见 �
 - 代理 URL 中的 `user:password@` 凭据在**任何输出**里都以 `***` 掩码；
   响应中的 `Set-Cookie` / `Authorization` 等敏感头在 CLI 输出里替换为 `<redacted>`。
 
-## 5. 页面脚本策略（`js_render`：`off` / `on` / `auto`，默认 `off`，见 [ADR-0005](adr/0005-embedded-js-engine.md)）
+## 5. SSRF 地址守卫（默认拒绝非公网目标，#191）
+
+webctl 在**每次连接之前**校验目标地址；默认拒绝下列分类（命中即 `BLOCKED`，退出码 5）：
+
+| 分类 | 例子 | 原因码 |
+|---|---|---|
+| 回环 | `127.0.0.0/8`、`::1`、`localhost` | `loopback-address-blocked` |
+| 私网 | `10/8`、`172.16/12`、`192.168/16`、`fc00::/7` | `private-address-blocked` |
+| 链路本地 | `169.254/16`、`fe80::/10` | `link-local-address-blocked` |
+| 组播 | `224/4`、`ff00::/8` | `multicast-address-blocked` |
+| 未指定 | `0.0.0.0`、`::` | `unspecified-address-blocked` |
+| 运营商级 NAT | `100.64/10` | `shared-address-blocked` |
+| 保留 | `240/4`、广播地址 | `reserved-address-blocked` |
+| 云 metadata | `169.254.169.254`、`[fd00:ec2::254]` | `metadata-endpoint-blocked` |
+
+- **被拒不是网络错误**：返回 `BLOCKED` 而不是 `NETWORK`/`TIMEOUT`，错误信息同时给出原因码、
+  目标与显式放行开关；被拒时**不会**向目标发出任何请求。
+- **先解析、后判定，任一被禁即拒**：主机名先解析，再对**全部**解析结果分类；一个域名同时
+  返回公网与私网地址时按拒绝处理（不放过混合应答）。
+- **逐跳校验**：`fetch`、`SessionEngine` 的页面 GET、表单 POST 与分页都是手工重定向循环，
+  每一跳在发请求前重新校验；重定向到内网同样被拒（不能只查入口 URL）。
+- **放行开关**：`WEBCTL_ALLOW_PRIVATE_NETWORK=1` 或配置文件 `allow_private_network = true`
+  （默认 `false`）。**不提供 CLI 开关**，避免"本地联调顺手打开"进入生产；放行只用于可信的
+  本地联调（离线 fixture 就是回环服务）。放行生效时按 `(主机, IP)` 去重，向 stderr 写一行
+  `webctl-audit: ...` 审计日志，说明是哪个目标被放行。
+- **metadata 例外（硬拒绝）**：`169.254.169.254` 与 `[fd00:ec2::254]` **始终拒绝**，
+  即使打开放行开关——否则本地联调的一次"顺手打开"就可能变成实例凭据泄漏。
+- **诚实边界（不承诺）**：
+  - **不防 DNS rebinding**：预检用系统解析器，真实连接由 `wreq` 再解析一次，两次结果理论上
+    可以不同；守卫只保证"预检看到的地址"是公网。需要更强保证时应在网络层（egress 策略）隔离。
+  - **经代理时只校验目标主机**，不校验代理自身的地址——代理由 `WEBCTL_PROXY` / 配置文件
+    `proxy` / `--proxy` 显式指定，属于调用方显式信任的组件。
+  - 只覆盖 `http(s)`；其它 scheme 在 URL 解析阶段即 `BAD_URL`，不再进入守卫。
+- **回归**：`crates/webctl-web/tests/ssrf_guard.rs`（默认拒绝、放行、metadata 硬拒绝、
+  302 第二跳、表单 POST）与 `crates/webctl/tests/security.rs` 的 SEC-16（默认拒绝且零请求）。
+
+## 6. 页面脚本策略（`js_render`：`off` / `on` / `auto`，默认 `off`，见 [ADR-0005](adr/0005-embedded-js-engine.md)）
 
 `js_render` 自 [#192](https://github.com/Thatgfsj/webctl/issues/192) 起是**三态**，不再是布尔开关：
 
@@ -119,7 +156,7 @@ js_render = "off"     # off | on | auto；默认 off（兼容 true/false，见 �
   #130 已定案：**内存边界由宿主进程级手段（`ulimit`/`rlimit`）承担**，引擎不设上限也不会冒充有上限；
   `caps --json` 的 `data.js.memory` 报告 `engine_limit_bytes: null` 与 `enforced_by: "host"`。
 
-## 6. 输出格式与退出码
+## 7. 输出格式与退出码
 
 `--output json`（默认；`--json` 是等价别名，且显式给出时覆盖 `--output`）：
 单行紧凑 JSON 结果信封，可直接管道给下游解析器（CLI-09）。
@@ -144,7 +181,7 @@ js_render = "off"     # off | on | auto；默认 off（兼容 true/false，见 �
 参数解析失败（未知参数、缺少必填参数）由 clap 以退出码 2 结束，并给出可读提示。
 `--help` / `--version` 退出码为 0。
 
-## 7. 子命令
+## 8. 子命令
 
 | 子命令 | 说明 |
 |---|---|
@@ -153,13 +190,13 @@ js_render = "off"     # off | on | auto；默认 off（兼容 true/false，见 �
 | `config` | 打印生效配置（代理凭据已脱敏） |
 | `cookies list` | 列出会话 cookie（值脱敏）；参数、行为与退出码自 PR 12 起未变 |
 | `cookies export` | 把会话导出为 JSON；需 `--yes`，`--file` 须落在 state dir 内，写入即 0600 |
-| `cookies storage-state` | 导出 Playwright 兼容的 `storage_state` JSON（别名 `export-storage-state`）；仅目标域、需 `--yes`、0600，详见 §7.1（议题 #240） |
+| `cookies storage-state` | 导出 Playwright 兼容的 `storage_state` JSON（别名 `export-storage-state`）；仅目标域、需 `--yes`、0600，详见 §8.1（议题 #240） |
 | `mcp` | 以 stdio 运行 MCP server；`--list-tools` 只打印工具清单 |
 
 `fetch` 是配置面（代理 / 离线 / 超时）的最小可验证载体：
 它在发出请求前检查 `offline`，并把解析后的代理与超时交给取回层。
 
-### 7.1 `cookies storage-state`（议题 #240）
+### 8.1 `cookies storage-state`（议题 #240）
 
 ~~~bash
 # 显式目标域：只导出 example.com 及其子域的 cookie / origin
@@ -184,7 +221,7 @@ webctl cookies storage-state --file state.json --yes
   `cookies` / `origins` 计数，不含任何 cookie 值；文件本身保留原值供 Playwright 复用。
 - **兼容性**：既有 `cookies list` / `cookies export` 的参数、行为与退出码保持不变。
 
-## 8. 越界说明
+## 9. 越界说明
 
 本文件描述的范围是 PR 10 落地的配置与 CLI 行为。会话状态持久化（state dir 文件锁、
 TTL、损坏恢复）属议题 #34；能力开关、MCP 工具面分别属其他议题。

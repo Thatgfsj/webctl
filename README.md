@@ -112,7 +112,7 @@ GitHub Actions 的 ubuntu / macOS / Windows 镜像**自带**上述依赖，无�
 
 ## 配置与 CLI
 
-CLI 配置按 **CLI 参数 > 环境变量 > 配置文件 > 内置默认** 合并。代理只认 `WEBCTL_PROXY` / 配置文件 `proxy`；宿主 `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` 一律忽略，未配置即直连。JSON 输出恒为单行，错误码 → 退出码为稳定映射。
+CLI 配置按 **CLI 参数 > 环境变量 > 配置文件 > 内置默认** 合并。代理只认 `WEBCTL_PROXY` / 配置文件 `proxy`；宿主 `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` 一律忽略，未配置即直连。默认拒绝 loopback / 私网 / 链路本地 / 组播 / 未指定 / CGNAT / 保留地址与云 metadata（SSRF 地址守卫，逐跳校验，`BLOCKED` 退出码 5）；本地联调需显式 `WEBCTL_ALLOW_PRIVATE_NETWORK=1`。JSON 输出恒为单行，错误码 → 退出码为稳定映射。
 
 ~~~bash
 webctl caps --json
@@ -125,6 +125,14 @@ webctl cookies storage-state --file state.json --domain example.com --yes
 ~~~
 
 子命令：`caps` / `fetch` / `config` / `cookies`（`list` / `export` / `storage-state`）/ `mcp`；环境变量清单、子命令语义、配置文件格式与完整退出码表见 [docs/CONFIGURATION.md](docs/CONFIGURATION.md)。
+
+## 安全边界（必须知道）
+
+- **SSRF 地址守卫（默认开启）**：拒绝 loopback / 私网 / 链路本地 / 组播 / 未指定 / CGNAT / 保留地址与云 metadata；被拒返回 `BLOCKED`（退出码 5）且**不向目标发请求**，重定向**逐跳**校验。放行只能显式设置 `WEBCTL_ALLOW_PRIVATE_NETWORK=1`（或配置文件 `allow_private_network = true`），且 **metadata `169.254.169.254` / `[fd00:ec2::254]` 永远不会被该开关放行**。细节见 [docs/CONFIGURATION.md §5](docs/CONFIGURATION.md)。
+- **不防 DNS rebinding**：预检用系统解析器，真实连接由 `wreq` 再解析一次；需要更强保证请用网络层 egress 隔离。
+- **代理**：只在显式配置时使用（`WEBCTL_PROXY` / 配置文件 `proxy` / `--proxy`）；经代理时守卫只校验目标主机，不校验代理由谁提供。
+- **诚实降级**：JS 依赖页面返回 `DEGRADED`（附原因），不伪造"成功但 0 条"；被反爬拦截即 `BLOCKED`，不承诺绕过。
+- **凭据**：代理 userinfo 在任何输出中掩码；`Set-Cookie` / `Authorization` 等敏感头在 CLI 输出里替换为 `<redacted>`；浏览器上下文的 cookie 不落盘、不进信封、`Debug` 只输出条数。
 
 ## 发布与体积基线
 
