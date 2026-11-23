@@ -100,6 +100,11 @@ pub struct EmbeddedReport {
     /// 被 robots 拦下的通道保留原因且**未发请求**。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub feed_channels: Option<Vec<crate::channels::FetchedChannel>>,
+    /// **实际取回**的 sitemap 条目（`embedded_data` 的 `fetch_sitemap=true` 才有；默认 None）。
+    ///
+    /// 只列 URL，**不抓取这些页面**；robots.txt 声明的 `Sitemap:` 优先。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sitemap: Option<crate::channels::FetchedSitemap>,
 }
 
 /// 从 HTML 中抽取内嵌结构化数据。
@@ -175,6 +180,7 @@ pub fn extract_embedded(html: &str, options: &EmbeddedOptions) -> Envelope<Embed
         metadata,
         channels,
         feed_channels: None,
+        sitemap: None,
     };
 
     // 找到容器但一条也没解析成功 → 这是真正的 PARSE（不是"零结果"）。

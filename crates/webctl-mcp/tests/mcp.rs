@@ -413,6 +413,7 @@ fn embedded_data_schema_declares_only_wired_parameters() {
         props,
         vec![
             "fetch_channels",
+            "fetch_sitemap",
             "html",
             "include_inline_state",
             "max_entries",

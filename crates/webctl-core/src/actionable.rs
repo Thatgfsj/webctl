@@ -79,6 +79,13 @@ pub const PLANS: &[(&str, Plan)] = &[
         },
     ),
     (
+        "sitemap-fetch-failed",
+        Plan {
+            reason: "sitemap-unavailable",
+            next_steps: &["robots", "fetch"],
+        },
+    ),
+    (
         "search-partial",
         Plan {
             reason: "search-partial",
