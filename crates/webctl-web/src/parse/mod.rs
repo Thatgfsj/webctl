@@ -26,6 +26,7 @@ pub mod forms;
 pub mod html;
 pub mod links;
 pub mod site_channels;
+pub mod sitemap;
 pub mod structured;
 pub mod tables;
 
@@ -37,6 +38,7 @@ pub use links::{Link, extract_links};
 pub use site_channels::{
     Channel, ChannelKind, MetadataEntry, SiteMetadata, discover_channels, site_metadata,
 };
+pub use sitemap::{SitemapDoc, SitemapKind, parse_sitemap};
 pub use structured::{Parsed, PlainText, Structured, parse_body, parse_json, parse_xml};
 pub use tables::{Table, TableCell, extract_tables};
 

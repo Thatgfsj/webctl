@@ -1,4 +1,4 @@
-//! embedded_data 工具（#114 内嵌结构化数据 / #117 第 2 步可选取回站点通道）。
+//! embedded_data 工具（#114 内嵌结构化数据 / #117 第 2 步 / #196 第 3 步）。
 //!
 //! 单独成模块：dispatch.rs 已接近 1000 行上限（仓库硬规则）。
 
@@ -17,7 +17,7 @@ use crate::dispatch::{apply_render_degradation, parse, resolve_source, to_value}
 /// embedded_data：抽取页面内嵌的结构化数据。
 ///
 /// 零 JS 执行：只解析 HTML 里已经存在的 JSON 载荷（JSON-LD / script[type=json] /
-/// 内联状态 / data-page）。语义与 `webctl_web::parse::extract_embedded` 一致：
+/// 内联状态 / data-page）。语义与 webctl_web::parse::extract_embedded 一致：
 /// 零结果是合法的空结果，容器在但全部解析失败才是 PARSE。
 pub(crate) async fn tool_embedded_data(ctx: &McpContext, args: &Value) -> Value {
     let params = match parse::<EmbeddedDataParams>(args) {
@@ -39,7 +39,9 @@ pub(crate) async fn tool_embedded_data(ctx: &McpContext, args: &Value) -> Value 
         options.include_inline_state = value;
     }
     let mut envelope = extract_embedded(&source.html, &options);
-    // #117 第 2 步：可选取回页面声明的 RSS/Atom（默认关，显式 opt-in；一律过 politeness）。
+
+    // #117 第 2 步 / #196：可选取回页面声明的通道（默认关，显式 opt-in；一律过 politeness）。
+    let mut channel_failed = false;
     if params.fetch_channels.unwrap_or(false)
         && let Some(report) = envelope.data.as_mut()
     {
@@ -60,7 +62,8 @@ pub(crate) async fn tool_embedded_data(ctx: &McpContext, args: &Value) -> Value 
                     status: webctl_web::channels::ChannelStatus::Unavailable,
                     title: None,
                     items: Vec::new(),
-                    note: "html 输入没有基准 URL，无法解析 feed 地址".to_owned(),
+                    oembed: None,
+                    note: "html 输入没有基准 URL，无法解析通道地址".to_owned(),
                 })
                 .collect()
         };
@@ -74,15 +77,44 @@ pub(crate) async fn tool_embedded_data(ctx: &McpContext, args: &Value) -> Value 
             .iter()
             .filter(|channel| matches!(channel.status, webctl_web::channels::ChannelStatus::Hit))
             .count();
-        let all_failed = attempted > 0 && hits == 0;
+        channel_failed = attempted > 0 && hits == 0;
         report.feed_channels = Some(fetched);
-        if all_failed {
-            let elapsed = envelope.meta.elapsed_ms;
-            let report = envelope.data.expect("checked above");
-            // 全失败：显式降级并带可行动信息（原因码表见 webctl_core::actionable）。
-            envelope =
-                Envelope::degraded(report, "channel-fetch-failed", ErrorCode::Degraded, elapsed);
-        }
     }
+
+    // #196 第 3 步：sitemap 条目发现（默认关；只列 URL，不抓取这些页面）。
+    let mut sitemap_failed = false;
+    if params.fetch_sitemap.unwrap_or(false)
+        && let Some(report) = envelope.data.as_mut()
+    {
+        let sitemap = match params.url.as_deref().and_then(|url| Url::parse(url).ok()) {
+            Some(url) => {
+                let fetcher = PoliteFetcher::new(PolitenessConfig::default(), ctx.fetch_options());
+                webctl_web::channels::fetch_sitemap(&url, &fetcher).await
+            }
+            None => webctl_web::channels::FetchedSitemap::unavailable(
+                "html 输入没有基准 URL，无法定位 sitemap",
+            ),
+        };
+        sitemap_failed = matches!(
+            sitemap.status,
+            webctl_web::channels::ChannelStatus::Unavailable
+                | webctl_web::channels::ChannelStatus::Blocked
+        );
+        report.sitemap = Some(sitemap);
+    }
+
+    if channel_failed || sitemap_failed {
+        let from = match (channel_failed, sitemap_failed) {
+            (true, true) => "channel-fetch-failed,sitemap-fetch-failed",
+            (true, false) => "channel-fetch-failed",
+            (false, true) => "sitemap-fetch-failed",
+            (false, false) => unreachable!("外层条件已排除"),
+        };
+        let elapsed = envelope.meta.elapsed_ms;
+        let report = envelope.data.expect("上方已确认 data 存在");
+        // 全失败：显式降级并带可行动信息（原因码表见 webctl_core::actionable）。
+        envelope = Envelope::degraded(report, from, ErrorCode::Degraded, elapsed);
+    }
+
     apply_render_degradation(to_value(envelope), source.render.as_ref())
 }

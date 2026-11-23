@@ -580,12 +580,14 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 > `engine_limit_bytes: null` 与 `enforced_by: "host"`，测试断言这两项。
 > 归属校验用 `cargo metadata` 依赖图（不 grep 清单，避免缩进/子表/重命名绕过）。
 
-### 6.8e #117 站点级通道与元数据（`parse/site_channels.rs`，第 1 步）
+### 6.8e #117 站点级通道与元数据（第 1–3 步；#196 增 oEmbed/sitemap）
 
 - `crates/webctl-web/src/parse/feed.rs` 单元 **5 条**（#117 第 2 步）：`parses_rss_items_in_order`、`parses_atom_links_via_href`（Atom 的 `link href`）、`unknown_document_is_empty_with_note`、`empty_feed_is_not_an_error`、`entity_decoded_once`。
-- `crates/webctl-web/src/channels.rs` 单测 **2 条**：状态序列化、`oembed_is_skipped_without_network`（oEmbed 只报声明、不拉取）。
+- `crates/webctl-web/src/channels.rs` 单测 **1 条**：`oembed_fields_are_whitelisted_and_empty_is_empty`（只收白名单标量；`html`/未登记字段丢弃，全缺失是空结果而不是猜一个）。
 - `crates/webctl-mcp/tests/channel_fetch.rs` **5 条**（#117 第 2 步接线，纯本地 fixture）：`feed_channels_are_off_by_default`（默认 **零请求**）、`feed_channels_opt_in_parses_rss`（取回并解析条目；**og:title 只作为 og-meta 元数据条目**，不冒充正文）、`feed_channels_opt_in_parses_atom`、`robots_disallow_blocks_feed_without_request`（**requests==0** 且 status=blocked）、`all_channels_failing_degrades_explicitly`（全失败 → `DEGRADED` + `channel-fetch-failed` + `feed-unavailable`）。
-- `crates/webctl-web/src/parse/site_channels.rs` 单元 **11 条**（议题 [#117](https://github.com/Thatgfsj/webctl/issues/117) 第 1 步，**尚未接线**）：
+- `crates/webctl-web/src/parse/sitemap.rs` 单元 **2 条**（#196 第 3 步，纯离线）：`urlset_locs_are_ordered_deduped_and_decoded`（保序/去重/实体还原、相对地址不收）、`structure_limits_and_tag_boundaries_are_explicit`（index 识别、认不出不是错误、超上限显式 `truncated`、`<location>` 不误匹配 `<loc>`）。
+- `crates/webctl-mcp/tests/channel_fetch.rs` **5 条**（#196 第 3 步，纯本地 fixture）：`oembed_is_limited_to_whitelisted_fields`（JSON 只留白名单标量，`html`/未登记字段丢弃；HTML 型只取 `<title>`/摘要，正文不进入结果）、`oembed_robots_blocks_without_request`（**requests==0** 且 `status=blocked` → `channel-fetch-failed`/`feed-unavailable`）、`sitemap_is_off_by_default_and_blocked_when_disallowed`（默认 **sitemap+robots 零请求**且不返回字段；opt-in 被 robots 禁止时零请求 → `sitemap-fetch-failed`/`sitemap-unavailable`）、`sitemap_opt_in_prefers_robots_declaration`（robots 的 `Sitemap:` 优先，`/sitemap.xml` 零请求）、`sitemap_index_is_recursed`（index 子文档被取回、只列 URL、页面零请求）。
+- `crates/webctl-web/src/parse/site_channels.rs` 单元 **11 条**（议题 [#117](https://github.com/Thatgfsj/webctl/issues/117) 第 1 步，已由 `fetch_channels` 接线）：
   `metadata_carries_an_explicit_source`（**每条元数据带 `source`**，据此区分"元数据"与"正文"——验收要求）、
   `channels_are_discovered_in_document_order`（rss/atom/oembed 保文档序）、
   `empty_page_yields_empty_not_error`（找不到就是**空**，不是错误）、

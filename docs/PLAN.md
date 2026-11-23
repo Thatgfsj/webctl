@@ -173,7 +173,7 @@ v0.3 的 aria ref 依赖"最近一次快照"的 live 页面，**在无浏览器�
 | 10 | `cookies` | 查看/导出 cookie（导出需 `--yes`、权限 600、值脱敏） |
 | 11 | `json_query` | 内置 JSON 查询子集（替代 `jq`）；以 URL 为输入时**继承上游降级**（#125） |
 | 12 | `doc_text` | PDF / HTML / XML 文本层提取（替代 `pdftotext`/`pandoc`）；以 URL 为输入时**继承上游降级**（#125） |
-| 13 | `embedded_data` | 页面**内嵌**结构化数据抽取（JSON-LD / `script[type=json]` / 框架状态容器 / `data-page`），**零 JS 执行**（0.1.2，[#114](https://github.com/Thatgfsj/webctl/issues/114)）；**可选取回**页面声明的 RSS/Atom（`fetch_channels=true`，默认关；过 politeness，robots 拦下不请求；#117） |
+| 13 | `embedded_data` | 页面**内嵌**结构化数据抽取（JSON-LD / `script[type=json]` / 框架状态容器 / `data-page`），**零 JS 执行**（0.1.2，[#114](https://github.com/Thatgfsj/webctl/issues/114)）；**可选取回**页面声明的 RSS/Atom/oEmbed（`fetch_channels=true`，默认关；过 politeness，robots 拦下不请求；oEmbed 只保留白名单字段，HTML 型只取标题/摘要；#117/#196）；**可选**解析 sitemap 条目（`fetch_sitemap=true`，默认关；robots 声明的 `Sitemap:` 优先，只列 URL 不抓取页面；#196） |
 | 14 | `download` | 文件下载到指定目录（尺寸上限、类型白名单、落盘路径）；以 URL 为输入时**继承上游降级**（#125） |
 | 15 | `robots` | robots.txt 与站点策略查询（礼貌爬取依据；含 `Sitemap:` 声明清单） |
 | 16 | `resolve_site` | 站点名 → 入口候选（L1 内置映射/域名直推 + L2 站点内建搜索 + L3 Wikidata P856 + L4 sitemap 声明 + **显式 opt-in** 的 L5 SERP 兜底；多候选 + 证据 + 置信度，**绝不单选**；offline 时只走 L1） |
@@ -375,7 +375,7 @@ v0.3 的锚点（JS 页必须拿到 10 条）**作废**。v0.4 的锚点：
 7. `resolve_site` 的 **L3（Wikidata P856）与 L4（robots.txt 的 `Sitemap:` 声明）已落地**（2026-10-25）；**L2 站点内建搜索也已落地**（2026-10-25：模板表 24 条、每次最多探测 2 个站点、robots 拦下不请求），0.2 的 L1–L5 通道全部就位；L5 已落地（`allow_serp_fallback` **默认 false**、显式 opt-in、结果不跨可靠阈值）；`hint_domain` / `channels` **仍未进 schema**（声明必须等于实现）；L2/L3/L5 在真实站点上的命中率**未验证**。
 8. ~~浏览器上下文：CLI 开关与两处未注入路径~~ **已完成**（2026-10-27，议题 #183）：`--browser-context` / `--no-browser-context` 已落地（互斥、显式优于环境变量、坏文件硬失败）；`fill_form` 的表单提交（`SessionEngine::send`）与 CLI `fetch` 均已注入，规则与 MCP 一致（SEC-06 跨源不带凭据 + 去重优先级）。**仍未验证**的是第 9 条（真实设备浏览器的 cookie 导出格式 / 新版 Chrome COOKIES 加密）。
 9. 真实设备浏览器的 cookie 导出格式（含新版 Chrome 的 COOKIES 加密）**未验证**。
-10. 站点级通道（RSS/Atom，`embedded_data` 的 `fetch_channels`）**真实站点命中率未统计**：离线 fixture 只证明机制与逐通道如实报告；不少站点只声明 feed 而实际 404、或被 robots 禁止。
+10. 站点级通道（RSS/Atom/oEmbed 的 `fetch_channels`，sitemap 条目的 `fetch_sitemap`）**真实站点命中率未统计**：离线 fixture 只证明机制与逐通道如实报告；不少站点只声明 feed/oEmbed 而实际 404、或被 robots 禁止；sitemap 条目发现也只在 fixture 上验证过（robots 的 `Sitemap:` 解析已落地）。
 11. **0.2.2 全网搜索**（`web_search`）：默认走 Bing 的 HTML SERP（用户 2026-11-01 决策：搜索优先、合规其次），每次请求前加 **50–500ms 随机抖动**，LLM 摘要**必须回原始链接核对**（**摘要暂缓**：Bing 的 AI 摘要依赖缓存命中、纯 HTML 取回不可稳定复现，0.2.2 不返回摘要，`llm_summary` 恒 null）；Bing/Mojeek/Marginalia/Baidu/360/Yandex 的 robots 均禁止搜索路径，本网络下没有「可达 + robots 允许」的免 key 通道——该事实与里程碑见 [ROADMAP-0.2.2](ROADMAP-0.2.2.md)，取舍与边界见 [ADR-0008](adr/0008-search-channel.md)。
 
 ---

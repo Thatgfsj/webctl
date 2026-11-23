@@ -245,10 +245,15 @@ pub struct EmbeddedDataParams {
     pub max_entry_bytes: Option<usize>,
     /// 是否抽取内联状态赋值（window.__NUXT__ 这类）；默认 true。
     pub include_inline_state: Option<bool>,
-    /// 是否**取回**页面声明的 RSS/Atom 通道（默认 false；只处理 rss/atom，oEmbed 只报声明）。
+    /// 是否**取回**页面声明的 RSS/Atom/oEmbed 通道（默认 false；每次最多 2 个，oEmbed 也占通道预算）。
     ///
     /// 取回一律过 politeness：robots 不允许就不请求（结果里 `status=blocked` 且保留原因）。
     pub fetch_channels: Option<bool>,
+    /// 是否**取回并解析**站点的 sitemap 以发现条目 URL（默认 false）。
+    ///
+    /// robots.txt 声明的 `Sitemap:` 优先，否则尝试 `/sitemap.xml`；有递归层数与条目上限。
+    /// **只列 URL，不抓取这些页面**；robots 不允许的 sitemap 不请求。
+    pub fetch_sitemap: Option<bool>,
 }
 
 /// download：文件下载到指定目录。
