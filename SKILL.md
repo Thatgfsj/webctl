@@ -12,7 +12,7 @@ description: 纯内置的网页取回/解析/抽取 MCP server（零外部进程
 
 <!-- tools:start -->
 - `fetch` — 取回 http(s) URL：状态、头、重定向链、内容或落盘路径。
-- `extract` — 用 CSS 选择器抽取元素，返回结构化命中；零命中是合法空结果。
+- `extract` — 用 CSS 选择器抽取元素（返回结构化命中），或用 `fields` schema 一次抽多字段：`{"字段名": {"selector": "h1", "attr": "src", "all": true}}`（`attr` 缺省取文本、`all=true` 返回数组）。两者至少给一个，同给则合并结果；**单个字段失败只进 `data.diagnostics`**，不中断整个调用；零命中是合法空结果（`all=true` 为 `[]`，`all=false` 为 `null`）。
 - `search` — 页面内文本/正则搜索，返回命中位置与上下文。
 - `links` — 链接清单：绝对化与 rel/域名/正则过滤。
 - `tables` — 表格结构化：行列与跨行跨列语义确定。

@@ -170,7 +170,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 | STATE-09 | 清理命令 | 清理只删自己的会话，不影响其他会话 | L0 | PR 05 |
 | STATE-10 | 无凭据泄漏 | 会话文件权限与内容都不含明文密码（只存 cookie/令牌） | L0+L3 | PR 12 |
 
-### 2.7 EXTRACT — 抽取与选择器（17）
+### 2.7 EXTRACT — 抽取与选择器（19）
 
 前置：结构复杂的 fixture 站（嵌套、重复、动态 class、shadow-free）。
 
@@ -194,6 +194,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 | EXTRACT-16 | 不落原文 | 结果里不夹带无法审计的二进制/原始字节 | L0 | PR 06 |
 | EXTRACT-17 | 灾难性输入 | 超长/恶意选择器不导致 CPU 爆炸（有超时与复杂度上限） | L0 | PR 06 |
 | EXTRACT-18 | 正文文本 | 扁平文本流与命中文本跳过 script/style/template，保留 noscript（#188） | L0 | #188 |
+| EXTRACT-19 | `fields` schema | 字段名 → `{selector, attr, all}`：单字段失败只进 `data.diagnostics`，缺字段为 `null`（`all=true` 为 `[]`），空 schema/全部非法为 `PARSE`，截断为 `LIMIT` + `fields-truncated`；不带 `fields` 时输出不变 | L0 | #193 |
 
 ### 2.8 FORM — 表单填写与提交（12）
 
@@ -465,6 +466,17 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 - **FORM-09**：\`form_09_multi_form_selection\`
 - **A6 五码互异（补充）**：\`extract_outcomes_have_distinct_codes\`
 - **EXTRACT-17 / EXTRACT-08 预算兜底（PR #71 修复）**：\`extract_17_zero_hit_large_page_over_budget_times_out\`、\`extract_17_zero_hit_parse_over_budget_times_out\`、\`extract_17_zero_hit_within_budget_stays_ok_empty\`、\`extract_17_search_zero_hit_over_budget_times_out\`、\`extract_17_deep_descendant_scan_is_bounded\`、\`extract_08_search_advance_matches_regex_iter\`
+
+### 6.7.1 `extract.fields`（议题 #193）
+
+工具面**仍是 18 个**：`extract` 增加可选 `fields`，`selector` 由必填改为「与 `fields` 至少给一个」。
+三层验收（全部离线：零外网、零子进程）：
+
+- `crates/webctl-web/tests/extract_fields.rs` **18 条**：`fields_01_h1_text_is_collapsed_and_first_match_only`、`fields_02_all_returns_document_order_array`、`fields_03_img_src_attribute`、`fields_04_zero_hits_is_null_with_diagnostic`、`fields_05_zero_hits_all_is_empty_array`、`fields_06_invalid_selector_is_field_diagnostic`、`fields_07_all_invalid_is_parse_failure`、`fields_08_empty_declaration_is_parse_failure`、`fields_09_too_many_fields_is_parse_failure`、`fields_10_invalid_name_and_attribute_diagnostics`、`fields_11_missing_attribute_keeps_null_slots`、`fields_12_truncation_is_limit_degradation`、`fields_13_non_html_body_is_unsupported`、`fields_14_values_serialize_to_plain_json`、`fields_15_selector_output_matches_legacy_path`（**既有 `select_matches` 输出不变**）、`fields_16_zero_budget_is_timeout`、`fields_17_stability_and_trust`、`fields_18_all_blocked_is_blocked`。
+- `crates/webctl-mcp/tests/extract_fields.rs` **9 条**（进程内 `invoke`；输入是 `html` 参数或 127.0.0.1 fixture）：`fields_schema_declares_only_wired_parameters`（**声明=实现**：`extract` 的 inputSchema 只有 7 个已接线参数，`selector` 不再是 required，`fields` 是对象且含 `selector`/`attr`/`all`）、`fields_selector_only_output_is_unchanged`（**不带 `fields` 时输出逐字不变**，不凭空多出 `fields`/`diagnostics`）、`fields_only_returns_schema_values`、`fields_and_selector_merge`、`fields_missing_target_is_parse_error`（且在取回之前拦下，不会先拿到 NETWORK）、`fields_declaration_errors_are_parse`、`fields_on_non_html_url_is_unsupported`、`fields_truncation_is_limit`、`fields_merge_keeps_selector_degradation_reason`。
+- `crates/webctl-mcp/src/extract_tool.rs` 单元 **6 条**：`merge_fields` / `carry_fields_degradation` 的合并语义（selector 失败优先、fields 整体失败优先、两侧都成功时字段与诊断挂到 `data`、两侧都降级时保留 selector 的来源码、`data` 非对象时不 panic）。
+
+语义边界（与实现一一对应）：单字段失败只写 `data.diagnostics`（`invalid-name` / `invalid-selector` / `blocked-selector` / `zero-matches` / `missing-attribute` / `invalid-attribute` / `truncated`），**不**使整个请求失败；只有空 schema 或**全部**字段非法才是 `PARSE`，全部被选择器守卫拒绝是 `BLOCKED`，`all=true` 被 `max_results` 截断是 `LIMIT` + `degraded_from="fields-truncated"`（已在 `webctl_core::actionable` 登记，`degrade_reasons.rs` 机械核对）。
 
 ### 6.8 PR 09 降级语义（议题 #38）
 
