@@ -320,7 +320,7 @@ v0.3 的锚点（JS 页必须拿到 10 条）**作废**。v0.4 的锚点：
 
 | 条款 | 出处 |
 |---|---|
-| PR 必须关联 issue，且先在 issue 领取，否则不通过 | dsh-ops `docs/CONTRIBUTING.md` |
+| PR 必须关联 issue，且先在 issue 领取，否则不通过 | 本项目 [CONTRIBUTING.md](../CONTRIBUTING.md) §1 |
 | feat 前先写 issue，维护团队批准后再动手 | 同上 |
 | 联动层单开逻辑区域，与核心完全解耦 | 同上 |
 | 拆分独立变更；修复落在引入它的那个 PR | DSH `AGENTS.md` |
