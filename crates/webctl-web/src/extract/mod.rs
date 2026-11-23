@@ -34,6 +34,7 @@ use webctl_core::{Envelope, ErrorCode, Trust};
 
 use crate::parse::elapsed_ms;
 
+pub mod adaptive;
 pub mod context;
 pub mod fields;
 pub mod links;
