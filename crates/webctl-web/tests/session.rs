@@ -59,7 +59,10 @@ async fn sess_02_not_logged_in_is_session_lost() {
 async fn sess_03_cookie_persists_across_engines() {
     let site = Site::start().await;
     let store = temp_store("sess03");
-    let first = SessionEngine::with_store("default", store.clone()).expect("first");
+    let first = SessionEngine::with_store("default", store.clone())
+        .expect("first")
+        // #191：夹具只连 127.0.0.1。
+        .with_private_network_allowed(true);
     assert!(
         first
             .login(&site.url("/login"), None, &credentials())
@@ -68,7 +71,10 @@ async fn sess_03_cookie_persists_across_engines() {
     );
     first.save_state(&[]).expect("save state");
 
-    let mut second = SessionEngine::restore("default", store).expect("second");
+    let mut second = SessionEngine::restore("default", store)
+        .expect("second")
+        // #191：夹具只连 127.0.0.1。
+        .with_private_network_allowed(true);
     let env = second.fetch_authenticated(&site.url("/dashboard")).await;
     assert!(env.ok, "{}", env.error);
     assert!(env.data.expect("data").html.contains("Welcome alice"));
@@ -249,7 +255,10 @@ async fn sess_10_spa_degrades() {
 async fn sess_11_export_import_session_state() {
     let site = Site::start().await;
     let store = temp_store("sess11");
-    let first = SessionEngine::with_store("default", store.clone()).expect("first");
+    let first = SessionEngine::with_store("default", store.clone())
+        .expect("first")
+        // #191：夹具只连 127.0.0.1。
+        .with_private_network_allowed(true);
     assert!(
         first
             .login(&site.url("/login"), None, &credentials())
@@ -261,7 +270,10 @@ async fn sess_11_export_import_session_state() {
     let imported = webctl_web::session::SessionState::import_json(&json).expect("import");
     assert_eq!(imported.cookies.len(), state.cookies.len());
 
-    let mut second = SessionEngine::with_store("default", store).expect("second");
+    let mut second = SessionEngine::with_store("default", store)
+        .expect("second")
+        // #191：夹具只连 127.0.0.1。
+        .with_private_network_allowed(true);
     second.import_state(&imported);
     let env = second.fetch_authenticated(&site.url("/dashboard")).await;
     assert!(env.ok, "{}", env.error);

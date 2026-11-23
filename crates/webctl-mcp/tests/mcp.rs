@@ -661,6 +661,8 @@ async fn js_render_on_extracts_content_from_script_only_page() {
     let config = Config {
         state_dir: temp_dir("js-on"),
         js_render: JsRenderMode::On,
+        // #191：fixture 只连 127.0.0.1，显式放行地址守卫。
+        allow_private_network: true,
         ..Config::default()
     };
     let mcp = WebctlMcp::new(McpContext::unbound(config));
@@ -694,6 +696,8 @@ async fn js_render_auto_does_not_render_static_page() {
     let config = Config {
         state_dir: temp_dir("js-auto-static"),
         js_render: JsRenderMode::Auto,
+        // #191：fixture 只连 127.0.0.1，显式放行地址守卫。
+        allow_private_network: true,
         ..Config::default()
     };
     let mcp = WebctlMcp::new(McpContext::unbound(config));
@@ -728,11 +732,15 @@ async fn js_render_auto_renders_shell_once_and_matches_on() {
     let auto = WebctlMcp::new(McpContext::unbound(Config {
         state_dir: temp_dir("js-auto-shell"),
         js_render: JsRenderMode::Auto,
+        // #191：fixture 只连 127.0.0.1，显式放行地址守卫。
+        allow_private_network: true,
         ..Config::default()
     }));
     let on = WebctlMcp::new(McpContext::unbound(Config {
         state_dir: temp_dir("js-on-shell"),
         js_render: JsRenderMode::On,
+        // #191：fixture 只连 127.0.0.1，显式放行地址守卫。
+        allow_private_network: true,
         ..Config::default()
     }));
     let args = json!({"url": server.url("/js"), "selector": "div.quote"});
@@ -768,6 +776,8 @@ async fn js_render_auto_renders_shell_for_resolve_source_tools() {
     let config = Config {
         state_dir: temp_dir("js-auto-links"),
         js_render: JsRenderMode::Auto,
+        // #191：fixture 只连 127.0.0.1，显式放行地址守卫。
+        allow_private_network: true,
         ..Config::default()
     };
     let mcp = WebctlMcp::new(McpContext::unbound(config));
@@ -790,6 +800,8 @@ async fn js_render_failure_is_degraded_not_silent_success() {
     let config = Config {
         state_dir: temp_dir("js-loop"),
         js_render: JsRenderMode::On,
+        // #191：fixture 只连 127.0.0.1，显式放行地址守卫。
+        allow_private_network: true,
         ..Config::default()
     };
     let mcp = WebctlMcp::new(McpContext::unbound(config));
@@ -1014,7 +1026,8 @@ async fn mcp_deg_code_matches_library_on_same_input() {
     ])
     .await;
     let mcp = WebctlMcp::new(in_process_context("deg-consistency"));
-    let fetch_options = webctl_web::transport::FetchOptions::default();
+    let fetch_options =
+        webctl_web::transport::FetchOptions::default().with_private_network_allowed(true);
     let extract_options = webctl_web::extract::ExtractOptions::default();
     let search_options = webctl_web::extract::SearchOptions::default();
     let selector = "div.quote";

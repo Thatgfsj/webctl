@@ -121,6 +121,13 @@ pub struct Config {
     /// 注意：策略只表示"调用方愿意"，引擎是否真的**已接线**由 `caps` 的 `js.wired` 如实报告
     /// （两者分开，是为了不出现"配置说开着、实际没执行"这种假象）。
     pub js_render: JsRenderMode,
+    /// 是否放行私网 / 回环 / 链路本地等非公网地址（SSRF 守卫，#191）。
+    ///
+    /// **默认 `false`**：默认拒绝 loopback、RFC1918 私网、链路本地、组播、未指定、
+    /// CGNAT、保留地址与云 metadata（`169.254.169.254` / `[fd00:ec2::254]`），
+    /// 且每次重定向都重新校验。放行只服务于可信的本地联调；
+    /// 云 metadata 端点**即使开启也始终拒绝**。
+    pub allow_private_network: bool,
 }
 
 impl Default for Config {
@@ -134,6 +141,7 @@ impl Default for Config {
             min_interval_ms: 1_000,
             proxy: None,
             js_render: JsRenderMode::Off,
+            allow_private_network: false,
         }
     }
 }
@@ -172,6 +180,9 @@ pub struct ConfigLayer {
     /// 页面脚本执行策略（默认 `off`；兼容旧布尔值）。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub js_render: Option<JsRenderMode>,
+    /// 是否放行私网/回环地址（默认关闭；SSRF 守卫，#191）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub allow_private_network: Option<bool>,
 }
 
 impl ConfigLayer {
@@ -191,6 +202,9 @@ impl ConfigLayer {
         }
         if let Some(value) = self.js_render {
             config.js_render = value;
+        }
+        if let Some(value) = self.allow_private_network {
+            config.allow_private_network = value;
         }
     }
 
@@ -214,6 +228,9 @@ impl ConfigLayer {
         }
         if let Some(raw) = env_value(&get, ENV_JS_RENDER) {
             layer.js_render = Some(parse_js_render(ENV_JS_RENDER, &raw)?);
+        }
+        if let Some(raw) = env_value(&get, ENV_ALLOW_PRIVATE_NETWORK) {
+            layer.allow_private_network = Some(parse_bool(ENV_ALLOW_PRIVATE_NETWORK, &raw)?);
         }
         // 只有 webctl 专用变量才开启代理；宿主 HTTP(S)_PROXY 一律忽略（见模块文档）。
         if let Some(raw) = env_value(&get, ENV_PROXY)
@@ -299,11 +316,13 @@ pub const ENV_OFFLINE: &str = "WEBCTL_OFFLINE";
 pub const ENV_PROXY: &str = "WEBCTL_PROXY";
 /// 是否执行页面内联脚本（默认关闭）。
 pub const ENV_JS_RENDER: &str = "WEBCTL_JS_RENDER";
+/// 是否放行私网/回环地址（**默认关闭**；仅供可信本地联调，#191）。
+pub const ENV_ALLOW_PRIVATE_NETWORK: &str = "WEBCTL_ALLOW_PRIVATE_NETWORK";
 
 /// webctl 读取的全部环境变量（CLI-11：必须在 --help 与文档中列出）。
 ///
 /// 注意不包含 HTTP_PROXY / HTTPS_PROXY / ALL_PROXY：宿主代理不会被采用。
-pub const ENV_VARS: [&str; 10] = [
+pub const ENV_VARS: [&str; 11] = [
     ENV_CONFIG,
     ENV_STATE_DIR,
     ENV_OUTPUT,
@@ -311,6 +330,7 @@ pub const ENV_VARS: [&str; 10] = [
     ENV_OFFLINE,
     ENV_PROXY,
     ENV_JS_RENDER,
+    ENV_ALLOW_PRIVATE_NETWORK,
     "XDG_CONFIG_HOME",
     "HOME",
     "USERPROFILE",
@@ -482,6 +502,10 @@ mod tests {
             JsRenderMode::Off,
             "默认不执行页面脚本（ADR-0005）"
         );
+        assert!(
+            !config.allow_private_network,
+            "默认拒绝私网/回环地址（SSRF 守卫，#191）"
+        );
         assert!(config.state_dir.is_absolute() || config.state_dir.ends_with(".webctl"));
     }
 
@@ -599,6 +623,29 @@ mod tests {
         assert!(bad.is_err(), "非法三态必须报错，不许静默忽略");
     }
 
+    /// #191：私网放行开关默认关闭，只能由环境变量/配置文件显式打开。
+    #[test]
+    fn allow_private_network_defaults_off_and_comes_from_env() {
+        assert!(
+            !Config::default().allow_private_network,
+            "默认必须拒绝私网/回环地址"
+        );
+        let on = ConfigLayer::from_env(env(&[("WEBCTL_ALLOW_PRIVATE_NETWORK", "1")]))
+            .expect("env layer");
+        assert_eq!(on.allow_private_network, Some(true));
+        let off = ConfigLayer::from_env(env(&[("webctl_allow_private_network", "false")]))
+            .expect("env layer");
+        assert_eq!(off.allow_private_network, Some(false));
+        let bad = ConfigLayer::from_env(env(&[("WEBCTL_ALLOW_PRIVATE_NETWORK", "也许")]));
+        assert!(bad.is_err(), "非法取值必须报错，不许静默忽略");
+        let config = resolve(&ConfigLayer::default(), &on, &ConfigLayer::default());
+        assert!(config.allow_private_network, "环境层必须合并进最终配置");
+        assert!(
+            ENV_VARS.contains(&ENV_ALLOW_PRIVATE_NETWORK),
+            "新变量必须进入 ENV_VARS（CLI --help 与文档的单一来源）"
+        );
+    }
+
     /// CLI-03：代理只认 WEBCTL_PROXY；宿主 HTTP(S)_PROXY 必须被忽略（直连）。
     #[test]
     fn proxy_only_comes_from_webctl_proxy() {
@@ -627,6 +674,7 @@ mod tests {
             ("WEBCTL_OUTPUT", "yaml"),
             ("WEBCTL_TIMEOUT_MS", "soon"),
             ("WEBCTL_OFFLINE", "maybe"),
+            ("WEBCTL_ALLOW_PRIVATE_NETWORK", "maybe"),
         ] {
             let error = ConfigLayer::from_env(env(&[(key, value)])).expect_err("must fail");
             assert!(matches!(error, ConfigError::Env { .. }), "{key}");
@@ -659,7 +707,7 @@ mod tests {
         let path = temp_path("valid");
         std::fs::write(
             &path,
-            "output = \"text\"\ntimeout_ms = 42\noffline = true\nproxy = \"http://127.0.0.1:9\"\n",
+            "output = \"text\"\ntimeout_ms = 42\noffline = true\nproxy = \"http://127.0.0.1:9\"\nallow_private_network = true\n",
         )
         .expect("write");
         let layer = load_config_file(&path).expect("parse");
@@ -668,6 +716,7 @@ mod tests {
         assert_eq!(layer.timeout_ms, Some(42));
         assert_eq!(layer.offline, Some(true));
         assert_eq!(layer.proxy.as_deref(), Some("http://127.0.0.1:9"));
+        assert_eq!(layer.allow_private_network, Some(true));
     }
 
     /// CLI-02：语法错误与拼错的键都要有可读错误（含文件路径）。

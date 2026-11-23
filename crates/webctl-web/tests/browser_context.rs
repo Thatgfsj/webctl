@@ -145,7 +145,7 @@ async fn t1_jar_wins_over_context_cookie() {
     let options = FetchOptions {
         cookie_jar: Some(Arc::clone(&jar)),
         browser_context: Some(context()),
-        ..FetchOptions::default()
+        ..FetchOptions::default().with_private_network_allowed(true)
     };
     get(&server, &options).await;
     let cookies = server.values("cookie");
@@ -171,7 +171,7 @@ async fn t2_options_headers_ua_wins() {
     let options = FetchOptions {
         headers: vec![("User-Agent".to_owned(), "explicit/1.0".to_owned())],
         browser_context: Some(context()),
-        ..FetchOptions::default()
+        ..FetchOptions::default().with_private_network_allowed(true)
     };
     get(&server, &options).await;
     let uas = server.values("user-agent");
@@ -186,7 +186,7 @@ async fn t2b_explicit_user_agent_field_wins() {
     let options = FetchOptions {
         user_agent: Some("explicit-field/1.0".to_owned()),
         browser_context: Some(context()),
-        ..FetchOptions::default()
+        ..FetchOptions::default().with_private_network_allowed(true)
     };
     get(&server, &options).await;
     let uas = server.values("user-agent");
@@ -201,7 +201,7 @@ async fn t3_context_injects_when_no_explicit() {
     let server = RawServer::start().await;
     let options = FetchOptions {
         browser_context: Some(context()),
-        ..FetchOptions::default()
+        ..FetchOptions::default().with_private_network_allowed(true)
     };
     get(&server, &options).await;
     assert_eq!(
@@ -232,7 +232,7 @@ async fn t4_none_context_behavior_unchanged() {
         user_agent: Some("explicit-field/1.0".to_owned()),
         headers: vec![("Accept".to_owned(), "application/json".to_owned())],
         browser_context: None,
-        ..FetchOptions::default()
+        ..FetchOptions::default().with_private_network_allowed(true)
     };
     get(&server, &options).await;
     assert_eq!(
@@ -256,7 +256,7 @@ async fn t5_no_over_dedup_of_context_headers() {
     let options = FetchOptions {
         headers: vec![("X-Custom".to_owned(), "1".to_owned())],
         browser_context: Some(context()),
-        ..FetchOptions::default()
+        ..FetchOptions::default().with_private_network_allowed(true)
     };
     get(&server, &options).await;
     assert_eq!(server.values("accept"), vec!["text/html".to_owned()]);
@@ -281,7 +281,7 @@ async fn t5b_explicit_cookie_header_wins() {
     let options = FetchOptions {
         headers: vec![("Cookie".to_owned(), "explicit=1".to_owned())],
         browser_context: Some(context()),
-        ..FetchOptions::default()
+        ..FetchOptions::default().with_private_network_allowed(true)
     };
     get(&server, &options).await;
     let cookies = server.values("cookie");
@@ -296,7 +296,7 @@ async fn t6_empty_jar_falls_back_to_context_cookie() {
     let options = FetchOptions {
         cookie_jar: Some(Arc::new(CookieJar::new())),
         browser_context: Some(context()),
-        ..FetchOptions::default()
+        ..FetchOptions::default().with_private_network_allowed(true)
     };
     get(&server, &options).await;
     let cookies = server.values("cookie");

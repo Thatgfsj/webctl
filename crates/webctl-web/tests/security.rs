@@ -127,7 +127,7 @@ async fn sec_04_envelope_redacts_cookie_and_query_token() {
     });
     let envelope = fetch(
         &server.url(&format!("/page?token={SECRET}&user=bob")),
-        &FetchOptions::default(),
+        &FetchOptions::default().with_private_network_allowed(true),
     )
     .await;
     assert!(envelope.ok, "{}", envelope.error);
@@ -156,7 +156,7 @@ async fn sec_06_cross_origin_redirect_drops_authorization() {
     });
     let options = FetchOptions {
         headers: vec![("Authorization".to_owned(), format!("Bearer {SECRET}"))],
-        ..FetchOptions::default()
+        ..FetchOptions::default().with_private_network_allowed(true)
     };
     let envelope = fetch(&entry.url("/start"), &options).await;
     assert!(envelope.ok, "{}", envelope.error);
@@ -188,7 +188,7 @@ async fn sec_06_same_origin_redirect_keeps_authorization() {
     });
     let options = FetchOptions {
         headers: vec![("Authorization".to_owned(), format!("Bearer {SECRET}"))],
-        ..FetchOptions::default()
+        ..FetchOptions::default().with_private_network_allowed(true)
     };
     let envelope = fetch(&server.url("/start"), &options).await;
     assert!(envelope.ok, "{}", envelope.error);
@@ -350,7 +350,11 @@ async fn sec_15_dangerous_schemes_are_rejected() {
         "data:text/plain,hi",
         "ftp://127.0.0.1/x",
     ] {
-        let envelope = fetch(bad, &FetchOptions::default()).await;
+        let envelope = fetch(
+            bad,
+            &FetchOptions::default().with_private_network_allowed(true),
+        )
+        .await;
         assert!(!envelope.ok, "{bad} 必须失败");
         assert_eq!(envelope.code, ErrorCode::BadUrl, "{bad}");
         assert!(

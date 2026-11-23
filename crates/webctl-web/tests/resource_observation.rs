@@ -15,7 +15,8 @@ use webctl_core::{CapsReport, Config, ErrorCode};
 use webctl_web::transport::{FetchOptions, fetch};
 
 fn options() -> FetchOptions {
-    FetchOptions::default()
+    // #191：夹具只连 127.0.0.1，必须显式放行（默认拒绝回环）。
+    FetchOptions::default().with_private_network_allowed(true)
 }
 
 /// 平台不支持时显式跳过，而不是静默通过。

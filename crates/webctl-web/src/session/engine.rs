@@ -20,7 +20,7 @@ use wreq::redirect::Policy;
 
 use crate::content_type::{self, ContentKind};
 use crate::encoding;
-use crate::transport::{CookieJar, FetchOptions, Fetched, fetch};
+use crate::transport::{AddressGuard, CookieJar, FetchOptions, Fetched, fetch};
 
 use super::csrf;
 use super::form::{self, Form, FormFill};
@@ -135,6 +135,15 @@ impl SessionEngine {
         context: Option<crate::browser_context::BrowserContext>,
     ) -> Self {
         self.options.browser_context = context;
+        self
+    }
+
+    /// 显式放行私网/回环地址（SSRF 守卫的逃生口，#191）。
+    ///
+    /// 与 `transport::FetchOptions::with_private_network_allowed` 同一语义：
+    /// 只给可信本地联调使用，云 metadata 端点始终拒绝。
+    pub fn with_private_network_allowed(mut self, allow: bool) -> Self {
+        self.options.allow_private_network = allow;
         self
     }
 
@@ -558,6 +567,8 @@ impl SessionEngine {
                 RequestError::new(ErrorCode::Internal, format!("client init failed: {error}"))
             })?;
 
+        // #191：表单提交 / 分页同样走手工重定向循环，必须逐跳校验地址。
+        let guard = AddressGuard::new(self.options.allow_private_network);
         let initial = url.clone();
         let mut current = url;
         let mut hops = 0usize;
@@ -566,6 +577,10 @@ impl SessionEngine {
         let mut current_body = body;
 
         loop {
+            // #191：连接前校验解析出的 IP（含首跳与每一跳重定向）。
+            if let Err(error) = guard.check_url(&current).await {
+                return Err(RequestError::new(error.code(), error.message()));
+            }
             let mut request = client.request(current_method.clone(), current.as_str());
             if let Some(user_agent) = &self.options.user_agent {
                 request = request.header(wreq::header::USER_AGENT, user_agent.as_str());

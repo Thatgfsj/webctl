@@ -124,6 +124,8 @@ fn engine(tag: &str, context: Option<BrowserContext>) -> SessionEngine {
     let _ = std::fs::create_dir_all(&dir);
     SessionEngine::with_store(tag, SessionStore::new(dir))
         .expect("engine")
+        // #191：夹具只连 127.0.0.1。
+        .with_private_network_allowed(true)
         .with_browser_context(context)
 }
 

@@ -31,6 +31,9 @@ fn webctl() -> Command {
         command.env_remove(key);
     }
     command.env("WEBCTL_CONFIG", missing_path("default"));
+    // #191：CLI 用例的 fixture 只连 127.0.0.1；显式放行地址守卫（子进程环境，
+    // 不污染测试进程）。默认拒绝由 security.rs 的专门用例在移除该变量后验证。
+    command.env("WEBCTL_ALLOW_PRIVATE_NETWORK", "1");
     command
 }
 

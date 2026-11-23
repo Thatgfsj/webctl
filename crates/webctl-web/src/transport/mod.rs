@@ -4,13 +4,19 @@
 //! - 只把字节拿回来并分类，不做正文提取（PR 03）。
 //! - 重定向**手动跟随**：`redirect(Policy::none())` + 自建循环，每一跳都记录在结果里；
 //!   相对 `Location` 按当前 URL 解析；有 max-hops 上限；重定向环会被检出并终止。
+//! - SSRF 守卫（#191）：默认拒绝 loopback / 私网 / 链路本地 / 组播 / 未指定 / 保留地址
+//!   与云 metadata；**每一跳在发请求之前**重新解析并校验（见 [`address_guard`]）。
+//!   放行只能显式开启（`allow_private_network`），云 metadata 始终拒绝。
 //! - cookie jar 为自实现的最小实现（见 [`cookies`]），跨请求保持且可序列化往返。
 //! - 内容编码（gzip / brotli / deflate）由 wreq 内容编码层解压；
 //!   本层负责**字符编码**与**内容类型路由**。
 //! - 所有返回走 [`webctl_core::Envelope`]；页面内容固定 `Trust::UntrustedPageContent`。
 //! - 零子进程（PLAN v0.4 §3.1）：只用进程内 TCP/TLS，不创建 `std::process`。
 
+pub mod address_guard;
 pub mod cookies;
+
+pub use address_guard::{AddressClass, AddressGuard, BlockedAddress, GuardError};
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -60,6 +66,11 @@ pub struct FetchOptions {
     ///
     /// 只借用 HTTP 头与 Cookie；TLS/JS 指纹**不可用**。凭据类头跨源不携带（见 `inject_headers`）。
     pub browser_context: Option<BrowserContext>,
+    /// 是否放行私网/回环/链路本地等非公网地址（SSRF 守卫，#191）。
+    ///
+    /// **默认 `false`**：默认拒绝非公网目标，且每次重定向都重新校验。
+    /// 仅供可信的本地联调（离线夹具只能连 `127.0.0.1`）；生产环境不要打开。
+    pub allow_private_network: bool,
 }
 
 impl Default for FetchOptions {
@@ -74,6 +85,7 @@ impl Default for FetchOptions {
             cookie_jar: None,
             proxy: None,
             browser_context: None,
+            allow_private_network: false,
         }
     }
 }
@@ -82,6 +94,14 @@ impl FetchOptions {
     /// 挂上一个可与其它请求共享的 cookie jar。
     pub fn with_cookie_jar(mut self, jar: Arc<CookieJar>) -> Self {
         self.cookie_jar = Some(jar);
+        self
+    }
+
+    /// 显式放行私网/回环/链路本地地址（SSRF 守卫的逃生口，#191）。
+    ///
+    /// 只应给可信的本地联调使用；云 metadata 端点即使放行也始终拒绝。
+    pub fn with_private_network_allowed(mut self, allow: bool) -> Self {
+        self.allow_private_network = allow;
         self
     }
 }
@@ -253,12 +273,27 @@ async fn run(
 ) -> Result<Fetched, TransportError> {
     let started = Instant::now();
     let client = build_client(options)?;
+    // #191：守卫是逐跳判定的（每轮循环都重新解析并校验当前 URL）。
+    let guard = AddressGuard::new(options.allow_private_network);
     let initial = start.clone();
     let mut current = start;
     let mut hops: Vec<RedirectHop> = Vec::new();
     let mut visited: Vec<String> = vec![current.as_str().to_owned()];
 
     loop {
+        // #191：连接前校验解析出的 IP；重定向后的每一跳都会走到这里。
+        // 被拒时不发起任何连接（错误码 BLOCKED，不伪装成 NETWORK）。
+        if let Err(error) = guard.check_url(&current).await {
+            // 经显式代理时主机名由代理解析：本地解析失败不等于目标被拒，
+            // 不能把"代理能访问、本机 DNS 解析不了"的目标误杀成 NETWORK。
+            // 能看到的 IP 字面量仍照常判定（含 metadata），只有域名解析失败放行。
+            let proxy_resolves = options.proxy.is_some()
+                && matches!(&error, GuardError::Resolve { .. })
+                && matches!(current.host(), Some(url::Host::Domain(_)));
+            if !proxy_resolves {
+                return Err(TransportError::new(error.code(), error.message()));
+            }
+        }
         let mut request = client.request(wreq::Method::GET, current.as_str());
         if let Some(user_agent) = &options.user_agent {
             request = request.header(wreq::header::USER_AGENT, user_agent.as_str());
