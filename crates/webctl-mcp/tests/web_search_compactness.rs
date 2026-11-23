@@ -225,3 +225,91 @@ async fn i2_fields_still_reported_alongside_compactness() {
         "低置信广告应保留并打标：{envelope}"
     );
 }
+
+/// g) 排除词证据取自聚合前结果：展示层的 300 字符截断不能把它藏起来（议题 #242）。
+#[tokio::test]
+async fn exclude_evidence_is_not_hidden_by_snippet_truncation() {
+    // 排除词只在第 301 个字符之后出现：默认 300 字符截断会把它从展示结果里抹掉。
+    let long = format!("{} markerword", "中".repeat(301));
+    let server = server_with(bing_serp(&[(
+        "https://example.com/long",
+        "长摘要",
+        long.as_str(),
+    )]))
+    .await;
+    let mcp = WebctlMcp::new(
+        in_process_context("compact-exclude-evidence")
+            .with_search_base(Some(server.url("/search"))),
+    );
+
+    // 默认参数：展示被截断到 300 字符，但生效校验必须仍能看到第 301 字后的排除词。
+    let truncated = call(&mcp, json!({"query": "rust", "exclude": ["markerword"]})).await;
+    assert_eq!(truncated["code"], "DEGRADED", "{truncated}");
+    assert!(
+        truncated["meta"]["degraded_from"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("search-operator-ignored"),
+        "{truncated}"
+    );
+    let results = hits(&truncated);
+    assert_eq!(snippet_chars(&results[0]), 300, "{truncated}");
+    assert_eq!(results[0]["snippet_truncated"], true, "{truncated}");
+    assert!(
+        !results[0]["snippet"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("markerword"),
+        "用例前提：默认展示里看不到排除词：{truncated}"
+    );
+    assert_eq!(server.hits("/search").len(), 1, "校验不得额外发请求");
+
+    // snippet_max_chars=0：同一条证据仍应判定为忽略，展示层恢复完整 312 字符。
+    let full = call(
+        &mcp,
+        json!({"query": "rust", "exclude": ["markerword"], "snippet_max_chars": 0}),
+    )
+    .await;
+    assert_eq!(full["code"], "DEGRADED", "{full}");
+    assert!(
+        full["meta"]["degraded_from"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("search-operator-ignored"),
+        "{full}"
+    );
+    let results = hits(&full);
+    assert_eq!(snippet_chars(&results[0]), 312, "{full}");
+    assert!(
+        results[0].get("snippet_truncated").is_none(),
+        "limit=0 不截断：{full}"
+    );
+    assert_eq!(server.hits("/search").len(), 2, "每次调用仍只有 1 个请求");
+}
+
+/// h) 折叠前不丢候选：max_results=2 时，第三条不同域候选仍能进入聚合（议题 #242）。
+///
+/// 同一 SERP 依序给出 a.test/1、a.test/2、b.test/1；若解析层按 max_results=2 提前 break，
+/// b.test/1 根本进不了聚合，折叠后只剩 1 条。
+#[tokio::test]
+async fn max_results_does_not_starve_candidates_before_collapse() {
+    let server = server_with(bing_serp(&[
+        ("https://a.test/1", "A1", "snippet a1"),
+        ("https://a.test/2", "A2", "snippet a2"),
+        ("https://b.test/1", "B1", "snippet b1"),
+    ]))
+    .await;
+    let mcp = WebctlMcp::new(
+        in_process_context("compact-candidates").with_search_base(Some(server.url("/search"))),
+    );
+    let envelope = call(&mcp, json!({"query": "rust", "max_results": 2})).await;
+    assert_eq!(envelope["ok"], true, "{envelope}");
+    let results = hits(&envelope);
+    assert_eq!(results.len(), 2, "{envelope}");
+    assert_eq!(results[0]["url"], "https://a.test/1");
+    assert_eq!(results[0]["same_domain_count"], 2);
+    assert_eq!(results[1]["url"], "https://b.test/1");
+    // engines[].count 是聚合前候选数（3 条），可大于最终 results（2 条）：语义钉住，见 Issue #242。
+    assert_eq!(envelope["data"]["engines"][0]["count"], 3, "{envelope}");
+    assert_eq!(server.hits("/search").len(), 1, "不得额外发请求");
+}

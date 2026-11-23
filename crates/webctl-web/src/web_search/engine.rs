@@ -87,7 +87,9 @@ pub fn append_operators(query: &str, exclude: &[String]) -> String {
     combined
 }
 
-/// 生效校验（best-effort，不额外发请求）：结果里是否仍出现被排除的 term / site。
+/// 生效校验（best-effort，不额外发请求）：聚合前各引擎解析出的自然结果里是否仍出现被排除的 term / site。
+///
+/// 展示层（snippet 截断、同域折叠、`max_results` 截条数）不影响本判定：调用方必须传入聚合前的证据。
 ///
 /// 规则：
 /// - `-site:host`：任一结果 URL 的 host 等于 host 或是其子域 → 认为引擎忽略了该操作符；
