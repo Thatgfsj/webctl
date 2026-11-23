@@ -6,7 +6,8 @@
 //! - `server`：rmcp ServerHandler + stdio 启动（MCP-01/05/06/09/11）；
 //! - `ownership`：绑定 live Agent+Session，拒绝跨 Session（MCP-07）；
 //! - `caps`：把实际注册情况翻译成 core 的能力报告（议题 #68）；
-//! - `site`：`resolve_site` 工具的实现（0.2 M1，ADR-0006；单独成文件以免 dispatch 破 1000 行）。
+//! - `site`：`resolve_site` 工具的实现（0.2 M1，ADR-0006；单独成文件以免 dispatch 破 1000 行）；
+//! - `extract_tool`：`extract` 的 `fields` 接线（议题 #193；同样为守住 dispatch 的 1000 行上限）。
 //!
 //! 依赖方向：本 crate 依赖 core 与 web；core 不反向依赖本 crate。
 //! 运行期零子进程：rmcp 只启用 server + stdio 传输，不引入任何子进程能力。
@@ -25,6 +26,7 @@ pub mod context;
 mod degradation;
 pub mod dispatch;
 mod embedded_tool;
+mod extract_tool;
 pub mod instructions;
 pub mod ownership;
 pub mod params;

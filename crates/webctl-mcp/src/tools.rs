@@ -61,7 +61,7 @@ pub const TOOL_SPECS: [ToolSpec; 18] = [
     },
     ToolSpec {
         name: "extract",
-        description: "用 CSS 选择器抽取元素，返回结构化命中；零命中是合法空结果",
+        description: "CSS 选择器抽取元素 / fields schema 抽字段；零命中是合法空结果",
     },
     ToolSpec {
         name: "search",

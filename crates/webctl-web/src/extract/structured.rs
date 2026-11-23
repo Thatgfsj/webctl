@@ -5,6 +5,7 @@
 //! 路由——CSS 选择器只对 HTML 有意义，pdf/binary/text/json/xml 走 UNSUPPORTED
 //! 的显式降级（不是失败，也不是静默空结果）。
 
+use std::collections::BTreeMap;
 use std::time::Instant;
 
 use webctl_core::{Envelope, ErrorCode, Trust};
@@ -14,6 +15,7 @@ use crate::parse::elapsed_ms;
 use crate::parse::{Form, Table, extract_forms, extract_tables};
 use crate::transport::Body;
 
+use super::fields::{FieldSetResult, FieldSpec, extract_fields};
 use super::{ExtractOptions, ExtractResult, select_matches};
 
 /// 抽取表格；结构与 crate::parse::extract_tables 完全一致（EXTRACT-10、15）。
@@ -98,6 +100,35 @@ pub fn extract_body(
                     other.as_str()
                 ),
             ),
+            format!("content-type:{}", other.as_str()),
+            ErrorCode::Unsupported,
+            elapsed_ms(started),
+        ),
+    }
+}
+
+/// 按内容类型抽取字段（#193）：HTML 走 `fields`；其它类型显式 UNSUPPORTED。
+pub fn extract_fields_body(
+    body: &Body,
+    specs: &BTreeMap<String, FieldSpec>,
+    options: &ExtractOptions,
+) -> Envelope<FieldSetResult> {
+    let started = Instant::now();
+    match body.kind {
+        ContentKind::Html => match body.text.as_deref() {
+            Some(text) => extract_fields(text, specs, options),
+            None => Envelope::fail(
+                ErrorCode::Internal,
+                "content-type routing expected decoded text but body.text is None",
+                elapsed_ms(started),
+            ),
+        },
+        other => Envelope::degraded(
+            FieldSetResult::unsupported(format!(
+                "CSS field extraction requires HTML; content kind is {} — \
+                 route it to search() for text or to the document handler",
+                other.as_str()
+            )),
             format!("content-type:{}", other.as_str()),
             ErrorCode::Unsupported,
             elapsed_ms(started),
