@@ -21,6 +21,7 @@ const MULTI_FORM: &str = include_str!("fixtures/extract/multi_form.html");
 const TABLES: &str = include_str!("fixtures/parse/tables.html");
 const LINKS: &str = include_str!("fixtures/parse/links.html");
 const FORMS: &str = include_str!("fixtures/parse/forms.html");
+const INLINE_SCRIPT: &str = include_str!("fixtures/extract/inline_script.html");
 
 const DOC_URL: &str = "https://doc.example/dir/doc.html";
 const LINKS_BASE: &str = "https://fixture.example/base/";
@@ -735,5 +736,65 @@ fn extract_outcomes_have_distinct_codes() {
         for right in &codes[index + 1..] {
             assert_ne!(left, right, "codes must be distinct");
         }
+    }
+}
+
+/// #188：正文容器内嵌 script/style/template 时，命中文本与 before/after 上下文
+/// 都不得混入脚本/样式源码；noscript 是可见回退内容，必须保留。
+///
+/// 回归背景：`DocumentText` 曾把所有 `Node::Text` 都拼进扁平流，命中一个内含
+/// 内联脚本的正文容器时 `text` 会以脚本源码开头，字符预算也被脚本吃掉。
+#[test]
+fn extract_18_inline_script_style_text_is_excluded() {
+    let env = select_matches(INLINE_SCRIPT, "article.story", &options());
+    assert_valid(&env);
+    assert!(env.ok, "{}", env.error);
+    let result = env.data.expect("extract data");
+    assert_eq!(result.matches.len(), 1);
+    let hit = &result.matches[0];
+
+    for expected in ["BODY-ALPHA", "BODY-OMEGA", "NOSCRIPT-FALLBACK-VISIBLE"] {
+        assert!(
+            hit.text.contains(expected),
+            "missing {expected:?}: {}",
+            hit.text
+        );
+    }
+    for leaked in [
+        "SCRIPT-SHOULD-NOT-LEAK",
+        "TEMPLATE-SHOULD-NOT-LEAK",
+        "color: red",
+        "margin: 0",
+    ] {
+        assert!(
+            !hit.text.contains(leaked),
+            "text leaked {leaked:?}: {}",
+            hit.text
+        );
+        assert!(
+            !hit.before.contains(leaked),
+            "before leaked {leaked:?}: {}",
+            hit.before
+        );
+        assert!(
+            !hit.after.contains(leaked),
+            "after leaked {leaked:?}: {}",
+            hit.after
+        );
+    }
+    assert!(hit.before.contains("PRE-VISIBLE"), "before={}", hit.before);
+    assert!(hit.after.contains("POST-VISIBLE"), "after={}", hit.after);
+
+    // 脚本元素仍可被命中（元素索引未被跳过破坏），但其正文不再是正文文本。
+    let scripts = select_matches(INLINE_SCRIPT, "article.story script", &options())
+        .data
+        .expect("script matches");
+    assert_eq!(scripts.matches.len(), 2, "script elements stay indexed");
+    for matched in &scripts.matches {
+        assert!(
+            matched.text.is_empty(),
+            "script text must be empty: {:?}",
+            matched.text
+        );
     }
 }

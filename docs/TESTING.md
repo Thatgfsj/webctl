@@ -193,6 +193,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 | EXTRACT-15 | 与解析一致 | 同一 fixture 下 `extract` 结果与 `PARSE-*` 断言一致 | L0 | PR 06 |
 | EXTRACT-16 | 不落原文 | 结果里不夹带无法审计的二进制/原始字节 | L0 | PR 06 |
 | EXTRACT-17 | 灾难性输入 | 超长/恶意选择器不导致 CPU 爆炸（有超时与复杂度上限） | L0 | PR 06 |
+| EXTRACT-18 | 正文文本 | 扁平文本流与命中文本跳过 script/style/template，保留 noscript（#188） | L0 | #188 |
 
 ### 2.8 FORM — 表单填写与提交（12）
 
@@ -456,10 +457,10 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 
 ### 6.7 PR 06 抽取引擎（议题 #35）
 
-\`crates/webctl-web/tests/extract.rs\` **26 条**（离线；只读本地 fixture 与内存字符串）：
+\`crates/webctl-web/tests/extract.rs\` **27 条**（离线；只读本地 fixture 与内存字符串）：
 
 - **PARSE-12**：\`parse_12_full_extract_semantics\`
-- **EXTRACT-01…17**：\`extract_01_structured_path\`、\`extract_02_context\`、\`extract_03_document_order\`、\`extract_04_char_budget_truncates_and_marks\`、\`extract_05_max_results_truncates_and_marks\`、\`extract_06_zero_hits_is_ok_empty\`、\`extract_07_invalid_selector_is_parse\`、\`extract_08_search_text_positions_and_context\`、\`extract_09_search_regex_and_invalid_pattern\`、\`extract_10_tables_match_fixture\`、\`extract_11_forms_feed_fill_form\`、\`extract_12_link_filters\`、\`extract_13_stability_semantics\`、\`extract_14_large_page_is_bounded\`、\`extract_15_matches_parse_layer\`、\`extract_16_no_raw_bytes\`、\`extract_17_catastrophic_input_is_bounded\`
+- **EXTRACT-01…18**：\`extract_01_structured_path\`、\`extract_02_context\`、\`extract_03_document_order\`、\`extract_04_char_budget_truncates_and_marks\`、\`extract_05_max_results_truncates_and_marks\`、\`extract_06_zero_hits_is_ok_empty\`、\`extract_07_invalid_selector_is_parse\`、\`extract_08_search_text_positions_and_context\`、\`extract_09_search_regex_and_invalid_pattern\`、\`extract_10_tables_match_fixture\`、\`extract_11_forms_feed_fill_form\`、\`extract_12_link_filters\`、\`extract_13_stability_semantics\`、\`extract_14_large_page_is_bounded\`、\`extract_15_matches_parse_layer\`、\`extract_16_no_raw_bytes\`、\`extract_17_catastrophic_input_is_bounded\`、\`extract_18_inline_script_style_text_is_excluded\`
 - **FORM-09**：\`form_09_multi_form_selection\`
 - **A6 五码互异（补充）**：\`extract_outcomes_have_distinct_codes\`
 - **EXTRACT-17 / EXTRACT-08 预算兜底（PR #71 修复）**：\`extract_17_zero_hit_large_page_over_budget_times_out\`、\`extract_17_zero_hit_parse_over_budget_times_out\`、\`extract_17_zero_hit_within_budget_stays_ok_empty\`、\`extract_17_search_zero_hit_over_budget_times_out\`、\`extract_17_deep_descendant_scan_is_bounded\`、\`extract_08_search_advance_matches_regex_iter\`
