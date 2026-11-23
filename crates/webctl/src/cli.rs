@@ -771,6 +771,7 @@ fn render_config(config: &Config) {
     );
     println!("min_interval_ms = {}", config.min_interval_ms);
     println!("proxy = {}", config.proxy.as_deref().unwrap_or("(direct)"));
+    println!("js_render = {}", config.js_render.as_str());
 }
 
 fn render_fetch(fetched: &Fetched) {

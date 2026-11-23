@@ -5,7 +5,7 @@ use common::{http_fixture, resources};
 use std::time::Duration;
 
 use serde_json::{Value, json};
-use webctl_core::Config;
+use webctl_core::{Config, JsRenderMode};
 use webctl_mcp::{McpContext, TOOL_NAMES, WebctlMcp, qualified_name};
 
 /// MCP-01：initialize 协商 protocolVersion。
@@ -659,7 +659,7 @@ async fn js_render_on_extracts_content_from_script_only_page() {
             .await;
     let config = Config {
         state_dir: temp_dir("js-on"),
-        js_render: true,
+        js_render: JsRenderMode::On,
         ..Config::default()
     };
     let mcp = WebctlMcp::new(McpContext::unbound(config));
@@ -674,6 +674,110 @@ async fn js_render_on_extracts_content_from_script_only_page() {
     assert_eq!(matches.len(), 10, "渲染后应命中 10 条：{extracted}");
 }
 
+/// #192：`auto` 对静态页 **0 次渲染**。
+///
+/// 行为证据：页面正文足够（degrade 判 Rendered），但内联脚本一旦执行会追加一条
+/// `div.quote`。匹配数仍是 10 条 + engine_path=static，证明 auto 没有渲染。
+#[tokio::test]
+async fn js_render_auto_does_not_render_static_page() {
+    let static_with_effect = STATIC_QUOTES.replace(
+        "<script>window.track = function () {};</script>",
+        "<script>document.write(\"<div class='quote'>only-if-rendered</div>\");</script>",
+    );
+    assert_ne!(static_with_effect, STATIC_QUOTES, "fixture 替换必须生效");
+    let server = http_fixture::Server::start_with(vec![(
+        "/static",
+        http_fixture::Response::html(static_with_effect),
+    )])
+    .await;
+    let config = Config {
+        state_dir: temp_dir("js-auto-static"),
+        js_render: JsRenderMode::Auto,
+        ..Config::default()
+    };
+    let mcp = WebctlMcp::new(McpContext::unbound(config));
+    let extracted = invoke(
+        &mcp,
+        "extract",
+        json!({"url": server.url("/static"), "selector": "div.quote"}),
+    )
+    .await;
+    assert_eq!(extracted["ok"], true, "{extracted}");
+    assert_eq!(code_of(&extracted), "OK", "{extracted}");
+    assert_eq!(
+        extracted["data"]["matches"]
+            .as_array()
+            .expect("matches")
+            .len(),
+        10,
+        "静态页若被渲染会多出第 11 条：{extracted}"
+    );
+    assert_eq!(
+        extracted["meta"]["engine_path"], "static",
+        "auto 对静态页不得渲染：{extracted}"
+    );
+}
+
+/// #192：`auto` 对空壳页渲染一次，抽取结果与 `on` 一致，并如实记录 engine_path。
+#[tokio::test]
+async fn js_render_auto_renders_shell_once_and_matches_on() {
+    let server =
+        http_fixture::Server::start_with(vec![("/js", http_fixture::Response::html(JS_SHELL))])
+            .await;
+    let auto = WebctlMcp::new(McpContext::unbound(Config {
+        state_dir: temp_dir("js-auto-shell"),
+        js_render: JsRenderMode::Auto,
+        ..Config::default()
+    }));
+    let on = WebctlMcp::new(McpContext::unbound(Config {
+        state_dir: temp_dir("js-on-shell"),
+        js_render: JsRenderMode::On,
+        ..Config::default()
+    }));
+    let args = json!({"url": server.url("/js"), "selector": "div.quote"});
+    let auto_out = invoke(&auto, "extract", args.clone()).await;
+    let on_out = invoke(&on, "extract", args).await;
+    assert_eq!(auto_out["ok"], true, "{auto_out}");
+    assert_eq!(on_out["ok"], true, "{on_out}");
+    assert_eq!(
+        auto_out["data"], on_out["data"],
+        "auto 与 on 的抽取结果必须一致"
+    );
+    assert_eq!(
+        auto_out["data"]["matches"]
+            .as_array()
+            .expect("matches")
+            .len(),
+        10,
+        "{auto_out}"
+    );
+    assert_eq!(
+        auto_out["meta"]["engine_path"], "static+js",
+        "空壳页必须如实记录渲染路径：{auto_out}"
+    );
+    assert_eq!(on_out["meta"]["engine_path"], "static+js", "{on_out}");
+}
+
+/// #192：`auto` 在 resolve_source 类工具（links）同样只对空壳页渲染。
+#[tokio::test]
+async fn js_render_auto_renders_shell_for_resolve_source_tools() {
+    let server =
+        http_fixture::Server::start_with(vec![("/js", http_fixture::Response::html(JS_SHELL))])
+            .await;
+    let config = Config {
+        state_dir: temp_dir("js-auto-links"),
+        js_render: JsRenderMode::Auto,
+        ..Config::default()
+    };
+    let mcp = WebctlMcp::new(McpContext::unbound(config));
+    let links = invoke(&mcp, "links", json!({"url": server.url("/js")})).await;
+    assert_eq!(links["ok"], true, "{links}");
+    assert_eq!(
+        links["meta"]["engine_path"], "static+js",
+        "resolve_source 必须按页渲染空壳：{links}"
+    );
+}
+
 /// #128 步骤 2：渲染**失败**必须降级（A3），不许伪装成"成功但空"。
 #[tokio::test]
 async fn js_render_failure_is_degraded_not_silent_success() {
@@ -684,7 +788,7 @@ async fn js_render_failure_is_degraded_not_silent_success() {
             .await;
     let config = Config {
         state_dir: temp_dir("js-loop"),
-        js_render: true,
+        js_render: JsRenderMode::On,
         ..Config::default()
     };
     let mcp = WebctlMcp::new(McpContext::unbound(config));
@@ -712,15 +816,16 @@ async fn js_render_failure_is_degraded_not_silent_success() {
     assert!(extracted["error"].as_str().is_some_and(|s| !s.is_empty()));
 }
 
-/// #128 步骤 2：`caps` 必须报告**已接线**，且说清覆盖范围（不能只说"支持 JS 渲染"）。
+/// #128 / #192：`caps` 必须报告**已接线**、暴露三态，并说清覆盖范围（不能只说"支持 JS 渲染"）。
 #[test]
 fn caps_reports_js_wired_with_coverage() {
     let off = webctl_mcp::caps::js_capability(&Config::default());
     assert!(!off.enabled);
+    assert_eq!(off.mode, JsRenderMode::Off, "默认三态必须是 off");
     assert!(off.wired, "本步骤后应报告已接线");
     assert!(
-        off.reason.contains("开关开启"),
-        "要说清触发条件：{}",
+        off.reason.contains("auto"),
+        "要说清三态与 auto 语义：{}",
         off.reason
     );
     assert!(
@@ -739,10 +844,18 @@ fn caps_reports_js_wired_with_coverage() {
         "要说清内存由宿主承担、引擎不设上限：{}",
         off.memory.note
     );
-    let on = webctl_mcp::caps::js_capability(&Config {
-        js_render: true,
+    let auto = webctl_mcp::caps::js_capability(&Config {
+        js_render: JsRenderMode::Auto,
         ..Config::default()
     });
+    assert_eq!(auto.mode, JsRenderMode::Auto);
+    assert!(auto.enabled, "auto 仍属于“允许执行”，只是按页决定");
+    assert!(auto.wired);
+    let on = webctl_mcp::caps::js_capability(&Config {
+        js_render: JsRenderMode::On,
+        ..Config::default()
+    });
+    assert_eq!(on.mode, JsRenderMode::On);
     assert!(on.enabled);
     assert!(on.wired);
 }

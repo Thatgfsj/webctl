@@ -609,7 +609,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 
 `crates/webctl-mcp/src/` 单元 **29 条**（0.2 M1 增 `site.rs` 的 6 条 `resolve_site` 用例；0.2 M3 再增 3 条 `classify` 口径用例；0.2 M5 再增 4 条：`classify_serp_failure_is_named_and_keeps_evidence`、`classify_reports_both_l3_and_serp_failures`、`serp_fallback_is_off_by_default`、`serp_fallback_never_networks_in_offline_mode`）：`registry_is_exactly_the_plan_list`、`definitions_match_the_static_specs`、`qualified_names_follow_the_dsh_contract`、`all_plan_tools_are_registered_and_available`、`capabilities_mirror_the_dispatch_table`、`instructions_stay_under_limit`、`dsh_snippet_has_no_tool_order_and_no_tool_names`、`bound_session_accepts_only_itself`、`cross_session_error_is_readable_and_mentions_both`、`unbound_defaults_to_default_and_validates`、`small_result_stays_inline`、`large_result_is_spilled_and_keeps_degradation`、`sec_09_mcp_dispatcher_is_the_one_that_redacts`（[#82](https://github.com/Thatgfsj/webctl/issues/82) 补的隔离用例，详见本节末尾）；0.2 M1 的 `site.rs` 另有 **13 条**（0.2 M5 增 4 条，见下）：`builtin_hit_is_confident_and_not_degraded`、`direct_only_in_offline_mode_degrades_and_says_so`、`unknown_name_returns_empty_and_degraded`、`url_argument_is_bad_url`、`empty_site_is_parse_error`、`max_candidates_is_clamped`（以上 6 条为工具面），以及 0.2 M3 新增的 `classify_l3_failure_wins_over_other_reasons`、`classify_offline_says_offline`、`classify_no_match_vs_low_confidence`（降级原因口径，不依赖网络）。
 
-`crates/webctl-mcp/tests/mcp.rs` **35 条通过 + 0 ignored**（#82 转正后 20 条，#114 增 3 条 + 2 条 schema 守卫，#115 增 5 条，#119 补 1 条，#128 接线增 4 条）；另 `tests/resolve_site.rs` **3 条**（0.2 M1，单独成文件以免 `mcp.rs` 破 1000 行）：
+`crates/webctl-mcp/tests/mcp.rs` **38 条通过 + 0 ignored**（#82 转正后 20 条，#114 增 3 条 + 2 条 schema 守卫，#115 增 5 条，#119 补 1 条，#128 接线增 4 条，#192 增 3 条 auto 用例）；另 `tests/resolve_site.rs` **3 条**（0.2 M1，单独成文件以免 `mcp.rs` 破 1000 行）：
 
 - **上游降级继承**（#125，`tests/degradation_inherit.rs`，**4 条**，纯本地 fixture）：`doc_text_inherits_upstream_js_render_degradation`（JS 空壳页 → `DEGRADED` + `degraded_from=js-render` + actionable，文本仍返回）、`doc_text_on_static_page_stays_ok`（反向守卫：静态页仍 `OK` 且无 `degraded_from`）、`download_inherits_upstream_js_render_degradation`（同样继承且文件确实落盘）、`json_query_keeps_parse_failure_instead_of_inheriting`（**只继承 OK**：本工具自己的解析失败不得被伪装成降级）。三个工具都以 URL 为输入、自己重建信封；此前会丢掉上游 meta 而静默返回 OK。
 
@@ -626,10 +626,13 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 
 - **MCP-01**：`mcp_01_initialize_negotiates_protocol_version`
 - **embedded_data**（#114）：`embedded_data_extracts_json_ld_from_inline_html`、`embedded_data_empty_result_is_not_a_parse_failure`、`embedded_data_broken_payload_is_parse_error`、`embedded_data_schema_declares_only_wired_parameters`（**声明必须等于实现**）、`embedded_data_rejects_url_and_html_together`
-- **引擎接线**（#128 步骤 2）：`js_render_off_keeps_existing_degradation`（**默认关闭**：脚本页仍 DEGRADED、0 命中）、
-  `js_render_on_extracts_content_from_script_only_page`（**开启后**：内容只在 `document.write` 的页面抽出 **10 条**）、
+- **引擎接线**（#128 步骤 2；#192 三态）：`js_render_off_keeps_existing_degradation`（**默认 off**：脚本页仍 DEGRADED、0 命中）、
+  `js_render_on_extracts_content_from_script_only_page`（`on`：内容只在 `document.write` 的页面抽出 **10 条**）、
+  `js_render_auto_does_not_render_static_page`（#192 `auto` 对静态页 **0 次渲染**：仍 10 条 + `engine_path=static`；若渲染会多出第 11 条）、
+  `js_render_auto_renders_shell_once_and_matches_on`（#192 `auto` 对空壳页渲染一次：抽取结果与 `on` 逐字一致 + `engine_path=static+js`）、
+  `js_render_auto_renders_shell_for_resolve_source_tools`（#192 `links` 等 `resolve_source` 工具同样按页渲染空壳）、
   `js_render_failure_is_degraded_not_silent_success`（渲染失败 → `DEGRADED` + `degraded_from=js-render-failed` + `actionable`，**不是**成功空结果）、
-  `caps_reports_js_wired_with_coverage`（`caps.js.wired=true`、`reason` 说清触发条件与能力边界，且 `caps.js.memory` 三项按 #130 断言：`engine_limit_bytes=null`、`enforced_by="host"`、`note` 说明内存由宿主承担）；
+  `caps_reports_js_wired_with_coverage`（`caps.js.mode` 三态（`off`/`on`/`auto`）+ `wired=true` + `reason` 说清触发条件与能力边界，且 `caps.js.memory` 三项按 #130 断言：`engine_limit_bytes=null`、`enforced_by="host"`、`note` 说明内存由宿主承担）；
 
 - **可行动降级**（#115）：`spa_surface_channels_are_registered_tools`（建议通道必须是真实工具）、`degraded_envelope_carries_actionable_next_steps`（降级信封带 reason/detected/next_steps，且 next_steps 用派发表反查）、`ok_envelope_has_no_actionable`（干净成功不得带 actionable）、`limit_degradation_has_no_actionable_yet`（**口径边界**：LIMIT 降级不带 actionable；带 actionable 的降级目前是 JS 渲染与 `resolve_site` 低置信）、`paginate_propagates_actionable_from_upstream`（**传播不丢信息**：复审实测 paginate 曾丢 actionable，此用例钉住修复）、`paginate_normal_finish_keeps_actionable`（#119 补：#123 复审发现原用例只覆盖 `pagination-fetch-failed` 早返回，**正常收尾**分支此前没被钉住）
 - **MCP-02**：`mcp_02_tools_list_is_exactly_the_plan_set`

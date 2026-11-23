@@ -12,7 +12,8 @@ use std::time::Duration;
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 use url::Url;
-use webctl_core::{Envelope, ErrorCode, Trust};
+use webctl_core::{EnginePath, Envelope, ErrorCode, JsRenderMode, Trust};
+use webctl_web::degrade::Assessment;
 use webctl_web::doc::{DocOptions, doc_text, json_query};
 use webctl_web::extract::{self, ExtractOptions, LinkFilter, SearchOptions};
 use webctl_web::politeness::{PoliteFetcher, PolitenessConfig};
@@ -108,6 +109,8 @@ pub(crate) struct Source {
     pub(crate) html: String,
     /// 渲染失败的说明；`None` 表示没渲染或渲染成功。
     pub(crate) render: Option<RenderNote>,
+    /// 这份 HTML 的生成路径（#192）：static 或 static+js。
+    pub(crate) engine_path: EnginePath,
 }
 
 /// 渲染失败时写进信封的降级说明（A3：不许伪装成功）。
@@ -143,24 +146,116 @@ pub(crate) fn apply_render_degradation(mut envelope: Value, note: Option<&Render
 }
 
 use crate::degradation::{UpstreamDegrade, apply_upstream_degradation};
-/// 开关开启且内容像是 HTML 时，把页面内联脚本跑进沙箱，返回渲染后的 HTML。
+
+/// 把 HTML 生成路径写进信封（#192）。
 ///
-/// 失败**不**静默：返回原始 HTML + 降级说明，由调用方写进信封。
-fn render_if_enabled(ctx: &McpContext, html: &str, is_html: bool) -> (String, Option<RenderNote>) {
-    if !ctx.config.js_render || !is_html {
-        return (html.to_owned(), None);
+/// 只在成功信封上写：失败时没有“解析用的 HTML”，写路径没有意义。
+fn apply_engine_path(mut envelope: Value, path: EnginePath) -> Value {
+    if envelope.get("ok").and_then(Value::as_bool) != Some(true) {
+        return envelope;
     }
+    if let Some(meta) = envelope.get_mut("meta") {
+        meta["engine_path"] = serde_json::to_value(path).unwrap_or(Value::Null);
+    }
+    envelope
+}
+
+/// 一次渲染尝试（#192）。
+struct RenderedPage {
+    /// 供解析使用的 HTML：成功时是渲染后的 DOM，失败时回落到原始 HTML。
+    html: String,
+    /// 渲染失败说明；成功或未渲染时为 None。
+    note: Option<RenderNote>,
+    /// 是否**真的**执行了渲染。
+    rendered: bool,
+}
+
+impl RenderedPage {
+    /// 未渲染：原样使用静态 HTML。
+    fn static_html(html: &str) -> Self {
+        Self {
+            html: html.to_owned(),
+            note: None,
+            rendered: false,
+        }
+    }
+
+    /// 实际路径：只有真的渲染过才写 static+js。
+    fn engine_path(&self) -> EnginePath {
+        if self.rendered {
+            EnginePath::StaticThenJs
+        } else {
+            EnginePath::Static
+        }
+    }
+}
+
+/// 渲染一次；失败返回原始 HTML + 降级说明（不静默）。
+fn render_page(html: &str) -> RenderedPage {
     match webctl_js::render(html, &webctl_js::JsLimits::default()) {
-        Ok(outcome) => (outcome.html, None),
-        Err(failure) => (
-            html.to_owned(),
-            Some(RenderNote {
+        Ok(outcome) => RenderedPage {
+            html: outcome.html,
+            note: None,
+            rendered: true,
+        },
+        Err(failure) => RenderedPage {
+            html: html.to_owned(),
+            note: Some(RenderNote {
                 degraded_from: "js-render-failed".to_owned(),
                 reason: format!("{:?}", failure.kind).to_lowercase(),
                 detected: vec![failure.message.clone()],
             }),
-        ),
+            rendered: false,
+        },
     }
+}
+
+/// `auto` 的“需要 JS”判定：只认 degrade 的结论，静态页一律放过（#192）。
+fn auto_wants_render(html: &str) -> bool {
+    matches!(
+        webctl_web::degrade::assess(html),
+        Assessment::NeedsJs { .. }
+    )
+}
+
+/// 解析类工具（`resolve_source`）的渲染决策。
+///
+/// - `off`：不渲染；
+/// - `on`：全量渲染（旧的 `true` 语义）；
+/// - `auto`：先静态判定，只有 `degrade` 说需要 JS 才对**这一页**渲染一次。
+fn render_for_parse(ctx: &McpContext, html: &str, is_html: bool) -> RenderedPage {
+    if !is_html {
+        return RenderedPage::static_html(html);
+    }
+    match ctx.config.js_render {
+        JsRenderMode::Off => RenderedPage::static_html(html),
+        JsRenderMode::On => render_page(html),
+        JsRenderMode::Auto => {
+            if auto_wants_render(html) {
+                render_page(html)
+            } else {
+                RenderedPage::static_html(html)
+            }
+        }
+    }
+}
+
+/// 用渲染结果重跑一次 `extract`，并把渲染失败说明与 engine_path 一起写进信封。
+fn finish_extract(page: RenderedPage, selector: &str, options: &ExtractOptions) -> Value {
+    let engine_path = page.engine_path();
+    let envelope = apply_render_degradation(
+        to_value(extract::extract(&page.html, selector, options)),
+        page.note.as_ref(),
+    );
+    apply_engine_path(envelope, engine_path)
+}
+
+/// 把渲染说明与 engine_path 一起挂到解析结果信封上（#192）。
+fn finish_source(envelope: Value, source: &Source) -> Value {
+    apply_engine_path(
+        apply_render_degradation(envelope, source.render.as_ref()),
+        source.engine_path,
+    )
 }
 
 pub(crate) async fn resolve_source(
@@ -174,12 +269,14 @@ pub(crate) async fn resolve_source(
             "url 与 html 只能给一个（两者同时给出无法判定内容来源）",
         )),
         (None, None) => Err(fail(ErrorCode::BadUrl, "必须给出 url 或 html 之一")),
-        // 调用方自带 HTML：同样视为"一个页面"，开关开启时也渲染。
+        // 调用方自带 HTML：同样视为“一个页面”，由策略决定是否渲染。
         (None, Some(html)) => {
-            let (rendered, render) = render_if_enabled(ctx, html, true);
+            let page = render_for_parse(ctx, html, true);
+            let engine_path = page.engine_path();
             Ok(Source {
-                html: rendered,
-                render,
+                html: page.html,
+                render: page.note,
+                engine_path,
             })
         }
         (Some(url), None) => {
@@ -194,10 +291,12 @@ pub(crate) async fn resolve_source(
             let is_html = matches!(fetched.content.kind, webctl_web::ContentKind::Html);
             match fetched.content.text {
                 Some(text) => {
-                    let (rendered, render) = render_if_enabled(ctx, &text, is_html);
+                    let page = render_for_parse(ctx, &text, is_html);
+                    let engine_path = page.engine_path();
                     Ok(Source {
-                        html: rendered,
-                        render,
+                        html: page.html,
+                        render: page.note,
+                        engine_path,
                     })
                 }
                 None => Err(to_value(Envelope::degraded(
@@ -262,28 +361,64 @@ async fn tool_extract(ctx: &McpContext, args: &Value) -> Value {
             }
             let fetched = envelope.data.expect("ok envelope has data");
             let is_html = matches!(fetched.content.kind, webctl_web::ContentKind::Html);
-            // 开关关闭时**逐字**走原路径（硬要求：默认行为不变）。
-            if ctx.config.js_render && is_html {
-                let raw = fetched.content.text.clone().unwrap_or_default();
-                let (rendered, note) = render_if_enabled(ctx, &raw, true);
-                return apply_render_degradation(
-                    to_value(extract::extract(&rendered, &params.selector, &options)),
-                    note.as_ref(),
-                );
+            // 非 HTML：逐字走原路径（内容类型路由不属于渲染范畴）。
+            if !is_html {
+                return to_value(extract::extract_body(
+                    &fetched.content,
+                    &params.selector,
+                    &options,
+                ));
             }
-            to_value(extract::extract_body(
-                &fetched.content,
-                &params.selector,
-                &options,
-            ))
+            let raw = fetched.content.text.clone().unwrap_or_default();
+            match ctx.config.js_render {
+                // 关闭时**逐字**走原路径（硬要求：默认行为不变）。
+                JsRenderMode::Off => apply_engine_path(
+                    to_value(extract::extract_body(
+                        &fetched.content,
+                        &params.selector,
+                        &options,
+                    )),
+                    EnginePath::Static,
+                ),
+                // 全量：所有 HTML 渲染一次再解析（旧 true 语义）。
+                JsRenderMode::On => finish_extract(render_page(&raw), &params.selector, &options),
+                // 自适应：先静态抽取；只有零命中且判空壳时才渲染该页。
+                JsRenderMode::Auto => {
+                    let envelope =
+                        extract::extract_body(&fetched.content, &params.selector, &options);
+                    let static_empty = envelope.ok
+                        && envelope
+                            .data
+                            .as_ref()
+                            .is_some_and(|result| result.matches.is_empty());
+                    if static_empty && auto_wants_render(&raw) {
+                        finish_extract(render_page(&raw), &params.selector, &options)
+                    } else {
+                        apply_engine_path(to_value(envelope), EnginePath::Static)
+                    }
+                }
+            }
         }
-        (None, Some(html)) => {
-            let (rendered, note) = render_if_enabled(ctx, html, true);
-            apply_render_degradation(
-                to_value(extract::extract(&rendered, &params.selector, &options)),
-                note.as_ref(),
-            )
-        }
+        (None, Some(html)) => match ctx.config.js_render {
+            JsRenderMode::Off => apply_engine_path(
+                to_value(extract::extract(html, &params.selector, &options)),
+                EnginePath::Static,
+            ),
+            JsRenderMode::On => finish_extract(render_page(html), &params.selector, &options),
+            JsRenderMode::Auto => {
+                let envelope = extract::extract(html, &params.selector, &options);
+                let static_empty = envelope.ok
+                    && envelope
+                        .data
+                        .as_ref()
+                        .is_some_and(|result| result.matches.is_empty());
+                if static_empty && auto_wants_render(html) {
+                    finish_extract(render_page(html), &params.selector, &options)
+                } else {
+                    apply_engine_path(to_value(envelope), EnginePath::Static)
+                }
+            }
+        },
         (Some(_), Some(_)) | (None, None) => fail(
             ErrorCode::BadUrl,
             "url 与 html 只能给一个；extract 需要其中之一",
@@ -313,9 +448,9 @@ async fn tool_search(ctx: &McpContext, args: &Value) -> Value {
     if let Some(value) = params.case_insensitive {
         options.case_insensitive = value;
     }
-    apply_render_degradation(
+    finish_source(
         to_value(extract::search(&source.html, &params.query, &options)),
-        source.render.as_ref(),
+        &source,
     )
 }
 
@@ -340,9 +475,9 @@ async fn tool_links(ctx: &McpContext, args: &Value) -> Value {
         options.max_results = value;
     }
     let base = params.base.as_deref().or(params.url.as_deref());
-    apply_render_degradation(
+    finish_source(
         to_value(extract::links(&source.html, base, &filter, &options)),
-        source.render.as_ref(),
+        &source,
     )
 }
 
@@ -359,10 +494,7 @@ async fn tool_tables(ctx: &McpContext, args: &Value) -> Value {
     if let Some(value) = params.max_results {
         options.max_results = value;
     }
-    apply_render_degradation(
-        to_value(extract::tables(&source.html, &options)),
-        source.render.as_ref(),
-    )
+    finish_source(to_value(extract::tables(&source.html, &options)), &source)
 }
 
 async fn tool_forms(ctx: &McpContext, args: &Value) -> Value {
@@ -376,18 +508,18 @@ async fn tool_forms(ctx: &McpContext, args: &Value) -> Value {
     };
     let base = params.base.as_deref().or(params.url.as_deref());
     if let Some(index) = params.form_index {
-        return apply_render_degradation(
+        return finish_source(
             to_value(extract::form_by_index(&source.html, base, index)),
-            source.render.as_ref(),
+            &source,
         );
     }
     let mut options = ExtractOptions::default();
     if let Some(value) = params.max_results {
         options.max_results = value;
     }
-    apply_render_degradation(
+    finish_source(
         to_value(extract::forms(&source.html, base, &options)),
-        source.render.as_ref(),
+        &source,
     )
 }
 
@@ -927,5 +1059,19 @@ mod tests {
             "非敏感头必须保持原样"
         );
         assert_eq!(envelope.meta.trust, Trust::UntrustedPageContent);
+    }
+
+    /// #192：auto 的触发判定只认 degrade 的“需要 JS”结论，静态页不得误伤。
+    #[test]
+    fn auto_render_trigger_only_matches_js_shell() {
+        let shell =
+            include_str!("../../webctl-web/tests/fixtures/degrade/js_data_script_shell.html");
+        let static_page =
+            include_str!("../../webctl-web/tests/fixtures/degrade/static_quotes_10.html");
+        assert!(auto_wants_render(shell), "脚本主导的空壳页应触发渲染");
+        assert!(
+            !auto_wants_render(static_page),
+            "静态正文充分的页面绝不能触发渲染"
+        );
     }
 }

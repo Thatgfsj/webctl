@@ -19,10 +19,12 @@ pub use caps::{
     SpaSurface, ToolCapability,
 };
 pub use config::{
-    Config, ConfigError, ConfigLayer, ENV_VARS, OutputFormat, default_config_path,
+    Config, ConfigError, ConfigLayer, ENV_VARS, JsRenderMode, OutputFormat, default_config_path,
     load_config_file, redact_url_userinfo, resolve,
 };
-pub use envelope::{Actionable, Engine, Envelope, EnvelopeViolation, FallbackHint, Meta, Trust};
+pub use envelope::{
+    Actionable, Engine, EnginePath, Envelope, EnvelopeViolation, FallbackHint, Meta, Trust,
+};
 pub use error::ErrorCode;
 pub use fallback_decl::FallbackDecl;
 pub use security::paths::{

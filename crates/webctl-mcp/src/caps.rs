@@ -17,22 +17,28 @@ use crate::tools::TOOL_SPECS;
 /// 且测试断言候选表本身没写错（写错了就红，而不是悄悄少一个建议）。
 pub const SUGGESTED_CHANNELS: [&str; 1] = ["embedded_data"];
 
-/// 构造内置 JS 引擎状态（#128 / ADR-0005）。
+/// 构造内置 JS 引擎状态（#128 / #192 / ADR-0005）。
 ///
 /// **关键**：`wired` 反映"引擎是否真的接上了取回/抽取路径"，而不是"配置有没有开"。
-/// 自 #128 步骤 2 起**已接线**（`resolve_source` + `extract` 的 URL 分支，条件：开关开启且内容为 HTML），
-/// 故 `wired = true`；`reason` 必须写清触发条件与能力边界（只执行内联脚本、最小 DOM 子集）。
+/// 自 #128 步骤 2 起**已接线**（`resolve_source` + `extract` 的 URL 分支，条件：策略允许且内容为 HTML），
+/// 故 `wired = true`；`mode` 原样暴露三态，`enabled` 表示引擎是否被允许执行脚本，
+/// `reason` 必须写清触发条件与能力边界（只执行内联脚本、最小 DOM 子集）。
 /// `memory` 单独报告堆内存边界（#130）：引擎不设上限，由宿主进程级承担。
 pub fn js_capability(config: &Config) -> JsCapability {
     JsCapability {
-        enabled: config.js_render,
+        mode: config.js_render,
+        enabled: config.js_render.is_enabled(),
         wired: true,
         memory: JsMemoryBoundary::default(),
-        reason: "已接线到 resolve_source 与 extract 的 URL 分支：开关开启且内容为 HTML 时才渲染；\
-                渲染失败不伪装成功而是降级（degraded_from=js-render-failed）。**只执行内联脚本**：外链 <script src> 不取，\
-                因此依赖 jQuery 等外部库的页面会如实降级（真站实测 ReferenceError: $ is not defined）。\
-                覆盖内容是**最小 DOM 子集**，复杂框架水合大概率仍取不到（boa ≠ 浏览器，见 ADR-0005）"
-            .to_owned(),
+        reason: format!(
+            "已接线到 resolve_source 与 extract 的 URL 分支；当前模式 {} \
+             （off=不执行；on=所有 HTML 全量渲染；auto=先静态解析，仅当 degrade 判定该页需要 JS 时渲染一次，静态页不渲染）。\
+             渲染失败不伪装成功而是降级（degraded_from=js-render-failed），meta.engine_path 如实记录 static / static+js。\
+             **只执行内联脚本**：外链 <script src> 不取，因此依赖 jQuery 等外部库的页面会如实降级\
+             （真站实测 ReferenceError: $ is not defined）。覆盖内容是**最小 DOM 子集**，\
+             复杂框架水合大概率仍取不到（boa ≠ 浏览器，见 ADR-0005）",
+            config.js_render.as_str()
+        ),
     }
 }
 
