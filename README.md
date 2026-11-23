@@ -44,7 +44,7 @@
 | **会话** | cookie 持久化、自动填表提交、CSRF、multipart、分页、登录态导入导出 | ✅ 已合并（PR 04 / 05） |
 | **文档/数据** | PDF 文本层、JSON 查询子集、HTML→文本（`pdftotext`/`pandoc`/`jq` 的内置替代） | ✅ 已合并（PR 07） |
 | **CLI** | 配置优先级、代理、输出格式、退出码、`caps`/`fetch`/`config` | ✅ 已合并（PR 10） |
-| **抽取** | 选择器 / `search` / `links` / `tables` / `forms` / `paginate` 的结构化输出 | ✅ 已合并（PR 06） |
+| **抽取** | 选择器 / `search` / `links` / `tables` / `forms` / `paginate` 的结构化输出；`extract` 另支持 `fields` schema 一次抽多字段（[#193](https://github.com/Thatgfsj/webctl/issues/193)） | ✅ 已合并（PR 06） |
 | **降级语义** | SPA/JS 页显式 `DEGRADED`/`UNSUPPORTED`，禁止"成功但 0 条" | ✅ 已合并（PR 09） |
 | **MCP** | rmcp server + 18 工具 schema + `SKILL.md`（与 `tools/list` 强制一致） | ✅ 已合并（PR 11 建 15 个；#114 增至 16；0.2 M1 增至 17；0.2.2 增至 18） |
 | **安全** | cookie 导出确认、信封/日志脱敏、路径与协议校验 | ✅ 已合并（PR 12） |

@@ -162,7 +162,7 @@ v0.3 的 aria ref 依赖"最近一次快照"的 live 页面，**在无浏览器�
 | # | 工具 | 说明 |
 |---|---|---|
 | 1 | `fetch` | 取回 URL，返回状态、头、重定向链、内容或落盘路径 |
-| 2 | `extract` | 选择器/正文提取，返回结构化结果 + markdown/文本 |
+| 2 | `extract` | CSS 选择器抽取结构化命中；或 `fields` schema 一次抽多字段（`{name: {selector, attr, all}}`，单字段失败只进 `data.diagnostics`；#193）。`selector` 与 `fields` 至少给一个，同给则合并 |
 | 3 | `search` | 页面内文本/正则搜索，返回命中 + 结构化路径 + 上下文 |
 | 4 | `links` | 链接清单（绝对化、rel、可选过滤） |
 | 5 | `tables` | 表格结构化（行列、跨行跨列语义确定） |
