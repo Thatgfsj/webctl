@@ -4,6 +4,16 @@
 [语义化版本](https://semver.org/lang/zh-CN/)。格式约定、发版步骤与 release note 模板见
 [docs/RELEASE.md](docs/RELEASE.md)。
 
+## [Unreleased]
+
+### Added
+
+- **caps 报告 JS 引擎内存边界（[#130](https://github.com/Thatgfsj/webctl/issues/130)）**：`data.js.memory` 给出 `engine_limit_bytes`（**恒为 `null`**——`boa_engine` 0.20 无堆内存/GC 上限 API）、`enforced_by`（固定 `"host"`：由宿主进程级手段承担）与 `note`。目的是把「引擎不设上限」写成机器可读事实，不让 `null` 被读成「有上限」；契约见 [ADR-0005](docs/adr/0005-embedded-js-engine.md)。
+
+### Notes
+
+- 文档统一口径（#130）：JS 引擎只承诺**输入预算 + loop / recursion / stack 限值**；**内存不设引擎上限，由宿主承担**。宿主做法见 [docs/DSH-INTEGRATION.md §3.1](docs/DSH-INTEGRATION.md)（systemd `MemoryMax=`、容器 `--memory`、`ulimit -v` / `RLIMIT_AS`）。
+
 ## [0.2.3] - 2026-11-10
 
 ### Added

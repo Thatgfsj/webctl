@@ -162,10 +162,10 @@ crates/
 
 ## English
 
-**webctl is a web-control layer for AI agents** — a single pure-Rust binary with everything built in: no external processes, no browser, no JS engine. It provides an HTTP fetch engine, HTML/JSON/XML/PDF extraction, a protocol-level session engine, and a CLI plus an MCP server.
+**webctl is a web-control layer for AI agents** — a single pure-Rust binary with everything built in: no external processes, no browser, and no JS engine enabled by default (the optional embedded engine is off unless explicitly enabled). It provides an HTTP fetch engine, HTML/JSON/XML/PDF extraction, a protocol-level session engine, and a CLI plus an MCP server.
 
 - **Status:** **v0.2.2 released** (https://github.com/Thatgfsj/webctl/releases/tag/v0.2.2) for Linux (**glibc** and **musl static**), macOS (aarch64 / x86_64) and Windows, with shell/PowerShell installers; see [docs/RELEASE.md](docs/RELEASE.md). The musl asset is produced by the release pipeline and statically asserted (`ldd` = `statically linked`).
-- **Runtime:** zero subprocesses, zero browser, zero JS execution. JS-heavy pages degrade explicitly to `DEGRADED`/`UNSUPPORTED` instead of silently returning "success with 0 results".
+- **Runtime:** zero subprocesses, zero browser, zero JS execution by default (the embedded engine is opt-in). JS-heavy pages degrade explicitly to `DEGRADED`/`UNSUPPORTED` instead of silently returning "success with 0 results".
 - **Capabilities shipped (PR 03–14 all merged):** fetch (PR 02/08), parsing (PR 03), extraction (PR 06), document/data (PR 07), politeness (PR 08), degradation semantics (PR 09), CLI and config (PR 10), MCP server with 18 tools (PR 11 built 15; #114 added `embedded_data`; 0.2 M1 added `resolve_site`; 0.2.2 M1 added `web_search`), security hardening (PR 12), packaging (PR 14). The README table above is the source of truth.
 - **Commands available today:** `webctl caps`, `webctl fetch <url>`, `webctl config`, `webctl cookies` (`list`, `export`, and Playwright-compatible `storage-state`), `webctl mcp` (the 18-tool surface). `cookies storage-state` writes a Playwright-compatible JSON file (target domain only, `0600`, `--yes` required); see [CONFIGURATION §7.1](docs/CONFIGURATION.md).
 - **Build:** `cargo build --release` (requires cmake, a C/C++ toolchain, and libclang at build time only). Rust 1.98.1, pinned in `rust-toolchain.toml`.

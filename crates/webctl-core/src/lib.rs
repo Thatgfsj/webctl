@@ -15,8 +15,8 @@ pub mod security;
 pub mod state;
 
 pub use caps::{
-    Capability, CapabilityDomain, CapabilityState, CapsReport, JsCapability, SpaSurface,
-    ToolCapability,
+    Capability, CapabilityDomain, CapabilityState, CapsReport, JsCapability, JsMemoryBoundary,
+    SpaSurface, ToolCapability,
 };
 pub use config::{
     Config, ConfigError, ConfigLayer, ENV_VARS, OutputFormat, default_config_path,

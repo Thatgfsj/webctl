@@ -86,6 +86,20 @@ $ curl -o /dev/null -w "%{http_code}" http://127.0.0.1:3081/
 - 需要更多内容的场景按**分片**处理：`paginate`（页数上限）、`extract` 的结果/字节预算 + 截断标记 + `LIMIT` 码；
 - 原则：工具**不**靠"跑很久直到超时"完成任务，超预算时返回带 `LIMIT`/`TIMEOUT` 码的信封而不是静默截断（见 PLAN §3 信封规则）。
 
+### 3.1 内存边界：宿主承担（#130）
+
+**webctl 不限制 JS 引擎的堆分配**：`boa_engine` 0.20 没有堆内存/GC 上限 API，`crates/webctl-js` 只承诺
+输入预算（脚本字节/段数）与 loop/recursion/stack 限值（实测 `new Uint8Array(256 MB)` 可分配）。
+因此**宿主应给 `webctl mcp` 进程设置内存上限**，而不是假设 webctl 会自己兜住：
+
+- systemd：`MemoryMax=` / `MemoryHigh=`（cgroup v2）；
+- 容器：`--memory` / `mem_limit`；
+- 直接起进程：`ulimit -v`（`RLIMIT_AS`）或 `prlimit --as=...`。
+
+`caps` 的 `data.js.memory` 会如实报告 `engine_limit_bytes: null`、`enforced_by: "host"`
+与说明文本；**JS 引擎默认关闭**，未开启时该风险不生效。CLI 用户同理：需要硬边界时先在自己的
+shell 里 `ulimit -v` 再调用 `webctl`。
+
 ## 4. "装了没反应"的排查顺序（约束 4）
 
 1. `webctl mcp --list-tools` —— 确认 server 自身能起来并列出 18 个工具；
