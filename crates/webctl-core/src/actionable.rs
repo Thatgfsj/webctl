@@ -44,6 +44,13 @@ pub const PLANS: &[(&str, Plan)] = &[
         },
     ),
     (
+        "adaptive-candidate-cap",
+        Plan {
+            reason: "adaptive-candidate-cap-reached",
+            next_steps: &["extract"],
+        },
+    ),
+    (
         "fields-truncated",
         Plan {
             reason: "field-limit-reached",
