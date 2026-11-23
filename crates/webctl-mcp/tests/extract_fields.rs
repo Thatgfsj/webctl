@@ -50,6 +50,7 @@ fn fields_schema_declares_only_wired_parameters() {
             "char_budget",
             "context_chars",
             "fields",
+            "format",
             "html",
             "max_results",
             "selector",
@@ -286,5 +287,52 @@ async fn fields_merge_keeps_selector_degradation_reason() {
         envelope["data"]["fields"]["items"],
         json!(["ITEM-ONE", "ITEM-TWO"]),
         "{envelope}"
+    );
+}
+
+/// FORMAT-MCP-01（#187）：format=markdown 在 MCP 层接线，命中附带 markdown 且 text 不变。
+#[tokio::test]
+async fn extract_format_markdown_wires_per_match_markdown() {
+    let mcp = server("extract-markdown");
+    let envelope = invoke(
+        &mcp,
+        "extract",
+        json!({"html": COMBINED, "selector": "h1", "format": "markdown"}),
+    )
+    .await;
+    assert_eq!(envelope["ok"], true, "{envelope}");
+    assert_eq!(envelope["code"], "OK", "{envelope}");
+    assert_eq!(
+        envelope["data"]["matches"][0]["markdown"], "# Title",
+        "{envelope}"
+    );
+    assert_eq!(
+        envelope["data"]["matches"][0]["text"], "Title",
+        "text 视图必须保持不变：{envelope}"
+    );
+}
+
+/// FORMAT-MCP-02（#187）：默认不多出 markdown；fields-only 传 markdown 显式 PARSE。
+#[tokio::test]
+async fn extract_format_markdown_rules_are_explicit() {
+    let mcp = server("extract-markdown-rules");
+    let plain = invoke(&mcp, "extract", json!({"html": COMBINED, "selector": "h1"})).await;
+    assert!(
+        plain["data"]["matches"][0].get("markdown").is_none(),
+        "默认输出不得多出 markdown：{plain}"
+    );
+    let rejected = invoke(
+        &mcp,
+        "extract",
+        json!({"html": COMBINED, "fields": {"title": {"selector": "h1"}}, "format": "markdown"}),
+    )
+    .await;
+    assert_eq!(rejected["ok"], false, "{rejected}");
+    assert_eq!(rejected["code"], "PARSE", "{rejected}");
+    assert!(
+        rejected["error"]
+            .as_str()
+            .is_some_and(|error| error.contains("format=markdown")),
+        "{rejected}"
     );
 }

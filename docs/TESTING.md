@@ -170,7 +170,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 | STATE-09 | 清理命令 | 清理只删自己的会话，不影响其他会话 | L0 | PR 05 |
 | STATE-10 | 无凭据泄漏 | 会话文件权限与内容都不含明文密码（只存 cookie/令牌） | L0+L3 | PR 12 |
 
-### 2.7 EXTRACT — 抽取与选择器（19）
+### 2.7 EXTRACT — 抽取与选择器（20）
 
 前置：结构复杂的 fixture 站（嵌套、重复、动态 class、shadow-free）。
 
@@ -195,6 +195,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 | EXTRACT-17 | 灾难性输入 | 超长/恶意选择器不导致 CPU 爆炸（有超时与复杂度上限） | L0 | PR 06 |
 | EXTRACT-18 | 正文文本 | 扁平文本流与命中文本跳过 script/style/template，保留 noscript（#188） | L0 | #188 |
 | EXTRACT-19 | `fields` schema | 字段名 → `{selector, attr, all}`：单字段失败只进 `data.diagnostics`，缺字段为 `null`（`all=true` 为 `[]`），空 schema/全部非法为 `PARSE`，截断为 `LIMIT` + `fields-truncated`；不带 `fields` 时输出不变 | L0 | #193 |
+| EXTRACT-20 | markdown 视图 | `format=markdown` 时每条命中附 `markdown`（`text` 不变、计入 `char_budget`）；默认不序列化；非 HTML 显式 `UNSUPPORTED` | L0 | #187 |
 
 ### 2.8 FORM — 表单填写与提交（12）
 
@@ -215,7 +216,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 | FORM-11 | 提交后落点 | 提交后返回最终 URL 与状态可追溯 | L0 | PR 04 |
 | FORM-12 | 幂等保护 | 明显重复提交（同一 token 复用）被显式拒绝或报告 | L0 | PR 04 |
 
-### 2.9 DOC — 文档与数据内置处理（12）
+### 2.9 DOC — 文档与数据内置处理（13）
 
 前置：本地 PDF 样本（文本型 / 中文 / 扫描件）、JSON 样本。
 
@@ -233,6 +234,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 | DOC-10 | 大文件上限 | 超限 → `LIMIT`，不 OOM | L0 | PR 07 |
 | DOC-11 | 未知格式 | `UNSUPPORTED` + 可读诊断 | L0 | PR 07 |
 | DOC-12 | 无外部进程 | 文档处理全程零子进程（A8） | L0 | PR 13 |
+| DOC-13 | markdown 视图 | HTML 经 `format=markdown` 返回标题/列表/链接/代码结构；默认 `text` 输出逐字节不变；非 HTML 显式 `UNSUPPORTED`（`markdown-html-only`） | L0 | #187 |
 
 ### 2.10 POLITE — 礼貌与限速（10）
 
@@ -440,7 +442,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 
 ### 6.4 PR 07 文档与数据（议题 #36）
 
-`crates/webctl-web/tests/doc.rs` **14 条通过 + 0 ignored**（DOC-09 于 2026-10-17 收口，见 ACCEPTANCE §7）：`doc_01_text_pdf_extracts_keywords`、`doc_02_chinese_pdf_is_not_mojibake`、`doc_03_scanned_pdf_is_unsupported`、`doc_04_encrypted_pdf_is_explicit_error`、`doc_05_corrupt_pdf_is_parse_error`、`doc_06_json_path_selection`、`doc_07_json_filter_and_projection`、`doc_08_invalid_expression_errors`、`doc_09_acceptance_after_pr03`（DOC-09 转正）、`doc_10_oversized_input_is_limit`、`doc_11_unknown_format_is_unsupported_with_diagnostic`、`doc_pdf_extract_panic_is_isolated_as_parse`（补：pdf-extract panic 必须隔离为 PARSE）、`four_outcomes_have_distinct_codes`、`doc_plain_text_and_json_routing_are_explicit`（补：纯文本直通的内容级断言 + JSON 路由到 `json_query`，原属过渡期用例）。
+`crates/webctl-web/tests/doc.rs` **17 条通过 + 0 ignored**（DOC-09 于 2026-10-17 收口，见 ACCEPTANCE §7）：`doc_01_text_pdf_extracts_keywords`、`doc_02_chinese_pdf_is_not_mojibake`、`doc_03_scanned_pdf_is_unsupported`、`doc_04_encrypted_pdf_is_explicit_error`、`doc_05_corrupt_pdf_is_parse_error`、`doc_06_json_path_selection`、`doc_07_json_filter_and_projection`、`doc_08_invalid_expression_errors`、`doc_09_acceptance_after_pr03`（DOC-09 转正）、`doc_10_oversized_input_is_limit`、`doc_11_unknown_format_is_unsupported_with_diagnostic`、`doc_pdf_extract_panic_is_isolated_as_parse`（补：pdf-extract panic 必须隔离为 PARSE）、`four_outcomes_have_distinct_codes`、`doc_plain_text_and_json_routing_are_explicit`（补：纯文本直通的内容级断言 + JSON 路由到 `json_query`，原属过渡期用例）、`doc_html_markdown_view_exposes_structure`、`doc_html_default_view_is_byte_compatible`、`doc_markdown_view_is_html_only`（#187 markdown 视图三层验收）。
 
 ### 6.5 PR 08 礼貌与限速（议题 #37）
 
@@ -459,7 +461,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 
 ### 6.7 PR 06 抽取引擎（议题 #35）
 
-\`crates/webctl-web/tests/extract.rs\` **27 条**（离线；只读本地 fixture 与内存字符串）：
+\`crates/webctl-web/tests/extract.rs\` **31 条**（离线；只读本地 fixture 与内存字符串）：
 
 - **PARSE-12**：\`parse_12_full_extract_semantics\`
 - **EXTRACT-01…18**：\`extract_01_structured_path\`、\`extract_02_context\`、\`extract_03_document_order\`、\`extract_04_char_budget_truncates_and_marks\`、\`extract_05_max_results_truncates_and_marks\`、\`extract_06_zero_hits_is_ok_empty\`、\`extract_07_invalid_selector_is_parse\`、\`extract_08_search_text_positions_and_context\`、\`extract_09_search_regex_and_invalid_pattern\`、\`extract_10_tables_match_fixture\`、\`extract_11_forms_feed_fill_form\`、\`extract_12_link_filters\`、\`extract_13_stability_semantics\`、\`extract_14_large_page_is_bounded\`、\`extract_15_matches_parse_layer\`、\`extract_16_no_raw_bytes\`、\`extract_17_catastrophic_input_is_bounded\`、\`extract_18_inline_script_style_text_is_excluded\`
@@ -467,13 +469,15 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 - **A6 五码互异（补充）**：\`extract_outcomes_have_distinct_codes\`
 - **EXTRACT-17 / EXTRACT-08 预算兜底（PR #71 修复）**：\`extract_17_zero_hit_large_page_over_budget_times_out\`、\`extract_17_zero_hit_parse_over_budget_times_out\`、\`extract_17_zero_hit_within_budget_stays_ok_empty\`、\`extract_17_search_zero_hit_over_budget_times_out\`、\`extract_17_deep_descendant_scan_is_bounded\`、\`extract_08_search_advance_matches_regex_iter\`
 
+- **EXTRACT-20 markdown 视图（#187）**：`extract_markdown_view_exposes_match_markdown`、`extract_default_view_omits_markdown`、`extract_markdown_counts_against_char_budget`、`extract_markdown_view_on_non_html_is_unsupported`
+
 ### 6.7.1 `extract.fields`（议题 #193）
 
 工具面**仍是 18 个**：`extract` 增加可选 `fields`，`selector` 由必填改为「与 `fields` 至少给一个」。
 三层验收（全部离线：零外网、零子进程）：
 
 - `crates/webctl-web/tests/extract_fields.rs` **18 条**：`fields_01_h1_text_is_collapsed_and_first_match_only`、`fields_02_all_returns_document_order_array`、`fields_03_img_src_attribute`、`fields_04_zero_hits_is_null_with_diagnostic`、`fields_05_zero_hits_all_is_empty_array`、`fields_06_invalid_selector_is_field_diagnostic`、`fields_07_all_invalid_is_parse_failure`、`fields_08_empty_declaration_is_parse_failure`、`fields_09_too_many_fields_is_parse_failure`、`fields_10_invalid_name_and_attribute_diagnostics`、`fields_11_missing_attribute_keeps_null_slots`、`fields_12_truncation_is_limit_degradation`、`fields_13_non_html_body_is_unsupported`、`fields_14_values_serialize_to_plain_json`、`fields_15_selector_output_matches_legacy_path`（**既有 `select_matches` 输出不变**）、`fields_16_zero_budget_is_timeout`、`fields_17_stability_and_trust`、`fields_18_all_blocked_is_blocked`。
-- `crates/webctl-mcp/tests/extract_fields.rs` **9 条**（进程内 `invoke`；输入是 `html` 参数或 127.0.0.1 fixture）：`fields_schema_declares_only_wired_parameters`（**声明=实现**：`extract` 的 inputSchema 只有 8 个已接线参数（新增 `start_index`），`selector` 不再是 required，`fields` 是对象且含 `selector`/`attr`/`all`）、`fields_selector_only_output_is_unchanged`（**不带 `fields` 时输出逐字不变**，不凭空多出 `fields`/`diagnostics`）、`fields_only_returns_schema_values`、`fields_and_selector_merge`、`fields_missing_target_is_parse_error`（且在取回之前拦下，不会先拿到 NETWORK）、`fields_declaration_errors_are_parse`、`fields_on_non_html_url_is_unsupported`、`fields_truncation_is_limit`、`fields_merge_keeps_selector_degradation_reason`。
+- `crates/webctl-mcp/tests/extract_fields.rs` **11 条**（进程内 `invoke`；输入是 `html` 参数或 127.0.0.1 fixture）：`fields_schema_declares_only_wired_parameters`（**声明=实现**：`extract` 的 inputSchema 只有 9 个已接线参数（含 #190 的 `start_index` 与 #187 的 `format`），`selector` 不再是 required，`fields` 是对象且含 `selector`/`attr`/`all`）、`fields_selector_only_output_is_unchanged`（**不带 `fields` 时输出逐字不变**，不凭空多出 `fields`/`diagnostics`）、`fields_only_returns_schema_values`、`fields_and_selector_merge`、`fields_missing_target_is_parse_error`（且在取回之前拦下，不会先拿到 NETWORK）、`fields_declaration_errors_are_parse`、`fields_on_non_html_url_is_unsupported`、`fields_truncation_is_limit`、`fields_merge_keeps_selector_degradation_reason`、`extract_format_markdown_wires_per_match_markdown`、`extract_format_markdown_rules_are_explicit`（#187）。
 - `crates/webctl-mcp/src/extract_tool.rs` 单元 **6 条**：`merge_fields` / `carry_fields_degradation` 的合并语义（selector 失败优先、fields 整体失败优先、两侧都成功时字段与诊断挂到 `data`、两侧都降级时保留 selector 的来源码、`data` 非对象时不 panic）。
 
 语义边界（与实现一一对应）：单字段失败只写 `data.diagnostics`（`invalid-name` / `invalid-selector` / `blocked-selector` / `zero-matches` / `missing-attribute` / `invalid-attribute` / `truncated`），**不**使整个请求失败；只有空 schema 或**全部**字段非法才是 `PARSE`，全部被选择器守卫拒绝是 `BLOCKED`，`all=true` 被 `max_results` 截断是 `LIMIT` + `degraded_from="fields-truncated"`（已在 `webctl_core::actionable` 登记，`degrade_reasons.rs` 机械核对）。
@@ -482,8 +486,20 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 
 工具面**仍是 18 个**：`extract` / `doc_text` 增加可选 `start_index`；`doc_text` 另增 `char_budget`（`extract` 复用既有 `char_budget` 作为分块字符预算）。`start_index` 是 **UTF-8 字节偏移**，落在多字节字符中间时向后对齐到下一个字符边界；`next_start_index` 是下一次应传的字节偏移（末尾 `null`）。`start_index > 扁平结果长度` 返回 `PARSE`；`==` 长度返回空串 + `null`。截断仍是 `LIMIT`，`degraded_from` 追加 `char-budget`，`meta.actionable.detected` 说明可带 `start_index` 续读；`fetch` 的 `response-body-truncated` 明确写 **not resumable**（原始字节未保留）。
 
-- `crates/webctl-mcp/tests/chunked_resume.rs` **10 条**（进程内 `invoke`；输入是 `html` 参数、临时目录纯文本或 127.0.0.1 fixture）：`extract_chunks_reassemble_to_the_full_flat_text`（逐字节拼接一致）、`extract_start_index_mid_codepoint_advances_to_boundary`、`extract_start_index_out_of_range_is_parse_and_end_is_empty`、`extract_without_chunk_parameters_is_unchanged`、`extract_char_budget_truncation_exposes_resumable_cursor`、`doc_text_chunks_reassemble_to_the_full_text`、`doc_text_start_index_boundaries_are_explicit`、`doc_text_char_budget_truncates_and_is_resumable`、`chunk_parameters_are_declared_and_tool_surface_stays_18`、`fetch_truncation_reports_not_resumable`。
+- `crates/webctl-mcp/tests/chunked_resume.rs` **11 条**（进程内 `invoke`；输入是 `html` 参数、临时目录纯文本或 127.0.0.1 fixture）：`extract_chunks_reassemble_to_the_full_flat_text`（逐字节拼接一致）、`extract_start_index_mid_codepoint_advances_to_boundary`、`extract_start_index_out_of_range_is_parse_and_end_is_empty`、`extract_without_chunk_parameters_is_unchanged`、`extract_char_budget_truncation_exposes_resumable_cursor`、`doc_text_chunks_reassemble_to_the_full_text`、`doc_text_start_index_boundaries_are_explicit`、`doc_text_char_budget_truncates_and_is_resumable`、`chunk_parameters_are_declared_and_tool_surface_stays_18`、`fetch_truncation_reports_not_resumable`、`markdown_view_rejects_resume_parameters`（#187 × #190：与 `format=markdown` 组合时显式 `PARSE`，且在取回之前拦下）。
 - `crates/webctl-mcp/src/resume.rs` 单元 **6 条**：`chunk_aligns_forward_and_never_splits_utf8`、`chunk_budget_counts_chars_not_bytes`、`chunk_out_of_range_is_explicit`、`chunk_at_end_is_empty_and_done`、`chunk_zero_budget_still_advances_one_char`、`flat_extract_prefers_matches_then_fields`；`webctl_core::actionable` 另加 `resume_notes_cover_resumable_and_non_resumable_sources`。
+
+### 6.7.3 markdown 视图（议题 #187）
+
+工具面**仍是 18 个**：`doc_text` / `extract` 各增加可选 `format: text|markdown`（默认 `text`，默认输出逐字节不变）。markdown 是**附加视图**，不是 text 的替代：`extract` 的 `text` / 命中 / 预算语义不变，markdown 额外计入 `char_budget`；`doc_text` 的 `text` 仍来自同一提取器，`markdown` 只在 HTML 时提供。markdown 也可能不完整/降级（祖先上下文丢失、回退渲染器、字符预算），缺失时字段缺省，绝不用空串或伪结构冒充成功。
+
+续读参数（`start_index`，以及 `doc_text` 的 `char_budget`）与 `format=markdown` **互斥**：markdown 与 text 是两套坐标，同一窗口无法同时裁剪两个视图，组合显式 `PARSE` 而不是返回一半被切、一半完整的输出（#190 × #187 的交界，见 6.7.2）。
+
+三层验收（全部离线：零外网、零子进程；HTML 样本 `crates/webctl-web/tests/fixtures/doc/markdown.html`）：
+
+- `crates/webctl-web/tests/doc.rs` **3 条**：`doc_html_markdown_view_exposes_structure`（标题/列表/强调/链接/代码结构）、`doc_html_default_view_is_byte_compatible`（默认不序列化 `markdown`，`text` 与解析层逐字节一致）、`doc_markdown_view_is_html_only`（PDF/纯文本/XML/JSON → `UNSUPPORTED` + `degraded_from="markdown-html-only"`，`text`/`markdown` 都是 `null`）。
+- `crates/webctl-web/tests/extract.rs` **4 条**：`extract_markdown_view_exposes_match_markdown`（结构 + `text` 不变）、`extract_default_view_omits_markdown`（默认不序列化）、`extract_markdown_counts_against_char_budget`（`text+markdown` 不超预算，放不下时 `markdown_truncated=true`）、`extract_markdown_view_on_non_html_is_unsupported`。
+- `crates/webctl-mcp/tests/extract_fields.rs` **2 条**（`extract_format_markdown_wires_per_match_markdown` / `extract_format_markdown_rules_are_explicit`）+ `crates/webctl-mcp/tests/mcp.rs` **2 条**（`doc_text_schema_declares_markdown_format` / `doc_text_markdown_format_is_wired_end_to_end`）：schema 声明 = 实现、MCP 派发确实接线，且 `fields`-only 传 markdown 显式 `PARSE`。
 
 ### 6.8 PR 09 降级语义（议题 #38）
 
@@ -678,7 +694,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
   - `mcp_deg_code_matches_library_on_same_input`：同一 fixture 输入下 MCP 与库路径（`transport::fetch` / `extract::select_matches` / `extract::search`）的 `code` 逐一相等。
   - `sec_09_mcp_fetch_redacts_credentials`：MCP 页面内容 `trust=untrusted_page_content`，信封不含 `set-cookie` / `Authorization` / URL query token 明文；脱敏入口 `dispatch::redact_fetched_envelope` 复用 `webctl_web::redact::redact_fetched`。
 
-PR 11 留下的 `#[ignore]` 交接哨兵及其常量已随 #82 删除；随后 `crates/webctl-web/tests/offline_lane.rs` 的两条历史占位也清掉（DOC-12 改为**真实调用** `doc_text` + `json_query`；与本仓 `tests/mcp14.rs` 重复的 MCP-14 占位**删除**）。**全仓 `cargo test` 现为 384 passed / 0 failed / 0 ignored —— 不再有任何 `#[ignore]` 属性。**
+PR 11 留下的 `#[ignore]` 交接哨兵及其常量已随 #82 删除；随后 `crates/webctl-web/tests/offline_lane.rs` 的两条历史占位也清掉（DOC-12 改为**真实调用** `doc_text` + `json_query`；与本仓 `tests/mcp14.rs` 重复的 MCP-14 占位**删除**）。**全仓 `cargo test --workspace` 实测 808 passed / 0 failed / 0 ignored（2026-11-23，#187 后）—— 不再有任何 `#[ignore]` 属性。**
 
 `crates/webctl-mcp/tests/mcp14.rs` **1 条**：`mcp_14_in_process_dispatch_spawns_no_children`（单独二进制，避免其他用例的子进程污染基线；复用 PR 13 的 `tests/support/resources.rs`）。
 

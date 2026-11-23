@@ -21,6 +21,19 @@ pub struct FetchParams {
     pub timeout_ms: Option<u64>,
 }
 
+/// `text` / `markdown` 视图选择（#187）。
+///
+/// 默认 `text` 与旧行为逐字节一致；`markdown` 是**附加视图**，不会改掉已有
+/// `text` 字段。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ViewFormat {
+    /// 文本视图（默认）。
+    Text,
+    /// 额外返回 markdown 视图。
+    Markdown,
+}
+
 /// extract：按 CSS 选择器抽取，或按 `fields` schema 抽字段（#193）。
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
 pub struct ExtractParams {
@@ -39,6 +52,7 @@ pub struct ExtractParams {
     /// 从扁平结果（`matches[].text` 按换行连接；无 selector 时取 fields 值）的第 N 个**字节**开始返回；
     /// 落在多字节字符中间时向后对齐到下一个字符边界。配合 `char_budget`
     /// 分块续读；结果里的 `next_start_index` 是下一次应传的值（末尾为 null）。
+    /// 与 `format=markdown` 互斥：续读游标只对 `text` 视图定义。
     pub start_index: Option<usize>,
     /// schema 化字段：字段名 -> {selector, attr, all}；与 `selector` 至少给一个。
     ///
@@ -46,6 +60,10 @@ pub struct ExtractParams {
     /// 单个字段失败写入 `data.diagnostics`，不使整个请求失败；空对象或全部字段
     /// 非法才是 PARSE。
     pub fields: Option<BTreeMap<String, ExtractFieldSpec>>,
+    /// 视图选择（默认 text）：`markdown` 时每条命中额外返回 `markdown`，
+    /// `text` 字段保持不变；markdown 计入 `char_budget`。需要 `selector`。
+    /// 与 `start_index` 互斥：续读窗口只对 `text` 视图定义。
+    pub format: Option<ViewFormat>,
 }
 
 /// `extract.fields` 中单个字段的声明。
@@ -254,10 +272,17 @@ pub struct DocTextParams {
     /// 取回文档的 URL；与 path 二选一。
     pub url: Option<String>,
     /// 从文本层的第 N 个**字节**开始返回；语义同 `extract.start_index`。
+    ///
+    /// 与 `format=markdown` 互斥：续读窗口只对 `text` 视图定义（markdown 与
+    /// text 不是同一套坐标，切片无法对齐）。
     pub start_index: Option<usize>,
     /// 本次最多返回的字符数（缺省不截断）。截断时 `code=LIMIT`，
-    /// `next_start_index` 指向续读位置。
+    /// `next_start_index` 指向续读位置；与 `format=markdown` 互斥。
     pub char_budget: Option<usize>,
+    /// 输出视图（默认 text）：`markdown` 仅对 HTML 生效，非 HTML 返回
+    /// `UNSUPPORTED`（`degraded_from=markdown-html-only`），不伪造 markdown。
+    /// 与 `start_index` / `char_budget` 互斥（先取完整视图，再自己分片）。
+    pub format: Option<ViewFormat>,
 }
 
 /// embedded_data：抽取页面内嵌的结构化数据（零 JS 执行）。

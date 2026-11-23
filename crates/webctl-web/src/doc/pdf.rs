@@ -125,6 +125,7 @@ pub fn extract_pdf_text(bytes: &[u8], max_bytes: usize) -> Envelope<DocText> {
                     DocText {
                         format: DocFormat::Pdf,
                         text: Some(text),
+                        markdown: None,
                         pages: Some(pages),
                         pdf_kind: Some(PdfKind::TextLayer),
                         diagnostics: Vec::new(),

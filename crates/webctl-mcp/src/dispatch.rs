@@ -15,8 +15,10 @@ use serde_json::{Value, json};
 use url::Url;
 use webctl_core::{EnginePath, Envelope, ErrorCode, JsRenderMode, Trust};
 use webctl_web::degrade::Assessment;
-use webctl_web::doc::{DocOptions, doc_text, json_query};
-use webctl_web::extract::{self, ExtractOptions, FieldSpec, LinkFilter, SearchOptions};
+use webctl_web::doc::{DocOptions, DocView, doc_text, json_query};
+use webctl_web::extract::{
+    self, ExtractOptions, ExtractView, FieldSpec, LinkFilter, SearchOptions,
+};
 use webctl_web::politeness::{PoliteFetcher, PolitenessConfig};
 use webctl_web::session::{FormFill, SessionEngine, SessionState};
 use webctl_web::transport::{Fetched, fetch};
@@ -384,11 +386,29 @@ async fn tool_extract(ctx: &McpContext, args: &Value) -> Value {
     if params.start_index.is_some() {
         options.char_budget = usize::MAX;
     }
+    if params.format == Some(ViewFormat::Markdown) {
+        options.view = ExtractView::Markdown;
+    }
     let selector = params.selector.as_deref();
     let fields = field_specs(&params);
     let fields = fields.as_ref();
     if selector.is_none() && fields.is_none() {
         return fail(ErrorCode::Parse, MISSING_TARGET);
+    }
+    // fields 抽的是字段值，没有「元素 markdown」可言；静默忽略 format 更糟。
+    if params.format == Some(ViewFormat::Markdown) && selector.is_none() {
+        return fail(
+            ErrorCode::Parse,
+            "format=markdown 需要 selector：fields 抽的是字段值，没有 markdown 视图",
+        );
+    }
+    // #190 的续读游标只对扁平 text 定义；markdown 是每条命中各自的视图，
+    // 同一窗口无法同时裁剪两者，明确拒绝而不是返回对不上的 markdown。
+    if params.format == Some(ViewFormat::Markdown) && params.start_index.is_some() {
+        return fail(
+            ErrorCode::Parse,
+            "format=markdown 与 start_index 互斥：续读游标只对 text 视图定义",
+        );
     }
     let envelope = match (params.url.as_deref(), params.html.as_deref()) {
         (Some(url), None) => {
@@ -880,14 +900,29 @@ async fn tool_doc_text(ctx: &McpContext, args: &Value) -> Value {
         Err(value) => return value,
     };
     let (path, url) = (params.path.as_deref(), params.url.as_deref());
+    let view = match params.format {
+        Some(ViewFormat::Markdown) => DocView::Markdown,
+        _ => DocView::Text,
+    };
+    // 续读窗口只对 text 视图定义：markdown 与 text 不是同一套坐标，
+    // 明确拒绝组合，而不是返回一半被切、一半完整的两个视图。
+    if params.format == Some(ViewFormat::Markdown)
+        && (params.start_index.is_some() || params.char_budget.is_some())
+    {
+        return fail(
+            ErrorCode::Parse,
+            "format=markdown 与 start_index/char_budget 互斥：续读窗口只对 text 视图定义",
+        );
+    }
     let (bytes, upstream) = match read_source_bytes(ctx, None, url, path).await {
         Ok(source) => source,
         Err(value) => return value,
     };
-    let value = apply_upstream_degradation(
-        to_value(doc_text(&bytes, &DocOptions::default())),
-        upstream.as_ref(),
-    );
+    let options = DocOptions {
+        view,
+        ..DocOptions::default()
+    };
+    let value = apply_upstream_degradation(to_value(doc_text(&bytes, &options)), upstream.as_ref());
     crate::resume::chunk_doc_text(value, params.start_index, params.char_budget)
 }
 

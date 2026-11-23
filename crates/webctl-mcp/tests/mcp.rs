@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use serde_json::{Value, json};
 use webctl_core::{Config, JsRenderMode};
-use webctl_mcp::{McpContext, TOOL_NAMES, WebctlMcp, qualified_name};
+use webctl_mcp::{McpContext, TOOL_NAMES, WebctlMcp, qualified_name, tool_definitions};
 
 /// MCP-01：initialize 协商 protocolVersion。
 #[test]
@@ -1095,5 +1095,57 @@ async fn sec_09_mcp_fetch_redacts_credentials() {
     assert!(
         serialized.contains("user=bob"),
         "非敏感 query 参数必须保留：{serialized}"
+    );
+}
+
+/// #187 × #190：doc_text 的 inputSchema 声明 path/url/format 与续读参数，工具面仍 18 个。
+#[test]
+fn doc_text_schema_declares_markdown_format() {
+    let definitions = tool_definitions();
+    assert_eq!(definitions.len(), TOOL_NAMES.len(), "工具面仍是 18 个");
+    let tool = definitions
+        .iter()
+        .find(|tool| tool.name == "doc_text")
+        .expect("doc_text 必须在注册表里");
+    let schema = serde_json::to_value(tool).expect("schema");
+    let properties = schema["inputSchema"]["properties"]
+        .as_object()
+        .expect("doc_text 的 inputSchema.properties");
+    let mut declared: Vec<&str> = properties.keys().map(String::as_str).collect();
+    declared.sort_unstable();
+    assert_eq!(
+        declared,
+        ["char_budget", "format", "path", "start_index", "url",]
+    );
+    let schema_text = schema.to_string();
+    assert!(schema_text.contains("\"markdown\""), "{schema_text}");
+    assert!(schema_text.contains("\"text\""), "{schema_text}");
+}
+
+/// #187：MCP 路径把 doc_text 的 format=markdown 接到 DocView，并返回 markdown 视图。
+#[tokio::test]
+async fn doc_text_markdown_format_is_wired_end_to_end() {
+    let dir = temp_dir("doc-markdown");
+    let path = dir.join("page.html");
+    std::fs::write(
+        &path,
+        "<html><body><h1>Title</h1><p>Body text</p></body></html>",
+    )
+    .expect("write fixture");
+    let mcp = WebctlMcp::new(in_process_context("doc-markdown"));
+    let envelope = mcp
+        .invoke(
+            "doc_text",
+            json!({"path": path.to_string_lossy(), "format": "markdown"}),
+        )
+        .await
+        .expect("doc_text 已注册");
+    assert_eq!(envelope["ok"], true, "{envelope}");
+    assert_eq!(envelope["code"], "OK", "{envelope}");
+    let markdown = envelope["data"]["markdown"].as_str().expect("markdown");
+    assert!(markdown.contains("# Title"), "{markdown}");
+    assert!(
+        envelope["data"]["text"].as_str().is_some(),
+        "text 视图必须保持不变：{envelope}"
     );
 }
