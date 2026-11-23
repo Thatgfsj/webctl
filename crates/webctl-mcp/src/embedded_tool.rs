@@ -6,7 +6,9 @@ use serde_json::Value;
 use url::Url;
 
 use webctl_core::{Envelope, ErrorCode};
-use webctl_web::parse::{EmbeddedOptions, extract_embedded};
+use webctl_web::parse::{
+    ApiDiscoveryOptions, EmbeddedOptions, discover_api_endpoints, extract_embedded,
+};
 use webctl_web::politeness::{PoliteFetcher, PolitenessConfig};
 
 use crate::context::McpContext;
@@ -116,5 +118,21 @@ pub(crate) async fn tool_embedded_data(ctx: &McpContext, args: &Value) -> Value 
         envelope = Envelope::degraded(report, from, ErrorCode::Degraded, elapsed);
     }
 
-    apply_render_degradation(to_value(envelope), source.render.as_ref())
+    // #116：API 端点线索。纯函数、零网络：只报告页面源码里明写的地址，绝不探测。
+    // 基准优先取显式 base，其次取页面最终 URL（重定向后）；html 输入没有基准时相对路径进 unresolved。
+    let base = params
+        .base
+        .as_deref()
+        .and_then(|raw| Url::parse(raw).ok())
+        .or_else(|| source.base_url.clone());
+    let api_candidates =
+        discover_api_endpoints(&source.html, base.as_ref(), &ApiDiscoveryOptions::default());
+    let mut value = to_value(envelope);
+    if let Some(data) = value.get_mut("data").and_then(Value::as_object_mut) {
+        data.insert(
+            "api_candidates".to_owned(),
+            serde_json::to_value(api_candidates).unwrap_or(Value::Null),
+        );
+    }
+    apply_render_degradation(value, source.render.as_ref())
 }

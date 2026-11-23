@@ -23,7 +23,7 @@ description: 纯内置的网页取回/解析/抽取 MCP server（零外部进程
 - `cookies` — 查看/导出 cookie（导出需 yes=true，值脱敏，文件权限 0600）。
 - `json_query` — 内置 JSON 查询子集（替代 jq，零外部进程）。
 - `doc_text` — PDF/HTML/XML 文本层提取（替代 pdftotext/pandoc）。
-- `embedded_data` — 抽取页面**内嵌**的结构化数据（JSON-LD / `script[type=json]` / 框架状态容器 / `data-page`）；**零 JS 执行**，零结果是合法空结果。另有 `fetch_channels`（默认关）：把页面声明的 RSS/Atom/oEmbed 通道过 politeness 取回（每次最多 2 个、每 feed 10 条；oEmbed 只保留白名单字段，HTML 型只取标题/摘要；robots 拦下不请求并逐通道报 `blocked`；全失败显式降级）。另有 `fetch_sitemap`（默认关）：robots 声明的 `Sitemap:` 优先，解析 sitemap.xml / sitemap index 只列 URL（不抓取这些页面；有递归层数与条目上限）。
+- `embedded_data` — 抽取页面**内嵌**的结构化数据（JSON-LD / `script[type=json]` / 框架状态容器 / `data-page`）；**零 JS 执行**，零结果是合法空结果。另有 `fetch_channels`（默认关）：把页面声明的 RSS/Atom/oEmbed 通道过 politeness 取回（每次最多 2 个、每 feed 10 条；oEmbed 只保留白名单字段，HTML 型只取标题/摘要；robots 拦下不请求并逐通道报 `blocked`；全失败显式降级）。另有 `fetch_sitemap`（默认关）：robots 声明的 `Sitemap:` 优先，解析 sitemap.xml / sitemap index 只列 URL（不抓取这些页面；有递归层数与条目上限）。另有 `api_candidates`（#116）：从内联脚本 / 内嵌 JSON 报告页面自己写着的 API 线索（`fetch(...)` / `axios.get(...)`、`/api/...`、`/graphql`、`/_next/data/<buildId>/...`、JSON 的 `url` 字段），相对路径按页面最终 URL 或 `base` 归一化，同源 / 跨域分开；**这是线索，不是已经取到的数据**，本工具绝不探测，候选数 32、单条 URL 1024 字符上限，超限 `truncated=true`。
 - `download` — 文件下载到指定目录（尺寸上限与落盘路径）。
 - `robots` — robots.txt 与站点策略查询（礼貌爬取依据；含 `Sitemap:` 声明清单）。
 - `resolve_site` — 按站点名给出入口候选（L1 内置映射/域名直推 + L2 站点内建搜索 + L3 Wikidata P856 + L4 候选域名的 sitemap 声明 + **显式 opt-in** 的 L5 SERP 兜底；多候选、带证据与置信度，**绝不单选**；L2/L3/L4/L5 会联网且过 politeness，offline 模式只走 L1；sitemap 声明只作证据，L5 默认关且结果不跨可靠阈值）。

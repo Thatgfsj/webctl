@@ -412,6 +412,7 @@ fn embedded_data_schema_declares_only_wired_parameters() {
     assert_eq!(
         props,
         vec![
+            "base",
             "fetch_channels",
             "fetch_sitemap",
             "html",

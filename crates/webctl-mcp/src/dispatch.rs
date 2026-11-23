@@ -113,6 +113,8 @@ pub(crate) struct Source {
     pub(crate) render: Option<RenderNote>,
     /// 这份 HTML 的生成路径（#192）：static 或 static+js。
     pub(crate) engine_path: EnginePath,
+    /// 这份 HTML 的基准 URL（#116）：url 输入为重定向后的最终 URL，html 输入为 None。
+    pub(crate) base_url: Option<Url>,
 }
 
 /// 渲染失败时写进信封的降级说明（A3：不许伪装成功）。
@@ -301,6 +303,7 @@ pub(crate) async fn resolve_source(
                 html: page.html,
                 render: page.note,
                 engine_path,
+                base_url: None,
             })
         }
         (Some(url), None) => {
@@ -312,6 +315,7 @@ pub(crate) async fn resolve_source(
                 return Err(to_value(envelope));
             }
             let fetched = envelope.data.expect("ok envelope has data");
+            let base_url = Url::parse(&fetched.final_url).ok();
             let is_html = matches!(fetched.content.kind, webctl_web::ContentKind::Html);
             match fetched.content.text {
                 Some(text) => {
@@ -321,6 +325,7 @@ pub(crate) async fn resolve_source(
                         html: page.html,
                         render: page.note,
                         engine_path,
+                        base_url,
                     })
                 }
                 None => Err(to_value(Envelope::degraded(

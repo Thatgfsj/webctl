@@ -258,6 +258,11 @@ pub struct EmbeddedDataParams {
     pub url: Option<String>,
     /// 内存中的 HTML；与 url 二选一（离线用例用）。
     pub html: Option<String>,
+    /// 归一化相对端点用的基准 URL（可覆盖默认值）。
+    ///
+    /// 缺省时：url 输入用重定向后的最终 URL；html 输入没有基准，相对路径进 `unresolved`。
+    /// 只用于把页面里写着的相对路径转成绝对 URL；**不**会请求它。
+    pub base: Option<String>,
     /// 最多返回的内嵌载荷条数。
     pub max_entries: Option<usize>,
     /// 单条载荷的字节上限（超过则标记 truncated 且不解析）。

@@ -300,7 +300,7 @@ fn find_ci(haystack: &str, needle: &str, from: usize) -> Option<usize> {
 }
 
 /// 逐个取出 `<script …>…</script>`（返回：起始位置、开标签属性原文、脚本体）。
-fn script_blocks(html: &str) -> Vec<(usize, &str, &str)> {
+pub(crate) fn script_blocks(html: &str) -> Vec<(usize, &str, &str)> {
     let mut out = Vec::new();
     let mut cursor = 0usize;
     while let Some(open) = find_ci(html, "<script", cursor) {

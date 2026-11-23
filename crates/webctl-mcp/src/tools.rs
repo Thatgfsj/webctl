@@ -105,7 +105,7 @@ pub const TOOL_SPECS: [ToolSpec; 18] = [
     },
     ToolSpec {
         name: "embedded_data",
-        description: "抽取页面内嵌的结构化数据（JSON-LD / script[type=json] / 框架状态容器 / data-page）；可选取回 RSS/Atom/oEmbed 与 sitemap 条目（默认关）",
+        description: "抽取页面内嵌的结构化数据（JSON-LD / script[type=json] / 框架状态容器 / data-page）；报告内联脚本里的 API 端点线索（只报告、不探测）；可选取回 RSS/Atom/oEmbed 与 sitemap 条目（默认关）",
     },
     ToolSpec {
         name: "download",
