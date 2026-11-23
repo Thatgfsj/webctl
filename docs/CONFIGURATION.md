@@ -135,9 +135,38 @@ js_render = false     # 是否执行页面内联脚本；默认 false（ADR-0005
 | `caps` | 内置能力自检（不联网、不探测外部程序）；含 **SPA 支持面**（认得的容器类型 + 真实可用的替代通道，0.1.2 / #115） |
 | `fetch <URL>` | 取回 http(s) URL，输出结果信封 |
 | `config` | 打印生效配置（代理凭据已脱敏） |
+| `cookies list` | 列出会话 cookie（值脱敏）；参数、行为与退出码自 PR 12 起未变 |
+| `cookies export` | 把会话导出为 JSON；需 `--yes`，`--file` 须落在 state dir 内，写入即 0600 |
+| `cookies storage-state` | 导出 Playwright 兼容的 `storage_state` JSON（别名 `export-storage-state`）；仅目标域、需 `--yes`、0600，详见 §7.1（议题 #240） |
+| `mcp` | 以 stdio 运行 MCP server；`--list-tools` 只打印工具清单 |
 
 `fetch` 是配置面（代理 / 离线 / 超时）的最小可验证载体：
 它在发出请求前检查 `offline`，并把解析后的代理与超时交给取回层。
+
+### 7.1 `cookies storage-state`（议题 #240）
+
+~~~bash
+# 显式目标域：只导出 example.com 及其子域的 cookie / origin
+webctl cookies storage-state --session default --file state.json --domain example.com --yes
+
+# 省略 --domain：从会话观察到的 http(s) origin 与 cookie 域推断唯一父域
+webctl cookies storage-state --file state.json --yes
+~~~
+
+语义与安全边界：
+
+- **目标域推断**：省略 `--domain` 时，候选来自会话记录的 http(s) origin 主机与 cookie 域；
+  仅当某个候选等于其余全部候选或是它们的父域时才采用，否则返回 `BLOCKED`（退出码 5）
+  并提示显式传 `--domain`，不会擅自扩大导出范围。
+- **仅目标域**：cookie 与 origin 都按域名标签比较过滤（`example.com` 不匹配
+  `notexample.com` 或 `example.com.evil`）；非目标域数据不落盘。
+- **确认与路径**：缺少 `--yes` → `BLOCKED`，且在读取会话、创建文件之前就拒绝；`--file`
+  必须是相对 state dir 的相对路径，绝对路径、`..`、目录与 symlink 一律 `BLOCKED`。
+- **权限**：Unix 下创建与覆盖均为 0600；非 Unix 返回 `UNSUPPORTED`（退出码 8），
+  不会降级成更宽权限。
+- **输出脱敏**：结果信封只含 `session` / `target_domain` / `path` / `bytes` / `mode` /
+  `cookies` / `origins` 计数，不含任何 cookie 值；文件本身保留原值供 Playwright 复用。
+- **兼容性**：既有 `cookies list` / `cookies export` 的参数、行为与退出码保持不变。
 
 ## 8. 越界说明
 

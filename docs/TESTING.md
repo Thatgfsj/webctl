@@ -266,7 +266,7 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 | DEGRADE-09 | SPA 空壳 | 首屏空壳 → `UNSUPPORTED`，`data` 说明为何无内容 | L0 | PR 09 |
 | DEGRADE-10 | 不编造内容 | 不得用启发式/模型"补全"未渲染的内容（代码审计 + 用例） | L0 | PR 09 |
 
-### 2.12 CLI — 命令行与配置（12）
+### 2.12 CLI — 命令行与配置（14）
 
 | ID | 用例 | 期望（可机械判定） | 通道 | 归属 |
 |---|---|---|---|---|
@@ -278,11 +278,12 @@ v0.4 **没有浏览器**，因此也不再有"无浏览器 lane / mock-cdp lane"
 | CLI-06 | offline | `--offline` 下零网络访问（fixture 计数为 0） | L0 | PR 10 |
 | CLI-07 | 帮助 | `--help` 列出全部子命令且与文档一致 | L0 | PR 10 |
 | CLI-08 | 未知参数 | 非零退出 + 可读提示 | L0 | PR 10 |
-| CLI-13 | 浏览器上下文 CLI 开关 | `--browser-context` 注入 UA/accept-language/cookie；`--no-browser-context` 压过环境变量；两开关互斥（退出码 2）；坏文件**失败**不静默（[#183](https://github.com/Thatgfsj/webctl/issues/183)） | L0 | 0.2.1 |
 | CLI-09 | 管道友好 | 单行 JSON 输出可直接管道给下游工具 | L0 | PR 10 |
 | CLI-10 | 无凭据输出 | 任何输出/日志不含 cookie/令牌（正则） | L0+L3 | PR 12 |
 | CLI-11 | 环境变量文档 | 代码使用的环境变量全部在文档中列出 | L0 | PR 10 |
 | CLI-12 | 启动开销 | 冷启动（`--version`）< 50ms，不加载网络栈 | L2 | PR 14 |
+| CLI-13 | 浏览器上下文 CLI 开关 | `--browser-context` 注入 UA/accept-language/cookie；`--no-browser-context` 压过环境变量；两开关互斥（退出码 2）；坏文件**失败**不静默（[#183](https://github.com/Thatgfsj/webctl/issues/183)） | L0 | 0.2.1 |
+| CLI-14 | storage_state 导出 | `cookies storage-state` 生成 Playwright 结构（camelCase 字段），只含目标域，0600，信封不含明文；无 `--yes` / 越界路径 / 非法域 → `BLOCKED`（5）且不落盘；非 Unix → `UNSUPPORTED`（8）；既有 `cookies list/export` 行为与退出码不变（`crates/webctl/tests/storage_state.rs`） | L0 | #240 |
 
 ### 2.13 MCP — 工具面与 DSH 契约（14）
 

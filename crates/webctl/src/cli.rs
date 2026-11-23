@@ -18,6 +18,10 @@ use webctl_core::{
     OutputFormat, Trust, default_config_path, load_config_file, redact_url_userinfo, resolve,
 };
 use webctl_web::SessionStore;
+use webctl_web::session::{
+    StorageStateOrigin, export_session_storage_state, export_to_path, infer_target_domain,
+    validate_output_path,
+};
 use webctl_web::transport::{FetchOptions, Fetched, fetch};
 
 /// 错误码 → 进程退出码的稳定映射（CLI-05）。
@@ -173,6 +177,22 @@ enum CookiesAction {
         #[arg(long)]
         yes: bool,
     },
+    /// 导出 Playwright 兼容的 storage_state（需 `--yes`；0600、仅目标域）。
+    #[command(visible_alias = "export-storage-state")]
+    StorageState {
+        /// 会话名。
+        #[arg(long, default_value = "default", value_name = "NAME")]
+        session: String,
+        /// 目标文件；必须是相对 state dir 的相对路径（绝对路径与越界一律拒绝）。
+        #[arg(long, value_name = "PATH")]
+        file: PathBuf,
+        /// 目标域；省略时从会话记录的 origin/cookie 域推断，无法唯一推断则报错。
+        #[arg(long, value_name = "DOMAIN")]
+        domain: Option<String>,
+        /// 明确确认写入凭据。
+        #[arg(long)]
+        yes: bool,
+    },
 }
 
 /// 进程入口：解析参数并执行；解析失败给出可读提示与非零退出码（CLI-08）。
@@ -212,7 +232,7 @@ fn help_footer() -> String {
          未配置时固定直连。\n\n\
          退出码（错误码 → 进程退出码，稳定映射）：\n{}\n\n\
          配置文件为 TOML，可用键：output / timeout_ms / offline / proxy。\n\n\
-         安全默认严格：cookies 导出需 --yes 且文件权限 0600；\n\
+         安全默认严格：cookies 导出与 storage-state 导出需 --yes 且文件权限 0600（storage-state 仅目标域）；\n\
          日志与信封中的 cookie / Authorization 一律脱敏；文件参数须落在 state dir 内。",
         env_vars.join("\n"),
         exit_codes.join("\n")
@@ -423,6 +443,18 @@ struct CookieExport {
     mode: Option<u32>,
 }
 
+/// `cookies storage-state` 的信封数据（不含任何 cookie 值）。
+#[derive(Debug, Serialize)]
+struct StorageStateExport {
+    session: String,
+    target_domain: String,
+    path: String,
+    bytes: usize,
+    mode: Option<u32>,
+    cookies: usize,
+    origins: usize,
+}
+
 fn run_cookies(config: &Config, action: CookiesAction, started: Instant) -> ExitCode {
     match action {
         CookiesAction::List { session } => {
@@ -498,7 +530,100 @@ fn run_cookies(config: &Config, action: CookiesAction, started: Instant) -> Exit
                 render_cookie_export,
             )
         }
+        CookiesAction::StorageState {
+            session,
+            file,
+            domain,
+            yes,
+        } => run_storage_state_export(config, &session, file, domain, yes, started),
     }
+}
+
+/// `cookies storage-state`：复用书库的域过滤、0600 与路径校验语义。
+fn run_storage_state_export(
+    config: &Config,
+    session: &str,
+    file: PathBuf,
+    domain: Option<String>,
+    yes: bool,
+    started: Instant,
+) -> ExitCode {
+    // 与 `cookies export` 同口径：未显式确认时在任何会话/文件动作之前拒绝。
+    if !yes {
+        return fail(
+            ErrorCode::Blocked,
+            "storage_state export requires --yes: refusing to write credentials without explicit confirmation",
+            config.output,
+            started,
+        );
+    }
+    // SEC-11：文件参数先过 containment，再交给 storage_state 的路径校验。
+    let root = SafeRoot::new(config.state_dir.clone());
+    let path = match root.resolve(&file) {
+        Ok(path) => path,
+        Err(error) => return fail(error.code(), &error.message(), config.output, started),
+    };
+    if let Err(error) = validate_output_path(&path) {
+        return fail(error.code(), &error.message(), config.output, started);
+    }
+    let state = match load_session_for_cookies(config, session) {
+        Ok(state) => state,
+        Err((code, message)) => return fail(code, &message, config.output, started),
+    };
+    let target_domain = match domain {
+        Some(domain) => domain,
+        None => match infer_target_domain(&state) {
+            Some(domain) => domain,
+            None => {
+                return fail(
+                    ErrorCode::Blocked,
+                    "cannot infer a single target domain from this session: pass --domain <host>",
+                    config.output,
+                    started,
+                );
+            }
+        },
+    };
+    let origins: Vec<StorageStateOrigin> =
+        state.origins.iter().map(StorageStateOrigin::new).collect();
+    let exported = match export_session_storage_state(&state, &target_domain) {
+        Ok(exported) => exported,
+        Err(error) => return fail(error.code(), &error.message(), config.output, started),
+    };
+    if let Err(error) = export_to_path(&target_domain, &state.cookies, &origins, &path) {
+        return fail(error.code(), &error.message(), config.output, started);
+    }
+    let bytes = std::fs::metadata(&path)
+        .map(|metadata| usize::try_from(metadata.len()).unwrap_or(usize::MAX))
+        .unwrap_or(0);
+    let export = StorageStateExport {
+        session: state.name,
+        target_domain,
+        path: path.display().to_string(),
+        bytes,
+        mode: webctl_core::state::file_mode(&path),
+        cookies: exported.cookies.len(),
+        origins: exported.origins.len(),
+    };
+    emit(
+        Envelope::ok(export, Trust::TrustedLocal, elapsed(started)),
+        config.output,
+        render_storage_state_export,
+    )
+}
+
+fn render_storage_state_export(export: &StorageStateExport) {
+    println!(
+        "exported storage_state for {} to {}（{} cookies / {} origins，mode {}）",
+        export.target_domain,
+        export.path,
+        export.cookies,
+        export.origins,
+        export
+            .mode
+            .map(|mode| format!("{mode:o}"))
+            .unwrap_or_else(|| "n/a".to_owned())
+    );
 }
 
 fn load_session_for_cookies(

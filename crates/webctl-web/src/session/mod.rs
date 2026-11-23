@@ -37,6 +37,7 @@ pub use state::{
 pub use storage_state::{
     LocalStorageEntry, SESSION_COOKIE_EXPIRES, STORAGE_STATE_FILE_MODE, SameSite, StorageState,
     StorageStateCookie, StorageStateError, StorageStateOrigin, domain_matches,
-    export_session_storage_state, export_storage_state, export_to_path, validate_output_path,
+    export_session_storage_state, export_storage_state, export_to_path, infer_target_domain,
+    validate_output_path,
 };
 pub use store::SessionStore;
