@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Client setup — Widget Docs</title>
+</head>
+<body>
+<header class="topbar">
+  <a class="logo" href="/">Widget Docs</a>
+  <nav><a href="/guide">Guide</a> <a href="/api">API</a> <a href="/changelog">Changelog</a> <a href="https://github.com/widget/widget">GitHub</a></nav>
+  <form class="site-search"><input name="q" placeholder="Search docs"></form>
+</header>
+<div class="shell">
+  <aside class="toc">
+    <p class="toc-title">On this page</p>
+    <ul>
+      <li><a href="#install">Install the CLI</a></li>
+      <li><a href="#auth">Authenticate</a></li>
+      <li><a href="#config">Configure the client</a></li>
+      <li><a href="#verify">Verify the setup</a></li>
+    </ul>
+    <p class="sponsor">Docs sponsored by <a href="/sponsors">Acme Cloud</a></p>
+  </aside>
+  <main class="content">
+    <h1>Client setup</h1>
+    <p>This guide walks through installing the Widget command line client, authenticating it against your workspace, and verifying that the connection works.</p>
+    <h2>Install the CLI</h2>
+    <p>The client ships as a single binary with no runtime dependencies. Download the archive for your platform and put the binary somewhere on your PATH.</p>
+    <pre><code>curl -fsSL https://widget.example.com/install.sh | sh
+widget --version</code></pre>
+    <p>If you prefer a package manager, the Homebrew tap and the Scoop bucket are both updated for every release.</p>
+    <h2>Configure the client</h2>
+    <p>Run the login command once per machine. It stores a scoped token in your user configuration directory and refreshes it automatically before it expires.</p>
+    <pre><code>widget login --workspace acme
+widget config set region eu-west</code></pre>
+    <p>Configuration values can also come from environment variables, which take precedence over the file. This is useful in CI, where you should use a short-lived token.</p>
+    <div class="callout note"><p>Tokens created for CI should be limited to the repositories the job actually needs.</p></div>
+    <p>Once the client is configured, run the doctor command to confirm that the binary, the token, and the network path all agree.</p>
+  </main>
+</div>
+<footer class="page-footer">
+  <a href="https://github.com/widget/docs/edit/main/setup.md">Edit this page</a>
+  <p>© 2024 Widget Inc.</p>
+</footer>
+</body>
+</html>

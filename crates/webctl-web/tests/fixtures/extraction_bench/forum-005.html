@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>How do you handle flaky integration tests? — Builders Forum</title>
+</head>
+<body>
+<header class="forum-header">
+  <a class="logo" href="/">Builders Forum</a>
+  <nav><a href="/latest">Latest</a> <a href="/categories">Categories</a> <a href="/login">Log in</a></nav>
+  <form class="search" action="/search"><input name="q" placeholder="Search topics"></form>
+</header>
+<main class="thread">
+  <nav class="crumbs"><a href="/">Home</a> › <a href="/c/testing">Testing</a> › <a href="/t/flaky-tests">Flaky integration tests</a></nav>
+  <h1>How do you handle flaky integration tests?</h1>
+  <div class="post" id="p1">
+    <div class="post-meta"><a href="/u/ana">ana_dev</a> · 12 March · 14 replies</div>
+    <div class="post-body">
+      <p>We have about forty integration tests that hit a real Postgres instance, and roughly three of them fail once every twenty runs for reasons nobody can reproduce locally.</p>
+      <p>Retrying the whole suite hides the problem, but quarantining the tests means they never get fixed. What actually works for teams here?</p>
+    </div>
+    <div class="post-actions"><a href="/report">Report</a> · <a href="/quote">Quote</a></div>
+  </div>
+  <div class="post" id="p2">
+    <div class="post-meta"><a href="/u/ben">ben_ops</a> · 12 March</div>
+    <div class="post-body">
+      <p>The first thing I would do is make each test own its database schema and run in its own transaction, so tests cannot see each other's rows. Most flakiness I have seen came from shared state, not from the database itself.</p>
+      <p>After that, log the queries and timings for failures only. Once you have a month of those logs the pattern is usually obvious.</p>
+    </div>
+    <div class="signature">— Ben, platform team at a payments startup</div>
+  </div>
+  <div class="post" id="p3">
+    <div class="post-meta"><a href="/u/cleo">cleo_writes</a> · 13 March</div>
+    <div class="post-body">
+      <p>Quarantine is fine if it comes with a deadline and an owner. We mark a flaky test with a ticket number and an expiry date, and the build fails when the date passes. It is annoying, which is the point.</p>
+    </div>
+    <div class="signature">— Cleo, quality engineering</div>
+  </div>
+  <div class="post" id="p4">
+    <div class="post-meta"><a href="/u/dmitri">dmitri</a> · 13 March</div>
+    <div class="post-body">
+      <p>Also check the clock. We had a test that failed only when the suite crossed midnight in the CI runner's timezone, which took two months to notice.</p>
+    </div>
+    <div class="signature">— Dmitri, infrastructure</div>
+  </div>
+  <div class="reply-box"><p>Log in to reply.</p></div>
+</main>
+<aside class="rail">
+  <h2>Related threads</h2>
+  <ul>
+    <li><a href="/t/1">Postgres connection pooling in CI</a></li>
+    <li><a href="/t/2">Speeding up a slow test suite</a></li>
+    <li><a href="/t/3">When to delete a flaky test</a></li>
+    <li><a href="/t/4">Docker compose for integration tests</a></li>
+    <li><a href="/t/5">Test data builders that stay readable</a></li>
+  </ul>
+</aside>
+<footer class="forum-footer"><p>© 2024 Builders Forum</p><nav><a href="/rules">Rules</a> <a href="/privacy">Privacy</a></nav></footer>
+</body>
+</html>

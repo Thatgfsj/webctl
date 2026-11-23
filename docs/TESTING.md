@@ -756,6 +756,21 @@ PR 11 留下的 `#[ignore]` 交接哨兵及其常量已随 #82 删除；随后 `
 
 **判别力验证**（作者提供，可复现）：把 PERF-02 的抽取人为重复 6 次 → 实测 19,757.96ms > 上限 10,440.27ms，
 `--check` 报 FAIL 并退出码 1；还原后全部 OK。
+
+### 6.12 #189 抽取质量基准（dev 工具，不进 CI 矩阵）
+
+`parse::article` 的段落级 P/R/F1 锚点：10 个离线 fixture（news/blog/docs/forum/list/wiki/recipe/zh），
+一行一段、多重集 Dice 配对；脚本是 `crates/webctl-web/examples/extraction_bench.rs` +
+`scripts/extraction-benchmark.sh`，口径/样本/实测结果/维护规则全部登记在
+[docs/EXTRACTION-BENCHMARK.md](EXTRACTION-BENCHMARK.md)。
+
+- **跑法**：`scripts/extraction-benchmark.sh`（报告落 `/tmp`，仓库外）；单样本核对用 `--dump <id>`。
+- **当前实测**（2026-11-23，10 样本 83 段）：webctl markdown F1 **0.873**、text 0.863；
+  同批样本 trafilatura 2.3.1 F1 0.897。**不宣称接近 SOTA**，公开数据集数字不可比（见文档 §6）。
+- **为什么不在 CI**：每次 PR 跑基准会与实现抢 CPU，且样本偏差会被固化成门禁；
+  发布前或抽取行为变更时手动跑。
+- **边界**：只测 HTML 正文抽取，不测反爬/JS/PDF；不改产品默认行为、不注册新工具（工具面仍 18 个）。
+
 ## 7. 维护规则
 
 1. 新增用例必须同时写 **通道** 与 **归属 PR**，否则不合并。

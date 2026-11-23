@@ -1,0 +1,6 @@
+We have about forty integration tests that hit a real Postgres instance, and roughly three of them fail once every twenty runs for reasons nobody can reproduce locally.
+Retrying the whole suite hides the problem, but quarantining the tests means they never get fixed. What actually works for teams here?
+The first thing I would do is make each test own its database schema and run in its own transaction, so tests cannot see each other's rows. Most flakiness I have seen came from shared state, not from the database itself.
+After that, log the queries and timings for failures only. Once you have a month of those logs the pattern is usually obvious.
+Quarantine is fine if it comes with a deadline and an owner. We mark a flaky test with a ticket number and an expiry date, and the build fails when the date passes. It is annoying, which is the point.
+Also check the clock. We had a test that failed only when the suite crossed midnight in the CI runner's timezone, which took two months to notice.

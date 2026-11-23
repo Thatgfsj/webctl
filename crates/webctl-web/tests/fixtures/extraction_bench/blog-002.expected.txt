@@ -1,0 +1,5 @@
+For six years this site was built by a static site generator. Every post was a markdown file, every deploy was a git push, and every theme change meant editing templates I had half forgotten.
+Last winter I moved the whole thing to a single small server that renders pages on demand. The site is faster to change, and I spend less time fighting the build pipeline than I did before.
+The best publishing tool is the one you stop thinking about.
+There are trade-offs. I now have to think about caching, uptime, and backups in a way I never did when the output was a folder of HTML files sitting on a CDN.
+Would I go back? Probably not. The ability to fix a typo in the database and see it live ten seconds later has changed how often I write, and how much I enjoy it.

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Why does my retry wrapper double the request rate after a timeout? — Builders Forum</title>
+</head>
+<body>
+<header class="forum-header">
+  <a class="logo" href="/">Builders Forum</a>
+  <nav><a href="/latest">Latest</a> <a href="/tags/go">Go</a> <a href="/login">Log in</a></nav>
+</header>
+<main class="thread qa">
+  <nav class="crumbs"><a href="/">Home</a> › <a href="/c/go">Go</a> › <a href="/t/retry-wrapper">Retry wrapper</a></nav>
+  <h1>Why does my retry wrapper double the request rate after a timeout?</h1>
+  <div class="question-meta"><span>Asked 2 days ago</span><span>Viewed 182 times</span><span>3 answers</span></div>
+  <div class="post accepted-parent">
+    <div class="post-body">
+      <p>I wrote a small retry wrapper around an HTTP client. When a request times out after thirty seconds, the wrapper starts a new attempt immediately, but the original request is still running in the background.</p>
+      <p>The result is that a single logical request becomes two or three concurrent requests, and our rate limiter starts rejecting everything for the next minute.</p>
+    </div>
+    <div class="post-actions"><a href="/report">Report</a> · <a href="/edit">Edit</a></div>
+  </div>
+  <h2>Accepted answer</h2>
+  <div class="answer accepted">
+    <div class="vote"><span>42 votes</span><a href="/upvote">Upvote</a></div>
+    <div class="post-body">
+      <p>A timeout on the client side does not cancel the underlying request. Unless you explicitly abort it, the socket stays open and the server keeps working.</p>
+      <p>Pass a cancellation token from your wrapper into the HTTP call, and abort it when the timeout fires. In most clients the abort closes the connection and releases the slot.</p>
+      <pre><code>ctx, cancel := context.WithTimeout(parent, 30*time.Second)
+defer cancel()</code></pre>
+    </div>
+  </div>
+  <h2>Other answers</h2>
+  <div class="answer">
+    <div class="vote"><span>11 votes</span><a href="/upvote">Upvote</a></div>
+    <div class="post-body">
+      <p>Worth adding that retries should also use a deadline budget, not just a per-attempt timeout, or a slow dependency can hold a worker far longer than you expect.</p>
+    </div>
+  </div>
+  <div class="answer">
+    <div class="vote"><span>6 votes</span><a href="/upvote">Upvote</a></div>
+    <div class="post-body">
+      <p>If the server supports idempotency keys, send one per logical request. Then a retried request that reaches the server twice is safe to deduplicate instead of doubling the load.</p>
+    </div>
+  </div>
+  <div class="related-questions">
+    <h2>Related questions</h2>
+    <ul>
+      <li><a href="/q/1">How do I cancel an in-flight request in Go?</a></li>
+      <li><a href="/q/2">Retry budgets versus fixed retry counts</a></li>
+      <li><a href="/q/3">Idempotency keys for POST endpoints</a></li>
+    </ul>
+  </div>
+</main>
+<footer class="forum-footer"><p>© 2024 Builders Forum</p><nav><a href="/rules">Rules</a></nav></footer>
+</body>
+</html>
