@@ -274,6 +274,51 @@ pub fn export_to_path(
     state.write_to_path(path)
 }
 
+/// 推断 CLI 默认目标域（不改变 [`export_session_storage_state`] 的显式语义）。
+///
+/// 候选来自会话记录里可解析的 http(s) origin 主机与 cookie 域。只有某个候选
+/// 覆盖全部其他候选（相等，或是它们的父域）时才返回它；互不覆盖时返回
+/// `None`，由调用方要求显式 `--domain`。这样默认值不会把导出扩大到会话
+/// 未观察到的域。
+pub fn infer_target_domain(state: &SessionState) -> Option<String> {
+    let mut candidates: Vec<String> = Vec::new();
+    for origin in &state.origins {
+        if let Some(host) = origin_host(origin) {
+            push_candidate(&mut candidates, host);
+        }
+    }
+    for cookie in &state.cookies {
+        push_candidate(&mut candidates, normalize_domain(&cookie.domain));
+    }
+    candidates
+        .iter()
+        .filter(|candidate| {
+            candidates
+                .iter()
+                .all(|other| domain_matches(candidate.as_str(), other.as_str()))
+        })
+        .min_by_key(|candidate| candidate.split('.').count())
+        .cloned()
+}
+
+fn origin_host(origin: &str) -> Option<String> {
+    let url = url::Url::parse(origin).ok()?;
+    if !matches!(url.scheme(), "http" | "https") {
+        return None;
+    }
+    match url.host()? {
+        url::Host::Domain(domain) => Some(normalize_domain(domain)),
+        url::Host::Ipv4(ip) => Some(ip.to_string()),
+        url::Host::Ipv6(ip) => Some(ip.to_string()),
+    }
+}
+
+fn push_candidate(candidates: &mut Vec<String>, candidate: String) {
+    if !candidate.is_empty() && !candidates.contains(&candidate) {
+        candidates.push(candidate);
+    }
+}
+
 /// 域名是否命中：`host` 等于目标域，或是目标的子域（按标签比较）。
 pub fn domain_matches(target_domain: &str, host: &str) -> bool {
     let target = normalize_domain(target_domain);
@@ -697,5 +742,42 @@ mod tests {
         assert_eq!(state.origins.len(), 1);
         assert_eq!(state.origins[0].origin, "https://example.test");
         assert!(state.origins[0].local_storage.is_empty());
+    }
+
+    #[test]
+    fn infer_target_domain_uses_a_parent_that_covers_every_candidate() {
+        let mut session = SessionState::new("default", std::time::Duration::from_secs(60));
+        session
+            .cookies
+            .push(stored("sid", "SECRET", "app.example.test"));
+        session
+            .cookies
+            .push(stored("root", "SECRET", ".example.test"));
+        session.note_origin("https://app.example.test/login");
+
+        assert_eq!(
+            infer_target_domain(&session).as_deref(),
+            Some("example.test")
+        );
+    }
+
+    #[test]
+    fn infer_target_domain_requires_explicit_domain_for_unrelated_sites() {
+        let mut session = SessionState::new("default", std::time::Duration::from_secs(60));
+        session.cookies.push(stored("a", "SECRET", "example.test"));
+        session.cookies.push(stored("b", "SECRET", "other.test"));
+
+        assert_eq!(infer_target_domain(&session), None);
+    }
+
+    #[test]
+    fn infer_target_domain_falls_back_to_origin_host_without_cookies() {
+        let mut session = SessionState::new("default", std::time::Duration::from_secs(60));
+        session.note_origin("https://example.test/login");
+
+        assert_eq!(
+            infer_target_domain(&session).as_deref(),
+            Some("example.test")
+        );
     }
 }
