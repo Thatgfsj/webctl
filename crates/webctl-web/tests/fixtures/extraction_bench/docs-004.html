@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Release notes — Widget Docs</title>
+</head>
+<body>
+<header class="topbar">
+  <a class="logo" href="/">Widget Docs</a>
+  <nav><a href="/guide">Guide</a> <a href="/api">API</a> <a href="/changelog">Changelog</a></nav>
+</header>
+<div class="shell">
+  <aside class="toc">
+    <p class="toc-title">Versions</p>
+    <ul>
+      <li><a href="#v240">2.4.0</a></li>
+      <li><a href="#v231">2.3.1</a></li>
+      <li><a href="#v230">2.3.0</a></li>
+      <li><a href="#v220">2.2.0</a></li>
+    </ul>
+  </aside>
+  <main class="content">
+    <h1>Release notes</h1>
+    <p>All notable changes to the Widget client are documented here. The format follows the keep-a-changelog conventions, and releases follow semantic versioning.</p>
+    <h2>Version 2.4.0</h2>
+    <p class="release-date">Released on 2024-09-12</p>
+    <ul>
+      <li>Added streaming downloads for archives larger than one gigabyte, with resumable transfers and checksum verification.</li>
+      <li>Added a doctor command that checks binary integrity, token scope, and network reachability in one pass.</li>
+      <li>Changed the default retry policy to use exponential backoff with jitter and a hard cap of three attempts.</li>
+      <li>Fixed a race condition where two concurrent login commands could overwrite the token file and corrupt the profile.</li>
+    </ul>
+    <h2>Version 2.3.1</h2>
+    <p class="release-date">24 July 2024</p>
+    <ul>
+      <li>Fixed an encoding bug that corrupted non-ASCII filenames when extracting archives on Windows systems.</li>
+      <li>Improved error messages for expired tokens, including the exact expiry timestamp and a hint to re-authenticate.</li>
+      <li>Updated the bundled certificate store and removed two roots that had been retired by their operators.</li>
+    </ul>
+  </main>
+</div>
+<footer class="page-footer">
+  <a href="https://github.com/widget/docs/edit/main/changelog.md">Edit this page</a>
+  <p>© 2024 Widget Inc.</p>
+</footer>
+</body>
+</html>

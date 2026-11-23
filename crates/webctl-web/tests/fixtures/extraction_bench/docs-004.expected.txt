@@ -1,0 +1,12 @@
+All notable changes to the Widget client are documented here. The format follows the keep-a-changelog conventions, and releases follow semantic versioning.
+Version 2.4.0
+Released on 2024-09-12
+Added streaming downloads for archives larger than one gigabyte, with resumable transfers and checksum verification.
+Added a doctor command that checks binary integrity, token scope, and network reachability in one pass.
+Changed the default retry policy to use exponential backoff with jitter and a hard cap of three attempts.
+Fixed a race condition where two concurrent login commands could overwrite the token file and corrupt the profile.
+Version 2.3.1
+24 July 2024
+Fixed an encoding bug that corrupted non-ASCII filenames when extracting archives on Windows systems.
+Improved error messages for expired tokens, including the exact expiry timestamp and a hint to re-authenticate.
+Updated the bundled certificate store and removed two roots that had been retired by their operators.

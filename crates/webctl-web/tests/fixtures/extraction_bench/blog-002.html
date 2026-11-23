@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Why I stopped using a static site generator — Notes from the Margins</title>
+</head>
+<body>
+<header class="blog-header">
+  <a class="brand" href="/">Notes from the Margins</a>
+  <nav><a href="/archive">Archive</a> <a href="/about">About</a> <a href="/feed.xml">RSS</a></nav>
+</header>
+<div class="layout">
+  <main>
+    <article class="post">
+      <h1>Why I stopped using a static site generator</h1>
+      <p class="post-meta">Posted on March 3 by Sam Rivera</p>
+      <p>For six years this site was built by a static site generator. Every post was a markdown file, every deploy was a git push, and every theme change meant editing templates I had half forgotten.</p>
+      <p>Last winter I moved the whole thing to a single small server that renders pages on demand. The site is faster to change, and I spend less time fighting the build pipeline than I did before.</p>
+      <blockquote>The best publishing tool is the one you stop thinking about.</blockquote>
+      <p>There are trade-offs. I now have to think about caching, uptime, and backups in a way I never did when the output was a folder of HTML files sitting on a CDN.</p>
+      <p>Would I go back? Probably not. The ability to fix a typo in the database and see it live ten seconds later has changed how often I write, and how much I enjoy it.</p>
+      <div class="post-tags"><a href="/tag/writing">writing</a> <a href="/tag/tools">tools</a> <a href="/tag/web">web</a></div>
+    </article>
+    <section class="comments">
+      <h2>Comments</h2>
+      <div class="comment">
+        <p class="who">Jen — March 4</p>
+        <p>I moved to a VPS two years ago and never looked back. The caching part is what finally made me slow down and measure things instead of guessing.</p>
+      </div>
+      <div class="comment">
+        <p class="who">Marco — March 4</p>
+        <p>Interesting. I tried this and missed the safety of immutable deploys more than I expected, especially after breaking the production database during a migration.</p>
+      </div>
+      <div class="comment">
+        <p class="who">Priya — March 5</p>
+        <p>What are you using for backups? That is the part that keeps me on the static side of the fence, honestly.</p>
+      </div>
+    </section>
+  </main>
+  <aside class="sidebar">
+    <h2>About</h2>
+    <p>Sam Rivera writes about building small websites and the tools that get out of the way.</p>
+    <h2>Recent posts</h2>
+    <ul><li><a href="/p1">Notes on plain text</a></li><li><a href="/p2">A year of tiny servers</a></li><li><a href="/p3">Reading logs, again</a></li></ul>
+    <form class="subscribe" action="/subscribe"><input name="email" placeholder="Email"><button>Subscribe</button></form>
+  </aside>
+</div>
+<footer><p>© 2024 Sam Rivera</p><nav><a href="/privacy">Privacy</a></nav></footer>
+</body>
+</html>

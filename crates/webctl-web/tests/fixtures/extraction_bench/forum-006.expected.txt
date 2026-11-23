@@ -1,0 +1,8 @@
+I wrote a small retry wrapper around an HTTP client. When a request times out after thirty seconds, the wrapper starts a new attempt immediately, but the original request is still running in the background.
+The result is that a single logical request becomes two or three concurrent requests, and our rate limiter starts rejecting everything for the next minute.
+Accepted answer
+A timeout on the client side does not cancel the underlying request. Unless you explicitly abort it, the socket stays open and the server keeps working.
+Pass a cancellation token from your wrapper into the HTTP call, and abort it when the timeout fires. In most clients the abort closes the connection and releases the slot.
+ctx, cancel := context.WithTimeout(parent, 30*time.Second)
+Worth adding that retries should also use a deadline budget, not just a per-attempt timeout, or a slow dependency can hold a worker far longer than you expect.
+If the server supports idempotency keys, send one per logical request. Then a retried request that reaches the server twice is safe to deduplicate instead of doubling the load.

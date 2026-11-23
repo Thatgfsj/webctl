@@ -1,0 +1,76 @@
+{
+  "schema": 1,
+  "description": "webctl 抽取质量基准的本地样本清单（议题 #189）。顺序即报告顺序；html 与 expected 均为本目录内文件名。expected 一行一段，含标题与正文，不含 byline、短导航、评论、签名、广告与页脚。",
+  "samples": [
+    {
+      "id": "news-001",
+      "category": "news",
+      "html": "news-001.html",
+      "expected": "news-001.expected.txt",
+      "note": "新闻正文：导航、广告、相关阅读、订阅框、页脚；byline 不计。"
+    },
+    {
+      "id": "blog-002",
+      "category": "blog",
+      "html": "blog-002.html",
+      "expected": "blog-002.expected.txt",
+      "note": "个人博客：侧栏、三条长评论（不计）、标签、订阅表单。"
+    },
+    {
+      "id": "docs-003",
+      "category": "docs",
+      "html": "docs-003.html",
+      "expected": "docs-003.expected.txt",
+      "note": "文档页：侧栏目录、两段代码块（逐行计段）、提示框、页脚编辑链接。"
+    },
+    {
+      "id": "docs-004",
+      "category": "docs",
+      "html": "docs-004.html",
+      "expected": "docs-004.expected.txt",
+      "note": "更新日志：版本小节 + 项目符号列表，测试列表型结构。"
+    },
+    {
+      "id": "forum-005",
+      "category": "forum",
+      "html": "forum-005.html",
+      "expected": "forum-005.expected.txt",
+      "note": "论坛帖：四个楼层正文计入，签名档、楼层元信息、相关帖不计。"
+    },
+    {
+      "id": "forum-006",
+      "category": "forum",
+      "html": "forum-006.html",
+      "expected": "forum-006.expected.txt",
+      "note": "问答页：提问 + 采纳回答 + 两个其他回答；投票数与相关问题不计。"
+    },
+    {
+      "id": "list-007",
+      "category": "list",
+      "html": "list-007.html",
+      "expected": "list-007.expected.txt",
+      "note": "清单型页面：分组标题 + 12 条条目 + 贡献说明；赞助与统计不计。"
+    },
+    {
+      "id": "wiki-008",
+      "category": "wiki",
+      "html": "wiki-008.html",
+      "expected": "wiki-008.expected.txt",
+      "note": "百科条目：信息框与参考文献不计，正文六段 + 三个小节标题。"
+    },
+    {
+      "id": "recipe-009",
+      "category": "recipe",
+      "html": "recipe-009.html",
+      "expected": "recipe-009.expected.txt",
+      "note": "食谱页：配料与步骤条目逐条计段，用户评论与广告不计。"
+    },
+    {
+      "id": "zh-010",
+      "category": "zh",
+      "html": "zh-010.html",
+      "expected": "zh-010.expected.txt",
+      "note": "中文新闻：验证 CJK 逐字分词与中文页面的抽取质量。"
+    }
+  ]
+}
