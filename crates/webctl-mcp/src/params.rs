@@ -21,21 +21,40 @@ pub struct FetchParams {
     pub timeout_ms: Option<u64>,
 }
 
-/// extract：按 CSS 选择器抽取（url 或 html 二选一）。
+/// extract：按 CSS 选择器抽取，或按 `fields` schema 抽字段（#193）。
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
 pub struct ExtractParams {
-    /// CSS 选择器。
-    pub selector: String,
+    /// CSS 选择器；与 `fields` 至少给一个。两者同时给出时分别执行并合并结果。
+    pub selector: Option<String>,
     /// 目标 URL；与 html 二选一。
     pub url: Option<String>,
     /// 内存中的 HTML；与 url 二选一。
     pub html: Option<String>,
-    /// 最多返回的命中数。
+    /// 最多返回的命中数（也用作 `fields[].all=true` 的数组上限）。
     pub max_results: Option<usize>,
     /// 返回文本的字符预算。
     pub char_budget: Option<usize>,
     /// 每条命中保留的上下文两侧字符数。
     pub context_chars: Option<usize>,
+    /// schema 化字段：字段名 -> {selector, attr, all}；与 `selector` 至少给一个。
+    ///
+    /// `attr` 为 null/缺省时取元素文本，否则取该属性；`all=true` 返回数组。
+    /// 单个字段失败写入 `data.diagnostics`，不使整个请求失败；空对象或全部字段
+    /// 非法才是 PARSE。
+    pub fields: Option<BTreeMap<String, ExtractFieldSpec>>,
+}
+
+/// `extract.fields` 中单个字段的声明。
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+pub struct ExtractFieldSpec {
+    /// 该字段使用的 CSS 选择器。
+    pub selector: String,
+    /// 取文本（null/缺省）或取指定属性（如 src / href）。
+    #[serde(default)]
+    pub attr: Option<String>,
+    /// true 返回数组（文档序，受 max_results 限制）；缺省 false 只取第一个命中。
+    #[serde(default)]
+    pub all: bool,
 }
 
 /// search：页面内文本/正则搜索。

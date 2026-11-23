@@ -6,6 +6,7 @@
 //! - 页面/网络内容一律 meta.trust=untrusted_page_content；只有 caps 这种本地自检用 trusted_local。
 //! - 会话名先过归属校验（MCP-07），再落到与 CLI 共享的 state dir（MCP-13）。
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -15,12 +16,13 @@ use url::Url;
 use webctl_core::{EnginePath, Envelope, ErrorCode, JsRenderMode, Trust};
 use webctl_web::degrade::Assessment;
 use webctl_web::doc::{DocOptions, doc_text, json_query};
-use webctl_web::extract::{self, ExtractOptions, LinkFilter, SearchOptions};
+use webctl_web::extract::{self, ExtractOptions, FieldSpec, LinkFilter, SearchOptions};
 use webctl_web::politeness::{PoliteFetcher, PolitenessConfig};
 use webctl_web::session::{FormFill, SessionEngine, SessionState};
 use webctl_web::transport::{Fetched, fetch};
 
 use crate::context::McpContext;
+use crate::extract_tool::{MISSING_TARGET, extract_body_value, extract_value, field_specs};
 use crate::params::*;
 use crate::tools::TOOL_NAMES;
 
@@ -240,14 +242,36 @@ fn render_for_parse(ctx: &McpContext, html: &str, is_html: bool) -> RenderedPage
     }
 }
 
-/// 用渲染结果重跑一次 `extract`，并把渲染失败说明与 engine_path 一起写进信封。
-fn finish_extract(page: RenderedPage, selector: &str, options: &ExtractOptions) -> Value {
+/// 用渲染结果重跑一次 `extract`（支持 `fields`），并把渲染失败说明与 engine_path 一起写进信封。
+fn finish_extract_fields(
+    page: RenderedPage,
+    selector: Option<&str>,
+    fields: Option<&BTreeMap<String, FieldSpec>>,
+    options: &ExtractOptions,
+) -> Value {
     let engine_path = page.engine_path();
     let envelope = apply_render_degradation(
-        to_value(extract::extract(&page.html, selector, options)),
+        extract_value(&page.html, selector, fields, options),
         page.note.as_ref(),
     );
     apply_engine_path(envelope, engine_path)
+}
+
+/// 静态抽取是否“零命中”：选择器无 match 且 fields 全为 null（fields 缺失视为真）。
+fn static_extract_empty(envelope: &Value) -> bool {
+    let Some(data) = envelope.get("data") else {
+        return false;
+    };
+    let matches_empty = data
+        .get("matches")
+        .and_then(Value::as_array)
+        .map_or(true, |matches| matches.is_empty());
+    let fields_empty = match data.get("fields") {
+        Some(Value::Object(map)) => !map.is_empty() && map.values().all(Value::is_null),
+        Some(_) => false,
+        None => true,
+    };
+    matches_empty && fields_empty
 }
 
 /// 把渲染说明与 engine_path 一起挂到解析结果信封上（#192）。
@@ -350,6 +374,12 @@ async fn tool_extract(ctx: &McpContext, args: &Value) -> Value {
     if let Some(value) = params.context_chars {
         options.context_chars = value;
     }
+    let selector = params.selector.as_deref();
+    let fields = field_specs(&params);
+    let fields = fields.as_ref();
+    if selector.is_none() && fields.is_none() {
+        return fail(ErrorCode::Parse, MISSING_TARGET);
+    }
     match (params.url.as_deref(), params.html.as_deref()) {
         (Some(url), None) => {
             if let Some(rejected) = offline_guard(ctx) {
@@ -363,59 +393,44 @@ async fn tool_extract(ctx: &McpContext, args: &Value) -> Value {
             let is_html = matches!(fetched.content.kind, webctl_web::ContentKind::Html);
             // 非 HTML：逐字走原路径（内容类型路由不属于渲染范畴）。
             if !is_html {
-                return to_value(extract::extract_body(
-                    &fetched.content,
-                    &params.selector,
-                    &options,
-                ));
+                return extract_body_value(&fetched.content, selector, fields, &options);
             }
             let raw = fetched.content.text.clone().unwrap_or_default();
             match ctx.config.js_render {
                 // 关闭时**逐字**走原路径（硬要求：默认行为不变）。
                 JsRenderMode::Off => apply_engine_path(
-                    to_value(extract::extract_body(
-                        &fetched.content,
-                        &params.selector,
-                        &options,
-                    )),
+                    extract_body_value(&fetched.content, selector, fields, &options),
                     EnginePath::Static,
                 ),
                 // 全量：所有 HTML 渲染一次再解析（旧 true 语义）。
-                JsRenderMode::On => finish_extract(render_page(&raw), &params.selector, &options),
+                JsRenderMode::On => {
+                    finish_extract_fields(render_page(&raw), selector, fields, &options)
+                }
                 // 自适应：先静态抽取；只有零命中且判空壳时才渲染该页。
                 JsRenderMode::Auto => {
-                    let envelope =
-                        extract::extract_body(&fetched.content, &params.selector, &options);
-                    let static_empty = envelope.ok
-                        && envelope
-                            .data
-                            .as_ref()
-                            .is_some_and(|result| result.matches.is_empty());
-                    if static_empty && auto_wants_render(&raw) {
-                        finish_extract(render_page(&raw), &params.selector, &options)
+                    let envelope = extract_body_value(&fetched.content, selector, fields, &options);
+                    if static_extract_empty(&envelope) && auto_wants_render(&raw) {
+                        finish_extract_fields(render_page(&raw), selector, fields, &options)
                     } else {
-                        apply_engine_path(to_value(envelope), EnginePath::Static)
+                        apply_engine_path(envelope, EnginePath::Static)
                     }
                 }
             }
         }
         (None, Some(html)) => match ctx.config.js_render {
             JsRenderMode::Off => apply_engine_path(
-                to_value(extract::extract(html, &params.selector, &options)),
+                extract_value(html, selector, fields, &options),
                 EnginePath::Static,
             ),
-            JsRenderMode::On => finish_extract(render_page(html), &params.selector, &options),
+            JsRenderMode::On => {
+                finish_extract_fields(render_page(html), selector, fields, &options)
+            }
             JsRenderMode::Auto => {
-                let envelope = extract::extract(html, &params.selector, &options);
-                let static_empty = envelope.ok
-                    && envelope
-                        .data
-                        .as_ref()
-                        .is_some_and(|result| result.matches.is_empty());
-                if static_empty && auto_wants_render(html) {
-                    finish_extract(render_page(html), &params.selector, &options)
+                let envelope = extract_value(html, selector, fields, &options);
+                if static_extract_empty(&envelope) && auto_wants_render(html) {
+                    finish_extract_fields(render_page(html), selector, fields, &options)
                 } else {
-                    apply_engine_path(to_value(envelope), EnginePath::Static)
+                    apply_engine_path(envelope, EnginePath::Static)
                 }
             }
         },

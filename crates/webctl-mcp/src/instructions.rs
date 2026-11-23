@@ -15,7 +15,7 @@ pub const INSTRUCTIONS: &str = r#"webctl MCP server：纯内置的网页取回 /
 ## 工具边界
 本服务器只注册 18 个工具（仅这些，没有截图、没有坐标点击、没有 evaluate）：
 - 取回：fetch（状态/头/重定向链/内容或落盘路径）、download（落盘到指定目录）。
-- 抽取：extract（CSS 选择器）、search（文本/正则）、links、tables、forms。
+- 抽取：extract（CSS 选择器，或 fields schema 一次抽多字段）、search（文本/正则）、links、tables、forms。
 - 会话：fill_form、paginate、session、cookies。
 - 数据：json_query、doc_text（PDF/HTML/XML 文本层）、embedded_data（页面内嵌 JSON：JSON-LD / script[type=json] / 框架状态容器）、robots、caps。
 - 搜索：web_search（全网搜索，默认 Bing；engines 可选 bing/baidu/360，多引擎按 URL 去重 + RRF 融合；结果卡片含 title/url/snippet；同域多条默认折叠为一条主结果并给 same_domain_count（expand_domains=true 展开完整列表）；snippet 默认按 Unicode 字符截断到 300（snippet_max_chars 可调，0=不截断，截断时 snippet_truncated=true）；部分引擎失败 → DEGRADED + search-partial；exclude 可传排除操作符（如 -tutorial、-site:csdn.net），规范化后回显 applied_operators，引擎忽略时 DEGRADED + search-operator-ignored；摘要解析在 0.2.2 M2（本版不返回）；正文用 fetch/extract 取）。

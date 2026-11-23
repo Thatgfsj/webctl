@@ -35,18 +35,23 @@ use webctl_core::{Envelope, ErrorCode, Trust};
 use crate::parse::elapsed_ms;
 
 pub mod context;
+pub mod fields;
 pub mod links;
 pub mod path;
 pub mod search;
 pub mod structured;
 
 pub use context::{head_chars, tail_chars};
+pub use fields::{
+    FieldDiagnostic, FieldIssueKind, FieldSetResult, FieldSpec, FieldValue, MAX_FIELDS,
+    extract_fields,
+};
 
 /// `extract` 是 `select_matches` 的别名，方便 CLI/MCP 以工具名 `extract` 暴露。
 pub use self::select_matches as extract;
 pub use links::{FilteredLinks, LinkFilter, links};
 pub use search::{SearchMatch, SearchOptions, SearchResult, search};
-pub use structured::{extract_body, form_by_index, forms, tables};
+pub use structured::{extract_body, extract_fields_body, form_by_index, forms, tables};
 
 /// 抽取引擎的默认稳定性声明，直接暴露给调用方写进输出。
 pub const STABILITY_NOTE: &str = "selector matches are not stable across requests: every parse is a fresh document; \

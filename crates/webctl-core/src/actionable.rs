@@ -44,6 +44,13 @@ pub const PLANS: &[(&str, Plan)] = &[
         },
     ),
     (
+        "fields-truncated",
+        Plan {
+            reason: "field-limit-reached",
+            next_steps: &["extract", "paginate"],
+        },
+    ),
+    (
         "response-body-truncated",
         Plan {
             reason: "response-truncated",
